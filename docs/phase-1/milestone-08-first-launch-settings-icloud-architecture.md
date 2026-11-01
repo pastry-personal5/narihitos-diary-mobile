@@ -41,9 +41,10 @@ Application-owned ports keep effects replaceable:
 - `MicrophoneAuthorizationPort` and `LocationAuthorizationPort` read current status and request only when eligible.
 - `SystemSettingsPort` opens the app's Settings page without giving the use case general URL-opening authority.
 - `FirstLaunchStorePort` persists explanation completion, a pre-request attempt marker, and progression state. It never persists permission truth, which always comes from the platform adapter.
-- `DestinationSelectionPort` presents one folder candidate or cancellation. It is a presentation/platform bridge, not the destination repository.
+- `DestinationSelectionPort` presents one folder candidate or cancellation. It is an adapter-edge presentation/platform bridge, not an application-layer contract or the destination repository; its picker URL never enters domain/application values.
 - `DestinationPort` validates and accepts a candidate, returns the active summary/state, and lends a short-lived scoped capability to later adapters. Its public contract never returns a URL or bookmark.
-- `ActiveDestinationStorePort` atomically persists the opaque destination record and bookmark payload behind the adapter. Core use cases cannot read or construct its representation.
+- `DestinationSettingsStore` atomically persists the opaque destination record and bookmark payload behind the adapter. Core use cases cannot read or construct its representation.
+- `DestinationPlatform` isolates scope acquisition, coordinated metadata inspection, bookmark creation/resolution, and opaque iCloud-identity comparison so transaction and lifecycle behavior is deterministic under test without weakening production validation.
 
 Keep the destination capability separate from `PrivateWorkspacePort`: M7 owns app-private job artifacts, while M8 owns user-granted external-directory access. Do not place bookmark bytes in Diary Snippet front matter, queue-facing display values, `UserDefaults` keys exposed to UI, diagnostics, or navigation state.
 

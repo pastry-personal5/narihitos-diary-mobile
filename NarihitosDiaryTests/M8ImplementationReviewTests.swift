@@ -68,6 +68,20 @@ struct M8ImplementationReviewTests {
     #expect(!model.offersSettingsRecovery)
   }
 
+  @Test func firstRecordGrantRechecksLiveFolderBeforeRouting() async {
+    let microphone = ReviewMicrophone(state: .notDetermined)
+    microphone.requestResult = .authorized
+    let destination = ReviewDestinationService()
+    let model = makeModel(microphone: microphone, destinationService: destination)
+
+    await model.handleRecord()
+
+    #expect(microphone.requestCount == 1)
+    #expect(destination.activeRequestCount == 1)
+    #expect(model.isFolderPickerPresented)
+    #expect(model.message == nil)
+  }
+
   @Test func disclosureDismissalWriteDoesNotDiscardAcceptedFolder() {
     let prepared = PreparedDestination(
       id: UUID(), displayName: "Diary", needsDisclosure: true)
@@ -107,6 +121,78 @@ struct M8ImplementationReviewTests {
     #expect(model.preparedDestination == nil)
   }
 
+  @Test func activationRefreshesLivePermissionsAndDestination() async {
+    let microphone = ReviewMicrophone(state: .denied)
+    let location = ReviewLocation(state: .restricted)
+    let summary = DestinationSummary(id: DestinationID.make(), displayName: "Diary")
+    let destination = ReviewDestinationService(
+      active: ActiveDestination(summary: summary, accessState: .accessible))
+    let model = makeModel(
+      microphone: microphone,
+      location: location,
+      destinationService: destination)
+    microphone.state = .authorized
+    location.state = .authorized
+
+    await model.becameActive()
+
+    #expect(model.microphoneState == .authorized)
+    #expect(model.locationState == .authorized)
+    #expect(model.destination.summary == summary)
+    #expect(destination.activeRequestCount == 1)
+  }
+
+  @Test func explicitLocationRequestRunsOnlyWhileUndetermined() async {
+    let location = ReviewLocation(state: .notDetermined)
+    location.requestResult = .authorized
+    let model = makeModel(
+      microphone: ReviewMicrophone(state: .authorized), location: location)
+
+    await model.requestLocation()
+    await model.requestLocation()
+
+    #expect(location.requestCount == 1)
+    #expect(model.locationState == .authorized)
+  }
+
+  @Test func sceneAndIdentityChangesInvalidatePreparedAccess() async {
+    let destination = ReviewDestinationService()
+    destination.prepareOutcome = .prepared(
+      PreparedDestination(id: UUID(), displayName: "Diary", needsDisclosure: true))
+    let model = makeModel(
+      microphone: ReviewMicrophone(state: .authorized),
+      destinationService: destination)
+
+    model.selectFolder()
+    model.pickedFolder(URL(fileURLWithPath: "/unused-test-folder"))
+    model.becameInactive()
+
+    #expect(destination.invalidateCount == 2)
+    #expect(model.preparedDestination == nil)
+    #expect(!model.isFolderPickerPresented)
+
+    await model.identityChanged()
+    #expect(destination.invalidateCount == 3)
+    #expect(destination.activeRequestCount == 1)
+  }
+
+  @Test func folderSelectionFailuresUseSanitizedMessages() {
+    let destination = ReviewDestinationService()
+    let model = makeModel(
+      microphone: ReviewMicrophone(state: .authorized),
+      destinationService: destination)
+
+    destination.prepareOutcome = .rejected
+    model.pickedFolder(URL(fileURLWithPath: "/private/folder-name"))
+    #expect(model.message == "Choose a folder in iCloud Drive.")
+    #expect(model.message?.contains("private") == false)
+
+    destination.prepareOutcome = .temporarilyUnavailable
+    model.pickedFolder(URL(fileURLWithPath: "/another/private-name"))
+    #expect(model.message == "The folder is temporarily unavailable. Try again later.")
+    #expect(model.message?.contains("another") == false)
+  }
+
   @Test func generatedProjectDefinesClearPermissionPurposeStrings() throws {
     let project = try String(
       contentsOf: repositoryRoot.appendingPathComponent("project.yml"), encoding: .utf8)
@@ -143,12 +229,13 @@ struct M8ImplementationReviewTests {
 
   private func makeModel(
     microphone: ReviewMicrophone,
+    location: ReviewLocation = ReviewLocation(state: .denied),
     systemSettings: ReviewSystemSettings = ReviewSystemSettings(),
     destinationService: ReviewDestinationService = ReviewDestinationService()
   ) -> AppModel {
     AppModel(
       microphone: microphone,
-      location: ReviewLocation(state: .denied),
+      location: location,
       systemSettings: systemSettings,
       destinationService: destinationService,
       firstLaunchStore: ReviewFirstLaunchStore())
@@ -157,26 +244,38 @@ struct M8ImplementationReviewTests {
 
 @MainActor
 private final class ReviewMicrophone: MicrophoneAuthorizationPort {
-  let state: PermissionState
+  var state: PermissionState
+  var requestResult: PermissionState?
+  var requestCount = 0
 
   init(state: PermissionState) {
     self.state = state
   }
 
   func currentState() -> PermissionState { state }
-  func requestAccess() async -> PermissionState { state }
+  func requestAccess() async -> PermissionState {
+    requestCount += 1
+    state = requestResult ?? state
+    return state
+  }
 }
 
 @MainActor
 private final class ReviewLocation: LocationAuthorizationPort {
-  let state: PermissionState
+  var state: PermissionState
+  var requestResult: PermissionState?
+  var requestCount = 0
 
   init(state: PermissionState) {
     self.state = state
   }
 
   func currentState() -> PermissionState { state }
-  func requestWhenInUse() async -> PermissionState { state }
+  func requestWhenInUse() async -> PermissionState {
+    requestCount += 1
+    state = requestResult ?? state
+    return state
+  }
 }
 
 @MainActor
@@ -192,6 +291,7 @@ private final class ReviewSystemSettings: SystemSettingsPort {
 private final class ReviewDestinationService: DestinationSelectionPort {
   var active: ActiveDestination
   var activeRequestCount = 0
+  var invalidateCount = 0
   var prepareOutcome: DestinationSelectionOutcome = .rejected
   var commitOutcome: DestinationCommitOutcome = .failed
   var cancelledIDs: [UUID] = []
@@ -209,7 +309,7 @@ private final class ReviewDestinationService: DestinationSelectionPort {
     return active
   }
 
-  func invalidateAccess() {}
+  func invalidateAccess() { invalidateCount += 1 }
   func prepareSelection(of url: URL) -> DestinationSelectionOutcome { prepareOutcome }
   func cancelPreparedSelection(_ id: UUID) { cancelledIDs.append(id) }
   func commitPreparedSelection(_ id: UUID) -> DestinationCommitOutcome {

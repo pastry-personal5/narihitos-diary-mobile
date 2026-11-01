@@ -1,10 +1,38 @@
 import Foundation
 
+@MainActor
+protocol DestinationSelectionPort: DestinationPort {
+  func prepareSelection(of url: URL) -> DestinationSelectionOutcome
+  func cancelPreparedSelection(_ id: UUID)
+  func commitPreparedSelection(_ id: UUID) -> DestinationCommitOutcome
+}
+
 struct DestinationCandidateFacts: Equatable {
   let isDirectory: Bool?
   let isSymbolicLink: Bool?
   let isUbiquitousItem: Bool?
   let hasICloudIdentity: Bool
+}
+
+struct DestinationCandidateInspection: Equatable {
+  let facts: DestinationCandidateFacts
+  let displayName: String
+}
+
+struct ResolvedDestinationBookmark: Equatable {
+  let url: URL
+  let isStale: Bool
+}
+
+@MainActor
+protocol DestinationPlatform: AnyObject {
+  func startAccessing(_ url: URL) -> Bool
+  func stopAccessing(_ url: URL)
+  func inspect(_ url: URL) throws -> DestinationCandidateInspection
+  func makeBookmark(for url: URL) throws -> Data
+  func resolveBookmark(_ data: Data) throws -> ResolvedDestinationBookmark
+  func currentIdentityArchive() throws -> Data
+  func identitiesMatch(_ stored: Data, _ current: Data) throws -> Bool
 }
 
 @MainActor
@@ -19,14 +47,17 @@ final class AppleDestinationService: DestinationSelectionPort {
     let identityArchive: Data
   }
 
-  private let repository: PrivateSettingsRepository
-  private let fileManager: FileManager
+  private let repository: any DestinationSettingsStore
+  private let platform: any DestinationPlatform
   private var generation: UInt64 = 0
   private var prepared: [UUID: PreparedRecord] = [:]
 
-  init(repository: PrivateSettingsRepository, fileManager: FileManager = .default) {
+  init(
+    repository: any DestinationSettingsStore,
+    platform: any DestinationPlatform = AppleDestinationPlatform()
+  ) {
     self.repository = repository
-    self.fileManager = fileManager
+    self.platform = platform
   }
 
   func invalidateAccess() {
@@ -54,21 +85,16 @@ final class AppleDestinationService: DestinationSelectionPort {
   ) -> ActiveDestination {
     let loanGeneration = generation
     do {
-      var stale = false
-      let url = try URL(
-        resolvingBookmarkData: stored.bookmark,
-        options: [],
-        relativeTo: nil,
-        bookmarkDataIsStale: &stale)
-      guard url.startAccessingSecurityScopedResource() else {
+      let resolved = try platform.resolveBookmark(stored.bookmark)
+      guard platform.startAccessing(resolved.url) else {
         return ActiveDestination(summary: summary, accessState: .restoreAccessRequired)
       }
-      defer { url.stopAccessingSecurityScopedResource() }
+      defer { platform.stopAccessing(resolved.url) }
       let identity = try currentIdentityArchive()
       guard try identitiesMatch(stored.identityArchive, identity) else {
         return ActiveDestination(summary: summary, accessState: .restoreAccessRequired)
       }
-      let name = try validateAndProject(url)
+      let name = try validateAndProject(resolved.url)
       let finalIdentity = try currentIdentityArchive()
       guard try identitiesMatch(stored.identityArchive, finalIdentity) else {
         return ActiveDestination(summary: summary, accessState: .restoreAccessRequired)
@@ -76,13 +102,19 @@ final class AppleDestinationService: DestinationSelectionPort {
       guard generation == loanGeneration else {
         return ActiveDestination(summary: summary, accessState: .temporarilyUnavailable)
       }
-      if stale {
-        let refreshed = try makeBookmark(for: url)
+      if resolved.isStale {
+        let refreshed = try makeBookmark(for: resolved.url)
+        let refreshIdentity = try currentIdentityArchive()
+        guard try identitiesMatch(stored.identityArchive, refreshIdentity),
+          generation == loanGeneration
+        else {
+          return ActiveDestination(summary: summary, accessState: .restoreAccessRequired)
+        }
         let replacement = StoredDestinationRecord(
           id: id.rawValue,
           displayName: name,
           bookmark: refreshed,
-          identityArchive: finalIdentity,
+          identityArchive: refreshIdentity,
           disclosureAcknowledged: stored.disclosureAcknowledged)
         try repository.saveDestination(replacement)
       }
@@ -114,12 +146,19 @@ final class AppleDestinationService: DestinationSelectionPort {
     generation &+= 1
     prepared.removeAll()
     let transactionGeneration = generation
-    guard url.startAccessingSecurityScopedResource() else { return .temporarilyUnavailable }
-    defer { url.stopAccessingSecurityScopedResource() }
+    guard platform.startAccessing(url) else { return .temporarilyUnavailable }
+    defer { platform.stopAccessing(url) }
     do {
+      let initialIdentity = try currentIdentityArchive()
       let name = try validateAndProject(url)
-      let identity = try currentIdentityArchive()
+      let inspectedIdentity = try currentIdentityArchive()
+      guard try identitiesMatch(initialIdentity, inspectedIdentity) else {
+        return .temporarilyUnavailable
+      }
       let bookmark = try makeBookmark(for: url)
+      let finalIdentity = try currentIdentityArchive()
+      guard try identitiesMatch(initialIdentity, finalIdentity), generation == transactionGeneration
+      else { return .temporarilyUnavailable }
       let token = UUID()
       let publicValue = PreparedDestination(
         id: token,
@@ -129,7 +168,7 @@ final class AppleDestinationService: DestinationSelectionPort {
         publicValue: publicValue,
         generation: transactionGeneration,
         bookmark: bookmark,
-        identityArchive: identity)
+        identityArchive: finalIdentity)
       return .prepared(publicValue)
     } catch let error as DestinationValidationError {
       switch error.accessState {
@@ -149,20 +188,16 @@ final class AppleDestinationService: DestinationSelectionPort {
     guard let candidate = prepared.removeValue(forKey: id) else { return .superseded }
     guard candidate.generation == generation else { return .superseded }
     do {
-      var stale = false
-      let url = try URL(
-        resolvingBookmarkData: candidate.bookmark,
-        options: [],
-        relativeTo: nil,
-        bookmarkDataIsStale: &stale)
-      guard url.startAccessingSecurityScopedResource() else { return .failed }
-      defer { url.stopAccessingSecurityScopedResource() }
-      let name = try validateAndProject(url)
+      let resolved = try platform.resolveBookmark(candidate.bookmark)
+      guard platform.startAccessing(resolved.url) else { return .failed }
+      defer { platform.stopAccessing(resolved.url) }
+      let name = try validateAndProject(resolved.url)
       let currentIdentity = try currentIdentityArchive()
       guard try identitiesMatch(candidate.identityArchive, currentIdentity) else {
         return .superseded
       }
-      let finalBookmark = stale ? try makeBookmark(for: url) : candidate.bookmark
+      let finalBookmark =
+        resolved.isStale ? try makeBookmark(for: resolved.url) : candidate.bookmark
       let commitIdentity = try currentIdentityArchive()
       guard try identitiesMatch(candidate.identityArchive, commitIdentity) else {
         return .superseded
@@ -183,30 +218,9 @@ final class AppleDestinationService: DestinationSelectionPort {
   }
 
   private func validateAndProject(_ url: URL) throws -> String {
-    var coordinationError: NSError?
-    var result: Result<String, Error>?
-    NSFileCoordinator().coordinate(
-      readingItemAt: url, options: [], error: &coordinationError
-    ) { coordinatedURL in
-      do {
-        let basicKeys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
-        let iCloudKeys: Set<URLResourceKey> = [.isUbiquitousItemKey, .nameKey]
-        let keys = basicKeys.union(iCloudKeys)
-        let values = try coordinatedURL.resourceValues(forKeys: keys)
-        try Self.validate(
-          DestinationCandidateFacts(
-            isDirectory: values.isDirectory,
-            isSymbolicLink: values.isSymbolicLink,
-            isUbiquitousItem: values.isUbiquitousItem,
-            hasICloudIdentity: fileManager.ubiquityIdentityToken != nil))
-        result = .success(SafeFolderDisplayName.project(values.name ?? ""))
-      } catch {
-        result = .failure(error)
-      }
-    }
-    if coordinationError != nil { throw DestinationValidationError.providerUnavailable }
-    guard let result else { throw DestinationValidationError.providerUnavailable }
-    return try result.get()
+    let inspection = try platform.inspect(url)
+    try Self.validate(inspection.facts)
+    return SafeFolderDisplayName.project(inspection.displayName)
   }
 
   static func validate(_ facts: DestinationCandidateFacts) throws {
@@ -222,7 +236,7 @@ final class AppleDestinationService: DestinationSelectionPort {
   }
 
   private func makeBookmark(for url: URL) throws -> Data {
-    let data = try url.bookmarkData(options: [.minimalBookmark])
+    let data = try platform.makeBookmark(for: url)
     guard !data.isEmpty, data.count <= Self.maximumBookmarkSize else {
       throw DestinationValidationError.invalidReference
     }
@@ -230,11 +244,7 @@ final class AppleDestinationService: DestinationSelectionPort {
   }
 
   private func currentIdentityArchive() throws -> Data {
-    guard let token = fileManager.ubiquityIdentityToken else {
-      throw DestinationValidationError.identityUnavailable
-    }
-    let data = try NSKeyedArchiver.archivedData(
-      withRootObject: token, requiringSecureCoding: false)
+    let data = try platform.currentIdentityArchive()
     guard !data.isEmpty, data.count <= Self.maximumIdentityArchiveSize else {
       throw DestinationValidationError.invalidReference
     }
@@ -242,9 +252,82 @@ final class AppleDestinationService: DestinationSelectionPort {
   }
 
   private func identitiesMatch(_ stored: Data, _ current: Data) throws -> Bool {
-    let allowedClasses: [AnyClass] = [NSObject.self]
     guard
       stored.count <= Self.maximumIdentityArchiveSize,
+      current.count <= Self.maximumIdentityArchiveSize
+    else { throw DestinationValidationError.invalidReference }
+    return try platform.identitiesMatch(stored, current)
+  }
+}
+
+@MainActor
+final class AppleDestinationPlatform: DestinationPlatform {
+  private let fileManager: FileManager
+
+  init(fileManager: FileManager = .default) {
+    self.fileManager = fileManager
+  }
+
+  func startAccessing(_ url: URL) -> Bool {
+    url.startAccessingSecurityScopedResource()
+  }
+
+  func stopAccessing(_ url: URL) {
+    url.stopAccessingSecurityScopedResource()
+  }
+
+  func inspect(_ url: URL) throws -> DestinationCandidateInspection {
+    var coordinationError: NSError?
+    var result: Result<DestinationCandidateInspection, Error>?
+    NSFileCoordinator().coordinate(
+      readingItemAt: url, options: [], error: &coordinationError
+    ) { coordinatedURL in
+      do {
+        var keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        keys.formUnion([.isUbiquitousItemKey, .nameKey])
+        let values = try coordinatedURL.resourceValues(forKeys: keys)
+        result = .success(
+          DestinationCandidateInspection(
+            facts: DestinationCandidateFacts(
+              isDirectory: values.isDirectory,
+              isSymbolicLink: values.isSymbolicLink,
+              isUbiquitousItem: values.isUbiquitousItem,
+              hasICloudIdentity: fileManager.ubiquityIdentityToken != nil),
+            displayName: values.name ?? ""))
+      } catch {
+        result = .failure(error)
+      }
+    }
+    if coordinationError != nil { throw DestinationValidationError.providerUnavailable }
+    guard let result else { throw DestinationValidationError.providerUnavailable }
+    return try result.get()
+  }
+
+  func makeBookmark(for url: URL) throws -> Data {
+    try url.bookmarkData(options: [.minimalBookmark])
+  }
+
+  func resolveBookmark(_ data: Data) throws -> ResolvedDestinationBookmark {
+    var isStale = false
+    let url = try URL(
+      resolvingBookmarkData: data,
+      options: [],
+      relativeTo: nil,
+      bookmarkDataIsStale: &isStale)
+    return ResolvedDestinationBookmark(url: url, isStale: isStale)
+  }
+
+  func currentIdentityArchive() throws -> Data {
+    guard let token = fileManager.ubiquityIdentityToken else {
+      throw DestinationValidationError.identityUnavailable
+    }
+    return try NSKeyedArchiver.archivedData(
+      withRootObject: token, requiringSecureCoding: false)
+  }
+
+  func identitiesMatch(_ stored: Data, _ current: Data) throws -> Bool {
+    let allowedClasses: [AnyClass] = [NSObject.self]
+    guard
       let storedToken = try NSKeyedUnarchiver.unarchivedObject(
         ofClasses: allowedClasses, from: stored) as? NSObject,
       let currentToken = try NSKeyedUnarchiver.unarchivedObject(

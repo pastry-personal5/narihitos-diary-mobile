@@ -8,13 +8,19 @@ struct StoredDestinationRecord: Codable, Equatable {
   let disclosureAcknowledged: Bool
 }
 
+@MainActor
+protocol DestinationSettingsStore: AnyObject {
+  func loadDestination() -> StoredDestinationRecord?
+  func saveDestination(_ destination: StoredDestinationRecord) throws
+}
+
 private struct StoredApplicationSettings: Codable {
   var firstLaunch = FirstLaunchProgress()
   var destination: StoredDestinationRecord?
 }
 
 @MainActor
-final class PrivateSettingsRepository: FirstLaunchStorePort {
+final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettingsStore {
   private static let maximumFileSize = 128 * 1_024
   private let fileURL: URL
   private var settings: StoredApplicationSettings

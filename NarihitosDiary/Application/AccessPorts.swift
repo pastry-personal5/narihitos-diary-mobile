@@ -60,13 +60,6 @@ enum DestinationCommitOutcome: Equatable {
 }
 
 @MainActor
-protocol DestinationSelectionPort: DestinationPort {
-  func prepareSelection(of url: URL) -> DestinationSelectionOutcome
-  func cancelPreparedSelection(_ id: UUID)
-  func commitPreparedSelection(_ id: UUID) -> DestinationCommitOutcome
-}
-
-@MainActor
 final class FirstLaunchCoordinator {
   private let microphone: any MicrophoneAuthorizationPort
   private let location: any LocationAuthorizationPort
@@ -149,8 +142,10 @@ final class FirstLaunchCoordinator {
   }
 
   private func advance(to step: FirstLaunchStep) {
-    progress.step = step
-    _ = persist(progress)
+    var advanced = progress
+    advanced.step = step
+    guard persist(advanced) else { return }
+    progress = advanced
   }
 
   private func persist(_ proposed: FirstLaunchProgress) -> Bool {

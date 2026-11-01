@@ -101,6 +101,60 @@ struct FirstLaunchAndDestinationTests {
     microphone.finishSuspendedRequest()
   }
 
+  @Test func failedProgressionWriteRetainsDurablyAttemptedStep() async {
+    let microphone = FakeMicrophone()
+    let store = FakeFirstLaunchStore()
+    store.failOnSaveAttempts = [2, 3]
+    let coordinator = FirstLaunchCoordinator(
+      microphone: microphone, location: FakeLocation(), store: store)
+
+    await coordinator.continueCurrentStep()
+    await waitUntil { microphone.requestCount == 1 }
+
+    #expect(coordinator.progress.step == .microphone)
+    #expect(coordinator.progress.microphoneAttempted)
+    #expect(store.progress.step == .microphone)
+    #expect(store.progress.microphoneAttempted)
+
+    let relaunched = FirstLaunchCoordinator(
+      microphone: microphone, location: FakeLocation(), store: store)
+    #expect(relaunched.progress.step == .location)
+    #expect(relaunched.pendingExplanation == .location)
+    #expect(microphone.requestCount == 1)
+  }
+
+  @Test func repeatedContinuationCannotDuplicateAutomaticRequests() async {
+    let microphone = FakeMicrophone()
+    microphone.suspendsRequest = true
+    let store = FakeFirstLaunchStore()
+    let coordinator = FirstLaunchCoordinator(
+      microphone: microphone, location: FakeLocation(state: .denied), store: store)
+
+    await coordinator.continueCurrentStep()
+    await coordinator.continueCurrentStep()
+    await waitUntil { microphone.hasSuspendedRequest }
+
+    #expect(microphone.requestCount == 1)
+    #expect(coordinator.progress.step == .complete)
+    microphone.finishSuspendedRequest()
+  }
+
+  @Test func completedAllowOnceDoesNotRestartWhenLocationReturnsUndetermined() {
+    let microphone = FakeMicrophone(state: .authorized)
+    let location = FakeLocation(state: .notDetermined)
+    let store = FakeFirstLaunchStore(
+      progress: FirstLaunchProgress(
+        step: .complete, microphoneAttempted: true, locationAttempted: true))
+    let coordinator = FirstLaunchCoordinator(
+      microphone: microphone, location: location, store: store)
+
+    coordinator.refresh()
+
+    #expect(coordinator.progress.step == .complete)
+    #expect(coordinator.pendingExplanation == nil)
+    #expect(location.requestCount == 0)
+  }
+
   @Test func privateSettingsRoundTripAndCorruptInputFailsClosed() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -210,6 +264,8 @@ struct FirstLaunchAndDestinationTests {
       for framework in forbidden {
         #expect(!source.contains("import \(framework)"))
       }
+      #expect(!source.contains("URL"))
+      #expect(!source.contains("bookmark"))
     }
   }
 
@@ -278,6 +334,8 @@ private final class FakeFirstLaunchStore: FirstLaunchStorePort {
   var progress: FirstLaunchProgress
   var saved: [FirstLaunchProgress] = []
   var shouldFail = false
+  var failOnSaveAttempts: Set<Int> = []
+  private var saveAttemptCount = 0
 
   init(progress: FirstLaunchProgress = FirstLaunchProgress()) {
     self.progress = progress
@@ -286,7 +344,10 @@ private final class FakeFirstLaunchStore: FirstLaunchStorePort {
   func loadFirstLaunchProgress() -> FirstLaunchProgress { progress }
 
   func saveFirstLaunchProgress(_ progress: FirstLaunchProgress) throws {
-    if shouldFail { throw CocoaError(.fileWriteUnknown) }
+    saveAttemptCount += 1
+    if shouldFail || failOnSaveAttempts.contains(saveAttemptCount) {
+      throw CocoaError(.fileWriteUnknown)
+    }
     self.progress = progress
     saved.append(progress)
   }
