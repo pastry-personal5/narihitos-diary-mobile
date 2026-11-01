@@ -10,7 +10,9 @@ Each recording becomes a Markdown diary entry paired with its audio. Transcripti
 
 ## Development
 
-The SwiftUI app currently includes the five-root navigation shell, first-launch permission flow, Settings foundation, and persistent iCloud-folder selection boundary. Recording and diary browsing arrive in later milestones. With Xcode 27.2 or later and XcodeGen installed, run `make generate` to create the Xcode project, `make build` to generate and build it for the iOS Simulator, or `make open` to generate and open it in Xcode. Generation selects the first development team available in Xcode without committing its Team ID. Use `TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh` for concise generation, lint, build, and test results. The app requires iOS 27.0.1 or later.
+The app uses a flat journal icon; its editable vector source is in `assets/app-icon/`.
+
+The SwiftUI app currently includes the five-root navigation shell, first-launch permission flow, Settings foundation, persistent iCloud-folder selection boundary, and an M9 recording and local recovery path. Main has separate blue `en` and purple `ko` recording buttons at the bottom right. Each starts capture in its indicated language; Stop & Transcribe stores a pending local recording. Automatic transcription and diary browsing arrive in later milestones. Target-iPhone lock, background, interruption, and file-protection trials remain open. With Xcode 27.2 or later and XcodeGen installed, run `make generate` to create the Xcode project, `make build` to generate and build it for the iOS Simulator, or `make open` to generate and open it in Xcode. Generation selects the first development team available in Xcode without committing its Team ID. Use `TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh` for concise generation, lint, build, and test results. The app requires iOS 27.0.1 or later.
 
 ## License
 

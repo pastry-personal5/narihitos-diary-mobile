@@ -6,17 +6,22 @@ struct ContentView: View {
 
   var body: some View {
     ZStack {
-      TabView {
+      TabView(selection: $model.selectedRoot) {
         MainView(model: model)
           .tabItem { Label("Main", systemImage: "house") }
+          .tag(RootTab.main)
         EmptyRootView(message: "Benefits are coming later.")
           .tabItem { Label("Benefits", systemImage: "sparkles") }
+          .tag(RootTab.benefits)
         EmptyRootView(message: "Calendar is coming later.")
           .tabItem { Label("Calendar", systemImage: "calendar") }
+          .tag(RootTab.calendar)
         EmptyRootView(message: "Plugins are coming later.")
           .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
+          .tag(RootTab.plugins)
         AllView(model: model)
           .tabItem { Label("All", systemImage: "square.grid.2x2") }
+          .tag(RootTab.all)
       }
       .disabled(scenePhase != .active)
       .accessibilityHidden(scenePhase != .active)
@@ -41,6 +46,9 @@ struct ContentView: View {
     }
     .sheet(isPresented: $model.isFolderPickerPresented) {
       FolderPicker(onPick: model.pickedFolder, onCancel: model.cancelFolderPicker)
+    }
+    .fullScreenCover(isPresented: $model.isCapturePresented) {
+      RecordingView(model: model)
     }
     .alert(
       firstLaunchTitle,
@@ -67,6 +75,9 @@ struct ContentView: View {
     .alert("Narihito's Diary", isPresented: messagePresented) {
       if model.offersSettingsRecovery {
         Button("Open Settings", action: model.openSettings)
+      }
+      if model.offersPendingReview {
+        Button("Review Pending Recordings", action: model.reviewPendingRecordings)
       }
       Button("OK", role: .cancel, action: model.clearMessage)
     } message: {
@@ -115,21 +126,39 @@ private struct MainView: View {
       .safeAreaInset(edge: .bottom) {
         HStack {
           Spacer()
-          Button {
-            Task { await model.handleRecord() }
-          } label: {
-            Label("Record", systemImage: "mic.fill")
-              .font(.headline)
-              .padding()
-          }
-          .buttonStyle(.borderedProminent)
-          .controlSize(.large)
-          .accessibilityLabel("Record")
-          Spacer()
+          recordButton(
+            language: .english, shortLabel: "en", accessibilityLabel: "Record in English",
+            backgroundColor: Color(red: 0.08, green: 0.35, blue: 0.70))
+          recordButton(
+            language: .korean, shortLabel: "ko", accessibilityLabel: "Record in Korean",
+            backgroundColor: Color(red: 0.39, green: 0.21, blue: 0.62))
         }
+        .padding(.trailing, 20)
         .padding(.bottom, 8)
       }
     }
+  }
+
+  private func recordButton(
+    language: CaptureLanguage, shortLabel: String, accessibilityLabel: String,
+    backgroundColor: Color
+  ) -> some View {
+    Button {
+      Task { await model.handleRecord(language: language) }
+    } label: {
+      VStack(spacing: 0) {
+        Image(systemName: "mic.fill")
+          .font(.system(size: 23, weight: .medium))
+        Text(shortLabel)
+          .font(.system(size: 11, weight: .bold))
+      }
+      .foregroundStyle(.white)
+      .frame(width: 56, height: 56)
+      .background(backgroundColor, in: Circle())
+      .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(accessibilityLabel)
   }
 }
 
@@ -147,14 +176,23 @@ private struct AllView: View {
   var body: some View {
     NavigationStack {
       List {
-        placeholder("Pending Recordings")
-        placeholder("Failed Recordings")
+        NavigationLink("Pending Recordings") {
+          CaptureListView(title: "Pending Recordings", captures: model.pendingCaptures)
+        }
+        NavigationLink("Failed Recordings") {
+          CaptureListView(
+            title: "Failed Recordings", captures: model.failedCaptures,
+            issues: model.captureIssues, showFailureReason: true)
+        }
         placeholder("Incomplete Diary Snippets")
         placeholder("Conflicting Versions")
         NavigationLink("Settings") { SettingsView(model: model) }
           .accessibilityLabel("Settings")
       }
       .navigationTitle("All")
+      .navigationDestination(isPresented: $model.showPendingRecordings) {
+        CaptureListView(title: "Pending Recordings", captures: model.pendingCaptures)
+      }
     }
   }
 
@@ -163,6 +201,77 @@ private struct AllView: View {
       ContentUnavailableView("Coming Later", systemImage: "hourglass")
         .navigationTitle(title)
     }
+  }
+}
+
+private struct RecordingView: View {
+  @Environment(\.scenePhase) private var scenePhase
+  @ObservedObject var model: AppModel
+
+  var body: some View {
+    ZStack {
+      VStack(spacing: 24) {
+        Spacer()
+        Text("Recording")
+          .font(.largeTitle.bold())
+        Text(Duration.seconds(model.captureElapsed).formatted(.time(pattern: .minuteSecond)))
+          .font(.system(.largeTitle, design: .monospaced))
+          .accessibilityLabel("Elapsed recording time")
+        ProgressView(value: model.captureLevel)
+          .accessibilityLabel("Recording level")
+          .padding(.horizontal, 40)
+        Spacer()
+        Button("Stop & Transcribe") { model.stopCapture() }
+          .buttonStyle(.borderedProminent)
+          .controlSize(.large)
+          .padding(.bottom, 40)
+      }
+      .accessibilityHidden(scenePhase != .active)
+      if scenePhase != .active {
+        PrivacyCover()
+          .zIndex(100)
+      }
+    }
+    .interactiveDismissDisabled()
+    .animation(nil, value: scenePhase)
+  }
+}
+
+private struct CaptureListView: View {
+  let title: String
+  let captures: [CaptureIdentity]
+  var issues: [CaptureRecoveryIssue] = []
+  var showFailureReason = false
+
+  var body: some View {
+    List(captures, id: \.id) { capture in
+      VStack(alignment: .leading) {
+        Text(capture.startedAt.formatted(date: .abbreviated, time: .shortened))
+        Text(capture.language == .english ? "English" : "Korean")
+          .foregroundStyle(.secondary)
+        if showFailureReason {
+          Text("This recording can’t be read.")
+            .foregroundStyle(.secondary)
+        }
+      }
+    }
+    .safeAreaInset(edge: .bottom) {
+      if !issues.isEmpty {
+        VStack {
+          ForEach(issues) { issue in
+            Text(issue.reason)
+              .frame(maxWidth: .infinity, alignment: .leading)
+          }
+        }
+        .padding()
+      }
+    }
+    .overlay {
+      if captures.isEmpty && issues.isEmpty {
+        ContentUnavailableView("No Recordings", systemImage: "waveform")
+      }
+    }
+    .navigationTitle(title)
   }
 }
 

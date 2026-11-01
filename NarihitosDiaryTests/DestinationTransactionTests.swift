@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 
+// Transaction and capture-snapshot cases share one adapter fake.
+// swiftlint:disable file_length type_body_length
+
 @testable import NarihitosDiary
 
 @MainActor
@@ -286,6 +289,46 @@ struct DestinationTransactionTests {
     #expect(platform.startCount == platform.stopCount)
   }
 
+  @Test func captureSnapshotSurvivesActiveFolderChangeAndVerifiedOffline() async throws {
+    let original = storedDestination()
+    let store = FakeDestinationStore(destination: original)
+    let platform = FakeDestinationPlatform()
+    let service = AppleDestinationService(repository: store, platform: platform)
+
+    let (captured, state) = try await service.captureSnapshotRecord()
+    #expect(state == .accessible)
+    #expect(captured == original)
+    store.destination = storedDestination(bookmark: Data([0x20]))
+    #expect(captured.bookmark == original.bookmark)
+
+    store.destination = original
+    platform.inspectError = DestinationValidationError.providerUnavailable
+    let (_, offlineState) = try await service.captureSnapshotRecord()
+    #expect(offlineState == .verifiedOffline)
+    platform.identitiesAreEqual = false
+    await #expect(throws: CaptureGateFailure.destination) {
+      try await service.captureSnapshotRecord()
+    }
+    platform.identitiesAreEqual = true
+    platform.startSucceeds = false
+    await #expect(throws: CaptureGateFailure.destination) {
+      try await service.captureSnapshotRecord()
+    }
+  }
+
+  @Test func captureSnapshotUsesRefreshedBookmarkAfterStaleResolution() async throws {
+    let original = storedDestination()
+    let store = FakeDestinationStore(destination: original)
+    let platform = FakeDestinationPlatform()
+    platform.resolvedBookmark = ResolvedDestinationBookmark(url: platform.url, isStale: true)
+    platform.bookmark = Data([0x44])
+    let service = AppleDestinationService(repository: store, platform: platform)
+    let (captured, state) = try await service.captureSnapshotRecord()
+    #expect(state == .accessible)
+    #expect(captured.bookmark == Data([0x44]))
+    #expect(store.destination?.bookmark == Data([0x44]))
+  }
+
   private func storedDestination(
     displayName: String = "Diary",
     bookmark: Data = Data([0x10])
@@ -385,3 +428,5 @@ private final class FakeDestinationPlatform: DestinationPlatform {
     identitiesAreEqual && stored == current
   }
 }
+
+// swiftlint:enable file_length type_body_length

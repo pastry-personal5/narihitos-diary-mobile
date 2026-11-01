@@ -78,6 +78,38 @@ final class AppleDestinationService: DestinationSelectionPort {
     return resolveStoredDestination(stored, id: id, summary: summary)
   }
 
+  // Capture needs a stable copy of the accepted record, even if Settings later
+  // replaces the active folder. Provider reachability is checked separately.
+  func captureSnapshotRecord() async throws -> (StoredDestinationRecord, CaptureDestinationState) {
+    guard let stored = repository.loadDestination(),
+      validateStoredRecord(stored) != nil, stored.disclosureAcknowledged
+    else { throw CaptureGateFailure.destination }
+    let initial = try currentIdentityArchive()
+    guard try identitiesMatch(stored.identityArchive, initial) else {
+      throw CaptureGateFailure.destination
+    }
+    let access = await activeDestination()
+    let eligibility: CaptureDestinationState
+    switch access.accessState {
+    case .accessible:
+      eligibility = .accessible
+    case .temporarilyUnavailable:
+      eligibility = .verifiedOffline
+    case .restoreAccessRequired, .invalidStoredReference:
+      throw CaptureGateFailure.destination
+    }
+    let finalIdentity = try currentIdentityArchive()
+    guard try identitiesMatch(stored.identityArchive, finalIdentity) else {
+      throw CaptureGateFailure.destination
+    }
+    guard let effective = repository.loadDestination(),
+      effective.id == stored.id,
+      validateStoredRecord(effective) != nil,
+      try identitiesMatch(effective.identityArchive, finalIdentity)
+    else { throw CaptureGateFailure.destination }
+    return (effective, eligibility)
+  }
+
   private func resolveStoredDestination(
     _ stored: StoredDestinationRecord,
     id: DestinationID,

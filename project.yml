@@ -16,10 +16,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.narihitosdiary.mobile
-        GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSMicrophoneUsageDescription: Record audio for your diary.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Add optional recording-time place and weather context to your diary.
+        INFOPLIST_FILE: NarihitosDiary/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
   NarihitosDiaryTests:
     type: bundle.unit-test
     platform: iOS

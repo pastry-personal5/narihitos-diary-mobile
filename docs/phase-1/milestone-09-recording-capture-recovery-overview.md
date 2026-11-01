@@ -1,12 +1,13 @@
 # P1-M9: Recording and capture recovery overview
 
-Status: Planned
+Status: Active
 
 Implement private iPhone audio capture, immediate durable settlement, and recovery of interrupted or abandoned capture. This milestone must prove on the target phone that capture continues through lock and backgrounding and that a recording ending while locked is finalized and recorded durably without waiting for unlock.
 
 ## Entry condition
 
 - Follow Phase 1 order: implementation starts when P1-M8 is Done or the owner explicitly authorizes a reorder. Planning M9 does not close M8's open simulator and physical-device evidence.
+- The owner authorized starting M9 while M8 remains Active by requesting M9 implementation on 2026-11-02.
 - Use the approved [P1-M5 recording, queue, and privacy contract](milestone-05-decisions-architecture.md#recording-queue-and-privacy-contract), [product behavior](../product-behavior.md), [UX GUI](../ux-gui.md), and [security review](../security-review.md). M7 supplies the private-workspace foundation; M8 supplies live permission and destination prerequisites.
 - No dependency or build-tool change is planned. Ask the owner before one is needed or before a device finding would change the approved capture outcome.
 
@@ -31,21 +32,48 @@ Implement private iPhone audio capture, immediate durable settlement, and recove
 
 ## Completion checklist
 
-- [ ] The start gate rechecks live microphone authorization and destination identity/record validity, accepts only the approved language hints, reserves at least 100 MiB, and starts no audio/session/workspace mutation when a prerequisite fails. A previously validated folder permits offline capture during temporary provider/network unavailability; missing, invalid, known revoked, or known wrong-account references do not. Low storage shows `Not enough storage to start recording.` with Review Pending Recordings and OK.
-- [ ] Tests show the recording-start instant, stable ID, language hint, and independent durable destination reference are captured once and survive stop, active-folder replacement, retryable settlement, and relaunch without becoming file paths or provider tokens in core values. A failed destination snapshot prevents capture.
-- [ ] Synthetic and device clips verify actual mono AAC `.m4a` output, requested sample-rate/bitrate behavior on the target phone, bounded size at 64 MiB, measured duration at or below five minutes plus documented encoder/finalization tolerance, and playable decode before a pending receipt is reported. Unsupported actual output is retained as failed, not misrepresented as valid.
-- [ ] State and race tests cover Stop & Transcribe, five-minute timeout, audio interruption, lock/background changes, simultaneous stop causes, late callbacks, start failure, and failed finalization. Exactly one settlement result is durable; no duplicate receipt or asset identity is minted.
-- [ ] A playable interruption/crash partial becomes pending automatically after durable reconciliation. Physical crash/force-quit trials establish whether the selected `.m4a` writer yields a playable partial; any unplayable or unreadable partial remains private and appears as failed with the approved sanitized reason. An orphaned file is kept for review rather than deleted.
-- [ ] Every successful stop or automatic end verifies the finalized file and durable receipt before UI reports queued; injected file, attribute, receipt-write, atomic-replace, storage-exhaustion, and relaunch failures preserve recoverable audio and never report false progress. A queue-store failure reports paused local work, not a fabricated failed recording.
+### Owner-requested app icon addendum
+
+- [x] A flat, simple app icon is supplied as an editable source and a 1024 px opaque PNG in the app asset catalog; 120 px and 48 px previews remain recognizable.
+- [x] The generated app target names the icon asset, and asset metadata and image dimensions pass inspection.
+
+### Owner-requested recording language controls
+
+- [x] Main has separate bottom-right `en` and `ko` recording buttons with distinct accessible names and at least 44 pt targets. Source inspection confirms two 56 pt controls in the trailing safe-area inset.
+- [x] Each button carries its language through the existing microphone and destination gate into capture; the language selection dialog is removed. Source inspection confirms both routes and no remaining picker state or dialog.
+- [x] The `en` and `ko` Record buttons have distinct, legible backgrounds; source inspection verifies their language-to-color mapping, and rendered iOS 27.1 simulator previews verify blue `en` and purple `ko` with legible white content in light and dark appearance.
+- [x] Focused presentation tests and source inspection verify the new routing and layout. The accessibility tree exposes `Record in English` and `Record in Korean` as separate controls.
+
+- [x] The start gate rechecks live microphone authorization and destination identity/record validity, accepts only the approved language hints, reserves at least 100 MiB, and starts no audio/session/workspace mutation when a prerequisite fails. A previously validated folder permits offline capture during temporary provider/network unavailability; missing, invalid, known revoked, or known wrong-account references do not. Low storage shows `Not enough storage to start recording.` with Review Pending Recordings and OK.
+- [x] Tests show the recording-start instant, stable ID, language hint, and independent durable destination reference are captured once and survive stop, active-folder replacement, retryable settlement, and relaunch without becoming file paths or provider tokens in core values. A failed destination snapshot prevents capture.
+- [x] Simulator tests write and decode synthetic mono AAC `.m4a`, inspect actual sample rate, channels, bytes, and duration, and verify a pending receipt only after playable validation. Boundary tests reject overlong, oversized, and unsupported output; unreadable audio remains failed with its private bytes retained.
+- [ ] Target-phone clips verify requested versus actual sample rate and bit rate, the 64 MiB and five-minute bounds including encoder/finalization tolerance, and playable decode before Pending is shown.
+- [x] Deterministic state and race tests cover Stop & Transcribe, exact five-minute timeout, interruption, duplicate/late stop causes, start failure, and failed finalization. Source inspection confirms scene changes do not call stop. One settlement result uses the original identity.
+- [ ] Target-phone lock/background and simultaneous interruption/stop trials confirm one durable settlement and no duplicate identity under actual platform callbacks.
+- [x] A synthetic playable partial becomes pending once after relaunch reconciliation. Synthetic unreadable audio is retained as Failed with the approved reason, while missing or substituted audio remains a review issue without a false receipt.
+- [ ] Physical crash/force-quit trials establish whether the selected `.m4a` writer yields a playable partial; any unplayable partial stays private and reviewable.
+- [x] Every successful stop or automatic end verifies the finalized file and durable receipt before UI reports queued; injected file, attribute, receipt-write, atomic-replace, storage-exhaustion, and relaunch failures preserve recoverable audio and never report false progress. A queue-store failure reports paused local work, not a fabricated failed recording.
 - [ ] The chosen Data Protection classes and attribute application are documented with physical-device observations for open capture, locked finalization, receipt settlement, closed files, scratch/replacement files, and before/after-unlock reconciliation. Locked inaccessibility is distinguished from missing data, with no silent protection downgrade.
-- [ ] Pending audio and related private capture artifacts remain in nonpurgeable Application Support, are excluded from backup on creation and replacement, and retain confinement against malformed identities and symlink/resource substitution.
-- [ ] The capture UI has only Stop & Transcribe as its action during recording, accessible elapsed/level feedback, and truthful pending/failed or interim completion states. Main/All containment and the neutral nonforeground privacy cover remain intact; sensitive paths, audio, folder secrets, and raw errors are absent from diagnostics and accessibility.
+- [x] Pending audio and related private capture artifacts remain in nonpurgeable Application Support, are excluded from backup on creation and replacement, and retain confinement against malformed identities and symlink/resource substitution.
+- [x] The capture UI has only Stop & Transcribe as its action during recording, accessible elapsed/level feedback, and truthful pending/failed or interim completion states. Main/All containment and the neutral nonforeground privacy cover remain intact; source inspection and focused presentation tests find no sensitive paths, audio, folder secrets, or raw errors in diagnostics and accessibility.
 - [ ] Target-phone scenarios M9-D01–M9-D10 in the approach have redacted results, including lock/background settlement, locked five-minute timeout, interruption, crash recovery, offline capture, free-space failure, and actual file/protection attributes. Unavailable device controls remain unchecked and are reported as blockers.
-- [ ] Tests and source inspection prove the Domain/Application capture policy does not import AVFoundation, SwiftUI, UIKit, file URLs, or concrete workspace/destination adapters. No new dependency or build tool was added; affected docs record the M10/M17/M18 handoffs.
-- [ ] `swift-format lint --strict --recursive .` passes.
-- [ ] `swiftlint lint --strict` passes.
-- [ ] The generated project builds and all tests pass through `scripts/validate.sh` on an available iPhone simulator.
+- [x] Tests and source inspection prove the Domain/Application capture policy does not import AVFoundation, SwiftUI, UIKit, file URLs, or concrete workspace/destination adapters. No new dependency or build tool was added; affected docs record the M10/M17/M18 handoffs.
+- [x] `swift-format lint --strict --recursive .` passes.
+- [x] `swiftlint lint --strict` passes.
+- [x] The generated project builds and all tests pass through `scripts/validate.sh` on an available iPhone simulator. The current review revision passed on a booted iPhone 18 Pro simulator running iOS 27.0.
 
 ## Acceptance evidence
 
 Check items only with focused tests, source/attribute inspection, a successful validation command, or a redacted target-phone trial record. Simulator tests establish state transitions and injected failure behavior; they cannot establish locked audio continuity, iOS audio-session behavior, actual Data Protection access while locked, or background execution. Record requested versus observed audio parameters and any device-specific variance before accepting the encoder path.
+
+## Implementation evidence
+
+- The owner-requested journal icon has an editable SVG and an opaque 1024 by 1024 PNG. Visual inspection at 120 and 48 px found the journal, spine, and recording dot legible. Asset JSON parsed, `git diff --check` passed, generation confirmed the `AppIcon` build setting, and direct `xcrun actool` compilation passed. The latest generic simulator build also passes.
+- On 2026-11-02, M9 implementation began under the owner's explicit request while M8 remains Active. The application-owned capture coordinator checks live microphone state, typed destination access (including independently verified offline eligibility), and the 100 MiB reserve before creating capture artifacts. It binds a stable ID, start time, language, and independent opaque destination snapshot reference. Its monotonic deadline and size poll, single settlement owner, and receipt gate do not depend on the visible timer.
+- The Apple adapter requests mono 44.1 kHz, 64 kb/s AAC, prepares and protects a private `.m4a` file, measures actual format, size, duration, and playback preparation, and retains unplayable data as failed. A private Application Support capture journal, snapshot, and receipt are written through backup-excluded verified files with atomic publication of each journal file. Relaunch reconciliation retains audio and writes one failed or pending receipt when protected data is available; malformed or incomplete work remains visible as a sanitized recovery issue. The UI shows language-specific Record controls, a capture screen with only Stop & Transcribe, and interim Pending/Failed destinations. The built app bundle includes the `audio` background mode.
+- Reconciliation classifies only an inspected audio file as unreadable. Missing, inaccessible, or substituted audio remains a review issue without a fabricated failed receipt. A synthetic mono AAC test exercises decode, measured metadata, receipt publication, and idempotent reopen; source checks cover language-button routing and capture controls. Target-phone encoder and lock observations remain in the owner-run evidence sheet.
+- The settlement path reopens and verifies its receipt against the capture marker and measured audio after writing it, including the nominal success path. A tampered-marker test confirms that retained audio and a recovery issue cannot be reported as queued.
+- Receipt listing also requires the fixed private audio file for a Failed entry; if that file later goes missing, the entry remains a recovery issue instead of appearing as a recording with no audio.
+- Review follow-up: closed-file protection and backup exclusion are applied before an empty or oversized recording is classified as unreadable. If attribute verification fails, settlement pauses with the audio retained instead of publishing a Failed receipt. Recorder start failure also deactivates the audio session. A focused fault test covers the empty-audio protection path.
+- An iOS 27.1 iPhone Duo simulator rendered both Record controls in light and dark appearance; both colors and white labels were legible and distinct. The iOS 27.0 simulator cannot launch this app because the approved minimum is iOS 27.0.1.
+- Focused automated tests cover start gates, offline/invalid destination snapshots, immutable capture data, duplicate stop causes, exact five-minute and size arbitration, invalid audio, start/receipt failure, relaunch reconciliation, retained partial audio, and backup exclusion. The current review revision passed generation, strict `swift-format`, strict `swiftlint`, build, and all simulator tests through `scripts/validate.sh` on a booted iPhone 18 Pro simulator running iOS 27.0, including the new empty-audio protection fault test. The [target-phone evidence sheet](milestone-09-recording-capture-recovery-device-evidence.md) remains entirely Not run. Those runs are needed to verify background/lock continuity, interruption and abrupt-termination behavior, actual encoder output, and protection attributes before the corresponding checklist items can be checked.

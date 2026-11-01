@@ -42,7 +42,7 @@ struct M8ImplementationReviewTests {
       microphone: ReviewMicrophone(state: .denied),
       systemSettings: settings)
 
-    await model.handleRecord()
+    await model.handleRecord(language: .english)
 
     #expect(model.offersSettingsRecovery)
     #expect(model.message?.contains("Microphone access is required") == true)
@@ -61,10 +61,10 @@ struct M8ImplementationReviewTests {
       microphone: ReviewMicrophone(state: .authorized),
       destinationService: destination)
 
-    await model.handleRecord()
+    await model.handleRecord(language: .korean)
 
     #expect(destination.activeRequestCount == 1)
-    #expect(model.message == "Recording is not available yet.")
+    #expect(model.message == "Recording is temporarily unavailable.")
     #expect(!model.offersSettingsRecovery)
   }
 
@@ -74,7 +74,7 @@ struct M8ImplementationReviewTests {
     let destination = ReviewDestinationService()
     let model = makeModel(microphone: microphone, destinationService: destination)
 
-    await model.handleRecord()
+    await model.handleRecord(language: .english)
 
     #expect(microphone.requestCount == 1)
     #expect(destination.activeRequestCount == 1)

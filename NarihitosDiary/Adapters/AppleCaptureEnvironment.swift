@@ -1,0 +1,108 @@
+import AVFAudio
+import Foundation
+import UIKit
+
+// swift-format's multiline collections conflict with SwiftLint's trailing-comma rule.
+// swiftlint:disable trailing_comma
+
+@MainActor
+final class AppleCaptureEnvironment: CaptureEnvironmentPort {
+  private let microphone: any MicrophoneAuthorizationPort
+  private let destination: AppleDestinationService
+  private let files: CapturePrivateFiles
+  private var recorder: AVAudioRecorder?
+  private var currentID: WorkspaceID?
+
+  init(
+    microphone: any MicrophoneAuthorizationPort,
+    destination: AppleDestinationService,
+    files: CapturePrivateFiles = CapturePrivateFiles()
+  ) {
+    self.microphone = microphone
+    self.destination = destination
+    self.files = files
+  }
+
+  func microphoneState() -> PermissionState { microphone.currentState() }
+
+  func destinationState() async -> CaptureDestinationState {
+    (try? await destination.captureSnapshotRecord().1) ?? .unavailable
+  }
+
+  func freeBytes() -> Int64? {
+    guard
+      let attributes = try? FileManager.default.attributesOfFileSystem(
+        forPath: files.root.path),
+      let number = attributes[.systemFreeSize] as? NSNumber
+    else { return nil }
+    return number.int64Value
+  }
+
+  func snapshotDestination() async throws -> UUID {
+    let record = try await destination.captureSnapshotRecord().0
+    return try files.saveSnapshot(record)
+  }
+
+  func persistStart(_ identity: CaptureIdentity) throws {
+    try files.createWorkspace(identity)
+  }
+
+  func startAudio(id: WorkspaceID) throws {
+    let url = try files.prepareAudio(id: id)
+    let session = AVAudioSession.sharedInstance()
+    do {
+      try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+      try session.setActive(true)
+      let candidate = try AVAudioRecorder(
+        url: url,
+        settings: [
+          AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+          AVSampleRateKey: 44_100,
+          AVNumberOfChannelsKey: 1,
+          AVEncoderBitRateKey: 64_000,
+        ])
+      candidate.isMeteringEnabled = true
+      guard candidate.prepareToRecord() else { throw CaptureGateFailure.storage }
+      try files.protectOpenAudio(id: id)
+      guard candidate.record() else { throw CaptureGateFailure.storage }
+      recorder = candidate
+      currentID = id
+    } catch {
+      recorder = nil
+      currentID = nil
+      try? session.setActive(false)
+      throw error
+    }
+  }
+
+  func stopAudio() throws -> CaptureInspection {
+    guard let recorder, let id = currentID else { throw CaptureGateFailure.storage }
+    recorder.stop()
+    self.recorder = nil
+    currentID = nil
+    try? AVAudioSession.sharedInstance().setActive(false)
+    return try files.inspectAudio(id: id)
+  }
+
+  func persistOutcome(_ identity: CaptureIdentity, inspection: CaptureInspection) throws -> Bool {
+    try files.saveOutcome(identity, inspection: inspection)
+  }
+
+  func currentLevel() -> Float {
+    guard let recorder else { return 0 }
+    recorder.updateMeters()
+    return max(0, min(1, (recorder.averagePower(forChannel: 0) + 60) / 60))
+  }
+
+  func currentAudioBytes() -> Int64? {
+    guard let currentID else { return nil }
+    return files.audioBytes(id: currentID)
+  }
+
+  func recover() -> [CaptureIdentity] { files.reconcile() }
+  func pending() -> [CaptureIdentity] { files.list(outcome: "pending") }
+  func failed() -> [CaptureIdentity] { files.list(outcome: "failed") }
+  func issues() -> [CaptureRecoveryIssue] { files.issues() }
+}
+
+// swiftlint:enable trailing_comma

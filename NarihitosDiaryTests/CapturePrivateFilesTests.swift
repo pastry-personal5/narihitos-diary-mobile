@@ -1,0 +1,368 @@
+import AVFAudio
+import Foundation
+import Testing
+@testable import NarihitosDiary
+
+// swift-format and SwiftLint disagree on trailing commas in multiline collections.
+// swiftlint:disable trailing_comma
+
+@MainActor
+struct CapturePrivateFilesTests {
+  @Test func syntheticAACIsDecodedBeforePendingReceipt() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 5),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try writeSyntheticAAC(to: audio)
+    try files.protectOpenAudio(id: identity.id)
+
+    let inspection = try files.inspectAudio(id: identity.id)
+    #expect(inspection.isAccepted)
+    #expect(inspection.isMonoAAC)
+    #expect(inspection.channelCount == 1)
+    #expect(inspection.sampleRate == 44_100)
+    #expect(inspection.duration > 0 && inspection.duration < 2)
+    #expect(try files.saveOutcome(identity, inspection: inspection))
+    #expect(files.list(outcome: "pending") == [identity])
+    #expect(files.reconcile().isEmpty)
+  }
+
+  @Test func playablePartialRecoversToOnePendingReceiptAfterRelaunch() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 6),
+      language: .korean, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try writeSyntheticAAC(to: audio)
+    try files.protectOpenAudio(id: identity.id)
+
+    let reopened = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    #expect(reopened.reconcile() == [identity])
+    #expect(reopened.list(outcome: "pending") == [identity])
+    #expect(reopened.reconcile().isEmpty)
+    #expect(reopened.list(outcome: "pending") == [identity])
+  }
+
+  @Test func unplayablePartialIsRetainedAndReconciledOnce() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 10),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try Data([0, 1, 2, 3]).write(to: audio)
+    try files.protectOpenAudio(id: identity.id)
+
+    #expect(files.issues().count == 1)
+    #expect(files.reconcile() == [identity])
+    #expect(files.reconcile().isEmpty)
+    #expect(files.list(outcome: "failed") == [identity])
+    #expect(files.list(outcome: "pending").isEmpty)
+    #expect(files.issues().isEmpty)
+    #expect(FileManager.default.fileExists(atPath: audio.path))
+    let values = try audio.resourceValues(forKeys: [.isExcludedFromBackupKey])
+    #expect(values.isExcludedFromBackup == true)
+    let snapshot = root.appending(path: "snapshot-\(reference.uuidString.lowercased()).json")
+    let workspace = root.appending(path: identity.id.description)
+    let marker = workspace.appending(path: "capture.json")
+    let receipt = workspace.appending(path: "receipt.json")
+    for url in [snapshot, marker, receipt] {
+      let attributes = try url.resourceValues(forKeys: [.isExcludedFromBackupKey])
+      #expect(attributes.isExcludedFromBackup == true)
+    }
+    try Data("invalid receipt".utf8).write(to: receipt)
+    #expect(files.list(outcome: "failed").isEmpty)
+    #expect(files.issues().count == 1)
+    #expect(FileManager.default.fileExists(atPath: audio.path))
+    try FileManager.default.removeItem(at: receipt)
+    #expect(files.reconcile() == [identity])
+    try FileManager.default.removeItem(at: audio)
+    #expect(files.list(outcome: "failed").isEmpty)
+    #expect(files.issues().count == 1)
+  }
+
+  @Test func failedReceiptCommitRetainsAudioForRelaunchRecovery() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(
+      root: root, protection: NoCaptureProtectionPolicy(),
+      failureInjector: { point, url in
+        if case .beforeCommit = point, url.lastPathComponent == "receipt.json" {
+          throw CaptureGateFailure.storage
+        }
+      })
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 20),
+      language: .korean, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try Data([1, 2, 3, 4]).write(to: audio)
+    try files.protectOpenAudio(id: identity.id)
+    let inspection = CaptureInspection(
+      byteCount: 4, duration: 0, isMonoAAC: false, isPlayable: false)
+    #expect(throws: CaptureGateFailure.storage) {
+      try files.saveOutcome(identity, inspection: inspection)
+    }
+    #expect(FileManager.default.fileExists(atPath: audio.path))
+    #expect(files.issues().count == 1)
+    let workspace = root.appending(path: identity.id.description)
+    let children = try FileManager.default.contentsOfDirectory(
+      at: workspace, includingPropertiesForKeys: [.isExcludedFromBackupKey])
+    let scratch = children.filter { $0.lastPathComponent.hasPrefix(".write-") }
+    #expect(scratch.count == 1)
+    let attributes = try scratch[0].resourceValues(forKeys: [.isExcludedFromBackupKey])
+    #expect(attributes.isExcludedFromBackup == true)
+
+    let reopened = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    #expect(reopened.reconcile() == [identity])
+    #expect(reopened.list(outcome: "failed") == [identity])
+  }
+
+  @Test func missingAudioAfterRelaunchRemainsReviewableWithoutAFalseReceipt() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 30),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    #expect(files.reconcile().isEmpty)
+    #expect(files.list(outcome: "failed").isEmpty)
+    #expect(files.list(outcome: "pending").isEmpty)
+    #expect(files.issues().count == 1)
+  }
+
+  @Test func postCommitErrorIsAcceptedOnlyAfterReceiptVerification() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(
+      root: root, protection: NoCaptureProtectionPolicy(),
+      failureInjector: { point, url in
+        if case .afterCommit = point, url.lastPathComponent == "receipt.json" {
+          throw CaptureGateFailure.storage
+        }
+      })
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 40),
+      language: .korean, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try Data([1, 2, 3, 4]).write(to: audio)
+    try files.protectOpenAudio(id: identity.id)
+    let inspection = CaptureInspection(
+      byteCount: 4, duration: 0, isMonoAAC: false, isPlayable: false)
+    #expect(try files.saveOutcome(identity, inspection: inspection) == false)
+    #expect(files.list(outcome: "failed") == [identity])
+    #expect(files.issues().isEmpty)
+  }
+
+  @Test func substitutedAudioSymlinkNeverReadsExternalBytes() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let outside = FileManager.default.temporaryDirectory.appending(
+      path: "outside-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: outside) }
+    try Data([9, 9, 9]).write(to: outside)
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 50),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try FileManager.default.createSymbolicLink(at: audio, withDestinationURL: outside)
+    #expect(throws: CaptureGateFailure.storage) { try files.inspectAudio(id: identity.id) }
+    #expect(files.reconcile().isEmpty)
+    #expect(files.list(outcome: "failed").isEmpty)
+    #expect(files.issues().count == 1)
+    #expect(try Data(contentsOf: outside) == Data([9, 9, 9]))
+  }
+
+  @Test func failedReceiptProtectionNeverReportsQueued() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: FailingReceiptProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 60),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try Data([1, 2, 3, 4]).write(to: audio)
+    try files.protectOpenAudio(id: identity.id)
+    let inspection = CaptureInspection(
+      byteCount: 4, duration: 0, isMonoAAC: false, isPlayable: false)
+    #expect(throws: CaptureGateFailure.storage) {
+      try files.saveOutcome(identity, inspection: inspection)
+    }
+    #expect(files.list(outcome: "pending").isEmpty)
+    #expect(files.list(outcome: "failed").isEmpty)
+    #expect(files.issues().count == 1)
+    #expect(FileManager.default.fileExists(atPath: audio.path))
+    let reopened = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    #expect(reopened.reconcile() == [identity])
+    #expect(reopened.list(outcome: "failed") == [identity])
+  }
+}
+
+private func writeSyntheticAAC(to url: URL) throws {
+  let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1))
+  let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 44_100))
+  buffer.frameLength = 44_100
+  let samples = try #require(buffer.floatChannelData?[0])
+  for index in 0..<44_100 {
+    samples[index] = 0.08 * sin(Float(index) * 2 * .pi * 440 / 44_100)
+  }
+  let writer = try AVAudioFile(
+    forWriting: url,
+    settings: [
+      AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+      AVSampleRateKey: 44_100,
+      AVNumberOfChannelsKey: 1,
+      AVEncoderBitRateKey: 64_000,
+    ])
+  try writer.write(from: buffer)
+}
+
+@MainActor
+struct CaptureClosedProtectionTests {
+  @Test func emptyClosedAudioRequiresVerifiedProtectionBeforeFailureClassification() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: RejectClosedAudioProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 1),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try Data().write(to: audio)
+    try files.protectOpenAudio(id: identity.id)
+
+    #expect(throws: CaptureGateFailure.storage) {
+      try files.inspectAudio(id: identity.id)
+    }
+    #expect(FileManager.default.fileExists(atPath: audio.path))
+    #expect(files.list(outcome: "failed").isEmpty)
+  }
+}
+
+@MainActor
+struct CaptureReceiptVerificationTests {
+  @Test func corruptCaptureMarkerCannotPublishPendingReceipt() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]),
+        disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 7),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try writeSyntheticAAC(to: audio)
+    try files.protectOpenAudio(id: identity.id)
+    let inspection = try files.inspectAudio(id: identity.id)
+    let marker = root.appending(path: identity.id.description).appending(path: "capture.json")
+    try Data("corrupt".utf8).write(to: marker)
+
+    #expect(throws: CaptureGateFailure.storage) {
+      try files.saveOutcome(identity, inspection: inspection)
+    }
+    #expect(files.list(outcome: "pending").isEmpty)
+    #expect(files.issues().count == 1)
+    #expect(FileManager.default.fileExists(atPath: audio.path))
+  }
+}
+
+// swiftlint:enable trailing_comma
+
+private struct FailingReceiptProtectionPolicy: CaptureProtectionPolicy {
+  func applyAndVerify(to url: URL, open _: Bool, manager _: FileManager) throws {
+    if url.lastPathComponent == "receipt.json" {
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = false
+      var mutable = url
+      try mutable.setResourceValues(values)
+      throw CaptureGateFailure.storage
+    }
+  }
+
+  func verify(to url: URL, open _: Bool, manager _: FileManager) throws {
+    if url.lastPathComponent == "receipt.json" { throw CaptureGateFailure.storage }
+  }
+}
+
+private struct RejectClosedAudioProtectionPolicy: CaptureProtectionPolicy {
+  func applyAndVerify(to url: URL, open: Bool, manager _: FileManager) throws {
+    if url.lastPathComponent == "pending-audio.m4a" && !open {
+      throw CaptureGateFailure.storage
+    }
+  }
+
+  func verify(to _: URL, open _: Bool, manager _: FileManager) throws {}
+}
