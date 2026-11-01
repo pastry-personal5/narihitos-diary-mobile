@@ -6,4 +6,12 @@ This is the canonical vocabulary for visible user interface components, and thei
 
 ## Canonical components
 
-TBD
+| Visible label | Code-facing name | Meaning |
+|---|---|---|
+| Main | main | Root tab for the main diary view. |
+| Benefits | benefits | Root tab with an explanatory empty state in v1. |
+| Calendar | calendar | Root tab with an explanatory empty state in v1. |
+| Plugins | plugins | Root tab with an explanatory empty state in v1. |
+| All | all | Root tab for the asset collection. |
+
+Other component labels remain undecided.

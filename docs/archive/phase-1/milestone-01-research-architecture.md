@@ -1,6 +1,6 @@
 # P1-M1: Research approach
 
-Status: Active
+Status: Archived
 
 This plan describes how to gather evidence for the research milestone; it does not decide the app's architecture.
 

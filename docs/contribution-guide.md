@@ -19,7 +19,7 @@ TBD: xcodebuild test                          # run tests after the Xcode projec
 
 ## Required validation
 
-Before opening a pull request, run the full checks from the repository root:
+For milestones other than P1-M1 and P1-M2, run the full checks from the repository root before opening a pull request. The owner exempted P1-M1 and P1-M2 from all build, lint, and test gates; see the [Phase 1 changelog](phase-1/changelog.md).
 
 ```sh
 swift-format lint --strict --recursive .

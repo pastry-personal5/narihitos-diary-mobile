@@ -17,7 +17,7 @@ Work is organized into numbered phases and milestones. General documentation rul
 A milestone is done when:
 
 1. Its completion checklist is checked with acceptance evidence.
-2. The gate passes: `swift-format lint --strict --recursive .`, `swiftlint lint --strict`, and `TBD: xcodebuild test with the generated project, scheme, and simulator`.
+2. For milestones other than P1-M1 and P1-M2, the gate passes: `swift-format lint --strict --recursive .`, `swiftlint lint --strict`, and `TBD: xcodebuild test with the generated project, scheme, and simulator`. The owner exempts P1-M1 and P1-M2 from all build, lint, and test gates; their completion depends on checklist evidence and updated docs, not those commands.
 3. Affected docs and its phase-doc status are updated in the same change.
 
 A phase is done when every milestone is `Done` or `Dropped` and its exit criteria hold.
