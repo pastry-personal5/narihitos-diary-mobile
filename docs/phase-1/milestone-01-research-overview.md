@@ -1,6 +1,6 @@
 # P1-M1: Research overview
 
-Status: Archived
+Status: Active
 
 Research Qwen-based AI audio transcription for diary recordings and document findings that can inform software architecture.
 
@@ -8,7 +8,7 @@ Research Qwen-based AI audio transcription for diary recordings and document fin
 
 - Investigate Qwen-based transcription options for recorded audio, including support for Korean and English and compatibility with the app's recording format.
 - Document deployment and integration options, quality evaluation, privacy, costs, licensing, and relevant constraints, with sources and unresolved questions.
-- Research the following items derived from the [owner’s initial ideas](../../research/initial-ideas-from-owner.md), treating them as proposed requirements to reconcile with the current product and UX docs:
+- Research the following items derived from the [owner’s initial ideas](../research/initial-ideas-from-owner.md), treating them as proposed requirements to reconcile with the current product and UX docs:
   - Apple on-device speech recognition for en-US and ko-KR, including iOS availability, offline capability, permissions, quality, and how it compares with Qwen and service-provider/model/prompt combinations.
   - Configuring transcription choices as provider, model, and optional prompt: what users can select, what must be stored with each asset, and the credential, privacy, and fallback implications of service-based options.
   - iPhone recording and playback of `.m4a`: codec and format choices, microphone permissions, interruptions, level metering, duration, the en-US/ko-KR recording language choice, and compatibility with each transcription option.
@@ -30,8 +30,8 @@ Research Qwen-based AI audio transcription for diary recordings and document fin
 - [x] Document Qwen-based audio transcription options and their suitability for diary recordings, with sources: [research findings](../research/p1-m1-qwen-transcription.md).
 - [x] Record integration, language and audio-format support, privacy, cost, licensing, and evaluation considerations, including unknowns: [research findings](../research/p1-m1-qwen-transcription.md).
 - [x] Summarize findings and questions for P1-M2 without treating a recommendation as an approved decision: [research findings](../research/p1-m1-qwen-transcription.md).
-- [x] Document sourced findings and unresolved questions for the owner-derived research items above, including feasibility and constraints, with links to evidence: [open-decision inventory](../../research/p1-m1-open-decisions.md).
+- [x] Document sourced findings and unresolved questions for the owner-derived research items above, including feasibility and constraints, with links to evidence: [open-decision inventory](../research/p1-m1-open-decisions.md).
 - [x] Compare iPhone recording codec, sample rate, channel, and bitrate choices with Qwen input requirements; document a provisional quality/cost recommendation: [audio-format research](../research/p1-m1-audio-format.md).
 - [x] Compare relevant Qwen ASR models, capabilities, language support, and Singapore/Beijing list prices with a sourced provisional recommendation: [Qwen research](../research/p1-m1-qwen-transcription.md).
-- [x] Update affected documentation and milestone status with acceptance evidence: the [Phase 1 plan](../../phase-1/phase-1.md) marks P1-M1 Done, the [documentation index](../../README.md) links the completed research, and the [Phase 1 changelog](../../phase-1/changelog.md) records the handoff to P1-M2.
-- [x] Apply the owner's exemption from all P1-M1 build, lint, and test gates; see the [Phase 1 changelog](../../phase-1/changelog.md). Earlier exploratory checks do not affect completion.
+- [x] Update affected documentation and milestone status with acceptance evidence: the [Phase 1 plan](phase-1.md) marks P1-M1 Done, the [documentation index](../README.md) links the completed research, and the [Phase 1 changelog](changelog.md) records the handoff to P1-M2.
+- [x] Apply the owner's exemption from all P1-M1 build, lint, and test gates; see the [Phase 1 changelog](changelog.md). Earlier exploratory checks do not affect completion.

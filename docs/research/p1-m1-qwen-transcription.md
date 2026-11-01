@@ -1,6 +1,6 @@
 # P1-M1: Qwen transcription research
 
-Status: Archived
+Status: Active
 
 This research compares hosted Qwen ASR models for v1's recorded English (en-US) and Korean (ko-KR) diary clips, now capped at five minutes. It reports published Singapore and Beijing pay-as-you-go prices and a provisional integration recommendation; it does not select a model for the product. Sources were checked on 2026-11-01. The owner's filtered [QwenCloud model marketplace](https://www.qwencloud.com/models?region=cn-beijing&task=audio%2Faudio-understanding%2Freal-time-audio-understanding%2Caudio%2Faudio-understanding%2Fnon-real-time-audio-understanding%2Caudio%2Fspeech-recognition%2Freal-time-speech-recognition%2Fsimplex-real-time-speech-recognition%2Caudio%2Fspeech-recognition%2Fnon-real-time-speech-recognition%2Caudio%2Fspeech-synthesis%2Freal-time-speech-synthesis%2Fsimplex-real-time-speech-synthesis%2Caudio%2Fspeech-synthesis%2Fnon-real-time-speech-synthesis%2Caudio%2Fspeech-interaction%2Freal-time-speech-interaction%2Ffull-duplex%2Caudio%2Fspeech-interaction%2Freal-time-speech-interaction%2Fother-real-time-speech-interaction&sort=lowest) could not be read by the research tool, so prices below come from the provider's [regional pricing table](https://www.alibabacloud.com/help/en/model-studio/model-pricing) and [QwenCloud model-price reference](https://docs.qwencloud.com/developer-guides/getting-started/model-prices).
 

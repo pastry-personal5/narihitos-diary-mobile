@@ -70,7 +70,7 @@ Approved dependencies must have licenses compatible with Apache-2.0.
 - Add every doc to [docs/README.md](docs/README.md). Follow [docs/development-process.md](docs/development-process.md) for phase and milestone plans.
 - Update affected docs with code. Update `README.md` for user-visible changes and this file for tooling, commands, or decisions.
 - Link instead of copying facts.
-- Archive completed or superseded docs: update status, `git mv` them under `docs/archive/` (completed phase directories go under `docs/archive/phases/`), and fix links. Archived docs are not maintained.
+- Keep a phase's milestone and research docs in its active directories until the phase is complete, even when a milestone is done. When the phase is complete, update their status, `git mv` the phase directory under `docs/archive/phases/` and its concluded research under `docs/archive/`, and fix links. Superseded standalone docs may be archived earlier. Archived docs are not maintained.
 
 ## Token efficiency
 

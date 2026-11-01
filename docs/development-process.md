@@ -73,5 +73,5 @@ Status: Active
 ## Document lifecycle
 
 - Other docs use `Draft`, `Proposal`, `Active`, `Superseded by <link>`, or `Archived`. Proposals are not decisions.
-- Archive completed phase plans, superseded designs, and concluded research; fix their links in `docs/roadmap.md`.
+- Keep milestone plans and their research in active directories until their phase is complete. Then archive the completed phase directory and concluded research, and fix their links in `docs/roadmap.md` and the documentation index. Superseded standalone designs may be archived earlier.
 - Record resolved open questions under "Decided" in `AGENTS.md`.

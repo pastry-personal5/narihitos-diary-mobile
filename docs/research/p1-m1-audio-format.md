@@ -1,6 +1,6 @@
 # P1-M1: iPhone recording format and Qwen input research
 
-Status: Archived
+Status: Active
 
 This research compares iPhone recording output with the Qwen file-transcription inputs relevant to five-minute English and Korean diary clips. It gives a provisional recording baseline for P1-M2, not an approved codec or provider decision. Sources and example-asset metadata were checked on 2026-11-01.
 
