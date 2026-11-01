@@ -1,11 +1,12 @@
 # Cohere runtime trial
 
-Status: Active
+Status: Done
 
-This isolated iPhone app measures the P1-M6 Cohere Q4/Q5 candidates without
-adding a dependency to the production app. Follow the
+This isolated iPhone app measured the P1-M6 Cohere Q4/Q5 candidates without
+adding a dependency to the production app. The owner closed the trial with Q4_K_M
+and Metal selected as the P1-M12 direction. Follow the retained
 [physical-device protocol](../../docs/phase-1/milestone-06-cohere-runtime-trial-protocol.md)
-when collecting evidence.
+only when reproducing or extending the evidence.
 
 ## Setup
 

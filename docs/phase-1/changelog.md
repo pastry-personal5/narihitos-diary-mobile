@@ -6,7 +6,9 @@ This log records owner decisions and significant plan changes for Phase 1. P1-M5
 
 ## Entries
 
-- 2026-11-01 — Owner P1-M6 closeout — accepted the available iPhone 17 Pro Max short English/Korean comparison, selected the runtime-publisher Q4_K_M GGUF with `transcribe.cpp` Metal as the P1-M12 direction, and marked P1-M6 Done. Q4 was faster and used less memory than Q5; English output matched and Korean output was not reference-scored. The owner explicitly closed the unperformed five-minute, true-cold, cancellation, profiler, energy, and WER/CER work without claiming it as evidence. Production must use a trusted manifest, bounded long-audio chunking, explicit language, complete-output checks, and real provenance; see the [results](milestone-06-cohere-runtime-trial-results.md).
+- 2026-11-01 — P1-M6 research audit — added the sanitized ten-export evidence range, exact runtime/model metadata, early `OSStatus -39` audio-conversion resolution, pre-fix `unsupported architecture (5)` diagnosis, provenance gaps, and the sourced upstream long-input defect behind the 45-second production safeguard. Private transcripts, filenames, hashes, result IDs, and logs remain outside Git.
+
+- 2026-11-01 — Owner P1-M6 closeout — accepted the available iPhone 17 Pro Max short English/Korean comparison, selected the runtime-publisher Q4_K_M GGUF with `transcribe.cpp` Metal as the P1-M12 direction, and marked P1-M6 Done. Q4 was faster in the matched back-to-back English comparison and used less memory than Q5; English output matched and Korean output was not reference-scored. The owner explicitly closed the unperformed five-minute, true-cold, cancellation, profiler, energy, and WER/CER work without claiming it as evidence. Production must use a trusted manifest, bounded long-audio chunking, explicit language, complete-output checks, and real provenance; see the [results](milestone-06-cohere-runtime-trial-results.md).
 
 - 2026-11-01 — Owner P1-M6 request — activated an isolated Cohere runtime trial before P1-M5 completion. The trial gathered physical-iPhone Q4/Q5 English/Korean evidence without changing the production target.
 
