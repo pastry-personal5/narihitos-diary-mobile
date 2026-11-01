@@ -74,8 +74,8 @@ Any production integration remains gated by P1-M5 decisions and owner approval.
 ## Review follow-up checklist
 
 - [x] Preflight shows candidate quantization, SHA-256 values, and audio duration,
-  verifies the model against its Git LFS SHA-256, and prevents a changed input
-  from running without another inspection.
+  verifies the model against its Git LFS SHA-256, and run-time verification
+  recomputes model/audio SHA-256 before accepting previously inspected inputs.
 - [x] Exported schema v3 records runtime artifact integrity, controlled
   conditions, model input/cancellation capabilities, measurement phases, and
   a stage-by-stage runtime diagnostic trail.
@@ -106,3 +106,8 @@ Q4_K_M and Q5_K_M English/Korean runs completed successfully with Metal and
 nominal thermal state. The owner selected Q4_K_M and closed the remaining
 protocol without claiming five-minute, cancellation, profiler, energy, or
 accuracy evidence; see the [results](milestone-06-cohere-runtime-trial-results.md).
+
+A 2026-11-02 source review found that run-time input verification compared only
+file size and modification time. It now recomputes the selected model and audio
+SHA-256 and checks that metadata remains stable during each read. This is source
+inspection evidence; the trial validation gate was not run for this review.

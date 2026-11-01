@@ -4,18 +4,29 @@ import Foundation
 enum FileIdentityReader {
   static func read(url: URL, cancellation: CancellationFlag? = nil) throws -> FileIdentity {
     let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+    guard let fileSize = values.fileSize else { throw CocoaError(.fileReadUnknown) }
     let handle = try FileHandle(forReadingFrom: url)
     defer { try? handle.close() }
 
     var hasher = SHA256()
+    var byteCount: Int64 = 0
     while let data = try handle.read(upToCount: 4 * 1_024 * 1_024), !data.isEmpty {
       if cancellation?.isCancelled() == true { throw CancellationError() }
+      let (nextByteCount, overflow) = byteCount.addingReportingOverflow(Int64(data.count))
+      guard !overflow else { throw CocoaError(.fileReadTooLarge) }
+      byteCount = nextByteCount
       hasher.update(data: data)
     }
+    if cancellation?.isCancelled() == true { throw CancellationError() }
+
+    let finalValues = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+    guard byteCount == Int64(fileSize), finalValues.fileSize == fileSize,
+      finalValues.contentModificationDate == values.contentModificationDate
+    else { throw TrialValidationError.inputsChangedAfterPreflight }
 
     return FileIdentity(
       filename: url.lastPathComponent,
-      byteCount: Int64(values.fileSize ?? 0),
+      byteCount: byteCount,
       sha256: hasher.finalize().map { String(format: "%02x", $0) }.joined(),
       modifiedAt: values.contentModificationDate
     )
@@ -54,18 +65,18 @@ enum TrialPreflight {
     cancellation: CancellationFlag
   ) throws {
     if cancellation.isCancelled() { throw CancellationError() }
-    try verify(identity: summary.model.file, url: modelURL)
+    try verify(identity: summary.model.file, url: modelURL, cancellation: cancellation)
     if cancellation.isCancelled() { throw CancellationError() }
-    try verify(identity: summary.audioFile, url: audioURL)
+    try verify(identity: summary.audioFile, url: audioURL, cancellation: cancellation)
   }
 
-  private static func verify(identity: FileIdentity, url: URL) throws {
-    let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
-    guard
-      identity.filename == url.lastPathComponent,
-      identity.byteCount == Int64(values.fileSize ?? 0),
-      identity.modifiedAt == values.contentModificationDate
-    else {
+  private static func verify(
+    identity: FileIdentity,
+    url: URL,
+    cancellation: CancellationFlag
+  ) throws {
+    let current = try FileIdentityReader.read(url: url, cancellation: cancellation)
+    guard current == identity else {
       throw TrialValidationError.inputsChangedAfterPreflight
     }
   }

@@ -148,24 +148,57 @@ final class AppModel: ObservableObject {
 
   func handleRecord() async {
     microphoneState = microphone.currentState()
-    destination = await destinationService.activeDestination()
     switch microphoneState {
     case .denied, .restricted:
-      presentMessage(
-        "Microphone access is required to record. Open Settings to allow access.",
-        offersSettingsRecovery: true)
+      presentMicrophoneRecovery()
     case .notDetermined:
       microphoneState = await microphone.requestAccess()
       if microphoneState != .authorized {
+        if microphoneState == .denied || microphoneState == .restricted {
+          presentMicrophoneRecovery()
+        } else {
+          presentMessage("Microphone access is required to record.")
+        }
+        return
+      }
+      await routeRecordAfterAuthorization()
+    case .authorized:
+      await routeRecordAfterAuthorization()
+    }
+  }
+
+  private func routeRecordAfterAuthorization() async {
+    microphoneState = microphone.currentState()
+    guard microphoneState == .authorized else {
+      if microphoneState == .denied || microphoneState == .restricted {
+        presentMicrophoneRecovery()
+      } else {
         presentMessage("Microphone access is required to record.")
       }
-    case .authorized:
-      if destination.summary == nil || destination.accessState != .accessible {
-        selectFolder()
-      } else {
-        presentMessage("Recording is not available yet.")
-      }
+      return
     }
+
+    destination = await destinationService.activeDestination()
+    microphoneState = microphone.currentState()
+    guard microphoneState == .authorized else {
+      if microphoneState == .denied || microphoneState == .restricted {
+        presentMicrophoneRecovery()
+      } else {
+        presentMessage("Microphone access is required to record.")
+      }
+      return
+    }
+    if destination.summary == nil || destination.accessState != .accessible {
+      selectFolder()
+    } else {
+      presentMessage("Recording is not available yet.")
+    }
+  }
+
+  private func presentMicrophoneRecovery() {
+    presentMessage(
+      "Microphone access is required to record. Open Settings to allow access.",
+      offersSettingsRecovery: true)
   }
 
   private func commitPreparedDestination() {

@@ -26,6 +26,7 @@ final class LocalPrivateWorkspace: PrivateWorkspacePort {
   private let adapterID = UUID()
   private let protectionPolicy: any FileProtectionPolicy
   private let failureInjector: (@Sendable (WorkspaceFailurePoint) throws -> Void)?
+  private let operationLock = NSLock()
   private var issuedHandles: [WorkspaceID: UUID] = [:]
   private let lock = NSLock()
 
@@ -71,6 +72,8 @@ final class LocalPrivateWorkspace: PrivateWorkspacePort {
   }
 
   func allocate(id: WorkspaceID) throws -> WorkspaceHandle {
+    operationLock.lock()
+    defer { operationLock.unlock() }
     let url = workspaceURL(id)
     do {
       try Self.requirePlainDirectory(root)
@@ -87,6 +90,8 @@ final class LocalPrivateWorkspace: PrivateWorkspacePort {
   }
 
   func reopen(id: WorkspaceID) throws -> WorkspaceHandle {
+    operationLock.lock()
+    defer { operationLock.unlock() }
     let url = workspaceURL(id)
     do {
       try Self.requirePlainDirectory(root)
@@ -100,11 +105,15 @@ final class LocalPrivateWorkspace: PrivateWorkspacePort {
   }
 
   func artifact(_ role: PrivateArtifactRole, in handle: WorkspaceHandle) throws -> ArtifactHandle {
+    operationLock.lock()
+    defer { operationLock.unlock() }
     _ = try validatedWorkspaceURL(handle)
     return ArtifactHandle(workspace: handle, role: role)
   }
 
   func read(_ artifact: ArtifactHandle) throws -> Data {
+    operationLock.lock()
+    defer { operationLock.unlock() }
     let url = try validatedArtifactURL(artifact, mustExist: true)
     guard let stream = InputStream(url: url) else {
       throw PrivateWorkspaceFailureCode.storageUnavailable
@@ -126,6 +135,8 @@ final class LocalPrivateWorkspace: PrivateWorkspacePort {
   }
 
   func replace(_ artifact: ArtifactHandle, with data: Data) throws {
+    operationLock.lock()
+    defer { operationLock.unlock() }
     guard data.count <= Self.maximumArtifactBytes else {
       throw PrivateWorkspaceFailureCode.resourceTooLarge
     }
@@ -178,6 +189,8 @@ final class LocalPrivateWorkspace: PrivateWorkspacePort {
   }
 
   func remove(_ artifact: ArtifactHandle) throws {
+    operationLock.lock()
+    defer { operationLock.unlock() }
     let url = try validatedArtifactURL(artifact, mustExist: true)
     do {
       try fileManager.removeItem(at: url)
@@ -187,6 +200,8 @@ final class LocalPrivateWorkspace: PrivateWorkspacePort {
   }
 
   func remove(_ workspace: WorkspaceHandle) throws {
+    operationLock.lock()
+    defer { operationLock.unlock() }
     let url = try validatedWorkspaceURL(workspace)
     do {
       let children = try fileManager.contentsOfDirectory(

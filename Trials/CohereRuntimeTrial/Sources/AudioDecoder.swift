@@ -72,14 +72,18 @@ enum AudioDecoder {
 
   static func sourceDuration(url: URL) throws -> Double {
     let file = try AVAudioFile(forReading: url)
-    guard file.processingFormat.sampleRate > 0 else { throw TrialValidationError.emptyAudio }
+    guard file.length > 0, file.processingFormat.sampleRate > 0 else {
+      throw TrialValidationError.emptyAudio
+    }
     return Double(file.length) / file.processingFormat.sampleRate
   }
 
   static func decode(url: URL, cancellation: CancellationFlag? = nil) throws -> DecodedAudio {
     let file = try AVAudioFile(forReading: url)
     let sourceFormat = file.processingFormat
-    guard sourceFormat.sampleRate > 0 else { throw TrialValidationError.emptyAudio }
+    guard file.length > 0, sourceFormat.sampleRate > 0 else {
+      throw TrialValidationError.emptyAudio
+    }
     let duration = Double(file.length) / sourceFormat.sampleRate
     let (converter, targetFormat) = try makeConverter(sourceFormat: sourceFormat)
     let buffers = try makeBuffers(

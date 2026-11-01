@@ -132,7 +132,10 @@ final class AppleDestinationService: DestinationSelectionPort {
         identityArchive: identity)
       return .prepared(publicValue)
     } catch let error as DestinationValidationError {
-      return error.accessState == .temporarilyUnavailable ? .temporarilyUnavailable : .rejected
+      switch error.accessState {
+      case .temporarilyUnavailable, .restoreAccessRequired: return .temporarilyUnavailable
+      case .accessible, .invalidStoredReference: return .rejected
+      }
     } catch {
       return .temporarilyUnavailable
     }
