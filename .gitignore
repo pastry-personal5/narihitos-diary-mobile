@@ -2,6 +2,8 @@ config/global_dev_config.yaml
 
 docs/research/initial-ideas-from-owner.md
 
+docs/security-review.md
+
 tmp/
 
 # macOS

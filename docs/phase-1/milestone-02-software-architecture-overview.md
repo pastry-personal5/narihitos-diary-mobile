@@ -16,6 +16,7 @@ Describe the app's responsibilities, data flow, persistence boundaries, failure 
 - Define conceptual recording, processing, and asset lifecycles, including offline staging, foreground queue processing, provenance, and iCloud folder ownership.
 - Describe how the app preserves recording audio and one managed Markdown draft through retries, destination failures, app closure, and partial writes.
 - Identify test seams and observable evidence for critical flows.
+- Review security boundaries and document prioritized design findings, proposed controls, and adversarial acceptance scenarios in the [security review](../security-review.md).
 - Enumerate decisions that must be resolved before the corresponding behavior is implemented. Recommendations may be recorded as proposals, not owner-approved product decisions.
 - Publish a standalone [software architecture](../architecture.md) that remains useful outside this milestone.
 
@@ -27,8 +28,11 @@ Describe the app's responsibilities, data flow, persistence boundaries, failure 
 
 ## Completion checklist
 
+- [x] Complete the requested security review: the [review record](../security-review.md) identifies eight prioritized findings, and the [architecture](../architecture.md#security-privacy-and-operating-limits) defines trust boundaries and source-backed controls for files, private data, local inference, model installation, and recovery.
+- [x] Define twelve [adversarial verification scenarios](../security-review.md#adversarial-verification-matrix) and carry unresolved security choices into the [decision inventory](../research/p1-m1-open-decisions.md). Delegated documentation validation found no broken local links/fragments or whitespace errors; runtime security verification remains pending.
 - [x] Replace preserved-transcript and text-creation stages with one managed diary text file in the [architecture](../architecture.md) and affected product, UX, process, and decision docs. The documentation check found no whitespace errors or broken local links; only dated changelog entries retain the superseded design.
 - [x] Review the architecture against confirmed behavior and close gaps in local capture recovery, attempt snapshots, iCloud bundle publication, catalog refresh, and edit durability; keep unresolved choices explicit in the [architecture proposal](../architecture.md). The documentation check found no whitespace errors or broken local links and fragments.
+- [x] Define fail-open processing and queue recovery so one recording's wait, failure, or malformed state cannot prevent other ready recordings from advancing; document the data-safety limit and verification scenarios in the [architecture](../architecture.md).
 - [x] Publish the standalone [software architecture](../architecture.md) with Clean Architecture dependencies, extension contracts for asset kinds and transcription methods, lifecycle diagrams, persistence, error handling, privacy, and test seams.
 - [x] Keep confirmed behavior distinct from proposals and enumerate the open decisions that block implementation of specific paths: [decisions required](../architecture.md#decisions-required-before-dependent-implementation).
 - [x] Document the architecture work sequence and affected interfaces in the [approach](milestone-02-software-architecture-architecture.md).

@@ -13,6 +13,7 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/milestone-02-software-architecture-overview.md](phase-1/milestone-02-software-architecture-overview.md) | P1-M2 scope and completion checklist. |
 | [phase-1/milestone-02-software-architecture-architecture.md](phase-1/milestone-02-software-architecture-architecture.md) | P1-M2 architecture work sequence and review criteria. |
 | [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and decision gates. |
+| [security-review.md](security-review.md) | Architecture threat model, prioritized findings, proposed controls, and pending adversarial verification. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
 | [contribution-guide.md](contribution-guide.md) | Local setup, required validation, commit message style, and pull request conventions. |
 | [product-behavior.md](product-behavior.md) | Product scope: what the app does and what it deliberately does not do. |
