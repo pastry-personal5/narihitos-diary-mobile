@@ -29,7 +29,7 @@ swiftlint lint --strict
 TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh
 ```
 
-The validation script keeps successful command output silent and prints a short log tail on failure. Set `TEST_DESTINATION` to a working iPhone simulator; without it, the script exits before running checks because the full gate requires tests.
+The validation script keeps successful command output silent and prints a short log tail on failure. Set `TEST_DESTINATION` to a working iPhone simulator; without it, the script exits before running checks because the full gate requires tests. Simulator destination resolution fails after 60 seconds, and each test receives at most 120 seconds, so unavailable simulators and nonsettling tests do not stall the gate. Positive-integer `SIMULATOR_DESTINATION_TIMEOUT_SECONDS` and `TEST_EXECUTION_TIMEOUT_SECONDS` overrides are available for slower machines or explicitly long-running tests.
 
 ## Commit messages
 

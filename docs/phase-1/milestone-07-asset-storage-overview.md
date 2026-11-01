@@ -46,8 +46,9 @@ Implement the bounded Diary Snippet v1 schema and the private local-workspace fo
 - [x] Failure values and test diagnostics contain only typed codes and opaque local identifiers, not diary text, titles, coordinates, paths, bookmarks, source bytes, or raw platform errors; tests inspect error descriptions and captured diagnostic fields.
 - [x] The implementation contains no new dependency or build-tool change and preserves the inward dependency rule documented in [architecture.md](../architecture.md).
 - [x] Affected documentation identifies the downstream consumers and leaves physical-device Data Protection, restore, and iCloud evidence assigned to their existing milestones.
-- [ ] `swift-format lint --strict --recursive .` passes.
-- [ ] `swiftlint lint --strict` passes.
+- [x] The validation gate bounds simulator destination resolution and individual test execution so an unavailable simulator or nonsettling test fails with diagnostics instead of stalling indefinitely.
+- [x] `swift-format lint --strict --recursive .` passes.
+- [x] `swiftlint lint --strict` passes.
 - [ ] The generated project builds and all tests pass through `scripts/validate.sh` on an available iPhone simulator.
 
 ## Acceptance evidence
@@ -56,6 +57,7 @@ Check an item only with a focused test name, inspected file attribute/result, so
 
 ## Implementation evidence
 
+- On 2026-11-01 the required test runner confirmed the validation script's shell syntax and override validation, both repository-wide strict lint gates, project generation, and the generic simulator build. CoreSimulatorService refused the requested iPhone 18 Pro destination, and the test step failed after the configured 60-second destination timeout instead of stalling; the full simulator-test checklist item therefore remains open.
 - Domain values, the application-owned private-workspace port, Foundation codec/layout/storage adapters, and synthetic tests are implemented under `NarihitosDiary/Domain`, `NarihitosDiary/Application`, `NarihitosDiary/Adapters`, and `NarihitosDiaryTests` without changing `project.yml` or adding a dependency.
 - The 2026-11-01 implementation review tightened the strict scalar grammar, added a typed 64 MiB workspace bound, kept URL-based protection policy out of the application contract, made overwrite publication atomic with a retained prior version, restored absence after failed initial publication, and failed closed on an unexpected recovery artifact. Focused regression tests cover each corrected state transition.
 - On 2026-11-01 the required test runner reported passing scoped strict `swift-format` and `swiftlint`, the generic simulator build, and the complete M7 test suite on an iPhone 18 Pro simulator running iOS 27.0. `git diff --check` also passes.
