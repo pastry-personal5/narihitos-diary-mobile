@@ -14,13 +14,15 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/milestone-02-software-architecture-architecture.md](phase-1/milestone-02-software-architecture-architecture.md) | P1-M2 architecture work sequence and review criteria. |
 | [phase-1/milestone-03-scaffolding-overview.md](phase-1/milestone-03-scaffolding-overview.md) | P1-M3 scope and completion checklist. |
 | [phase-1/milestone-03-scaffolding-architecture.md](phase-1/milestone-03-scaffolding-architecture.md) | P1-M3 target structure, project generation, and validation approach. |
+| [phase-1/milestone-04-ux-overview.md](phase-1/milestone-04-ux-overview.md) | P1-M4 scope, completion checklist, and validation exemption. |
+| [phase-1/milestone-04-ux-architecture.md](phase-1/milestone-04-ux-architecture.md) | P1-M4 design sequence and review criteria. |
 | [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and decision gates. |
 | [security-review.md](security-review.md) | Architecture threat model, prioritized findings, proposed controls, and pending adversarial verification. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
 | [contribution-guide.md](contribution-guide.md) | Local setup, required validation, commit message style, and pull request conventions. |
 | [product-behavior.md](product-behavior.md) | Product scope: what the app does and what it deliberately does not do. |
-| [ux-terms.md](ux-terms.md) | Canonical component names for UI text, with their code-facing identifiers. |
-| [ux-information-architecture.md](ux-information-architecture.md) | The Standard Layout: how the app's components contain one another. |
+| [ux-terms.md](ux-terms.md) | Exact approved labels and canonical workflow concepts with code-facing identifiers. |
+| [ux-information-architecture.md](ux-information-architecture.md) | The Standard Layout: root hierarchy, destinations, and recovery boundaries. |
 | [ux-gui.md](ux-gui.md) | Current interface and owner-approved GUI behavior, with planned behavior kept separate. |
 | [research/initial-ideas-from-owner.md](research/initial-ideas-from-owner.md) | Narihito's Diary Mobile, in short, NDM, or ndm is an app that creates assets. |
 | [research/p1-m1-qwen-transcription.md](research/p1-m1-qwen-transcription.md) | Qwen transcription research for English and Korean diary recordings. |

@@ -6,6 +6,14 @@ This log records owner decisions and significant plan changes for Phase 1. Resea
 
 ## Entries
 
+- 2026-11-01 — Owner P1-M4 review — reviewed the UX and architecture documents and closed the information architecture and canonical UX terms milestone. Icon assets, accessibility names, and completion notice presentation remain decisions for later implementation work.
+
+- 2026-11-01 — Owner P1-M4 follow-up — set the sole capture control label to “Stop & Transcribe”; approved exact Benefits, Calendar, and Plugins empty-state messages. Main recovery notices open the relevant recovery screen. Equal-time conflicts use two vertically scrollable version tabs, with confirmation before removal of the unchosen version. Reaffirmed custom bitmap controls and withdrew the proposed Main Toolbar; no toolbar is specified.
+
+- 2026-11-01 — Owner P1-M4 UX interview — chose separate Incomplete Diary Snippets and Conflicting Versions screens in All, with a one-line Main notice bar for queued work, in-app transcription, and recovery attention. Messages rotate every 10 seconds in processing/queued/recovery order and pause for VoiceOver or Reduce Motion. Chose read-only Metadata details, Finish as the sole capture control, feature-specific empty states, exact established labels, and a Cancelling state until in-flight removal finishes. Remaining copy, icon, and conflict presentation questions are still open.
+
+- 2026-11-01 — Owner P1-M4 request — planned the information architecture and canonical UX terms milestone, aligned the UX documents with confirmed v1 behavior, and exempted P1-M4 from build, lint, and test exit gates. Non-tab copy and unresolved interactions remain for owner review.
+
 - 2026-11-01 — P1-M3 validation — Xcode 27.2, XcodeGen generation, strict formatting and SwiftLint, an unsigned simulator build, and the test scheme passed. CoreSimulator works outside the workspace sandbox; the installed iOS 27.1 iPhone Duo simulator provides a test fallback. P1-M3 is Done.
 
 - 2026-11-01 — Owner P1-M3 decision — represent the iOS 27.0.1 minimum with a 27.0 Xcode deployment target and a launch check for patch version 27.0.1; scaffold the app with XcodeGen and keep validation output concise. The local simulator service remains unavailable pending a working test destination.

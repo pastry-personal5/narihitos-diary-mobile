@@ -21,7 +21,7 @@ TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/valida
 
 ## Required validation
 
-For milestones other than P1-M1 and P1-M2, run the full checks from the repository root before opening a pull request. The owner exempted P1-M1 and P1-M2 from all build, lint, and test gates; see the [Phase 1 changelog](phase-1/changelog.md).
+For milestones other than P1-M1, P1-M2, and P1-M4, run the full checks from the repository root before opening a pull request. The owner exempted P1-M1 and P1-M2 from all build, lint, and test gates, and P1-M4 from its build, lint, and test exit gate; see the [Phase 1 changelog](phase-1/changelog.md).
 
 ```sh
 swift-format lint --strict --recursive .
