@@ -49,7 +49,10 @@ Status: Planned
 
 ### P1-M7: Establish Asset Schema and Private Storage
 
-Status: Planned
+Status: Active
+Goal: Implement the bounded Diary Snippet v1 codec and confined, backup-excluded private-workspace foundation used by later recording, queue, draft, and iCloud milestones.
+Plan: [overview](milestone-07-asset-storage-overview.md), [approach](milestone-07-asset-storage-architecture.md)
+Notes: The owner explicitly reordered implementation ahead of P1-M6 on 2026-11-01; lock-compatible Data Protection and restore behavior retain their assigned physical-device evidence in later milestones.
 
 ### P1-M8: Build First Launch, Settings, and iCloud Folder Selection
 
