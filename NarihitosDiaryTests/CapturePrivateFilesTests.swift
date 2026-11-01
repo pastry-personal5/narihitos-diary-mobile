@@ -1,13 +1,77 @@
 import AVFAudio
 import Foundation
 import Testing
+
 @testable import NarihitosDiary
 
 // swift-format and SwiftLint disagree on trailing commas in multiline collections.
-// swiftlint:disable trailing_comma
+// swiftlint:disable trailing_comma file_length
 
 @MainActor
+// swiftlint:disable:next type_body_length
 struct CapturePrivateFilesTests {
+  @Test func removalPreservesWorkspaceContainingUnknownFiles() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]), disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 5),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let unknown = root.appending(path: identity.id.description).appending(path: "unknown.data")
+    try Data([1, 2, 3]).write(to: unknown)
+    #expect(throws: CaptureGateFailure.storage) {
+      try files.removeWorkspace(jobID: identity.id.description)
+    }
+    #expect(FileManager.default.fileExists(atPath: unknown.path))
+    #expect(
+      FileManager.default.fileExists(
+        atPath: unknown.deletingLastPathComponent().appending(path: "capture.json").path))
+  }
+
+  @Test func transcriptionLeaseDetectsSameSizeAudioReplacement() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]), disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 5),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let url = try files.prepareAudio(id: identity.id)
+    try writeSyntheticAAC(to: url)
+    try files.protectOpenAudio(id: identity.id)
+    let inspection = try files.inspectAudio(id: identity.id)
+    #expect(try files.saveOutcome(identity, inspection: inspection))
+    let receipt = try #require(files.queueReceipt(jobID: identity.id.description))
+    let job = QueueJob(receipt: receipt, state: .transcribing)
+    let source = VerifiedCaptureAudioSource(files: files)
+    let hardLink = root.appending(path: "extra-audio-link.m4a")
+    try FileManager.default.linkItem(at: url, to: hardLink)
+    #expect(throws: (any Error).self) { try source.open(job: job) }
+    try FileManager.default.removeItem(at: hardLink)
+    let lease = try source.open(job: job)
+    #expect(lease.digest.count == 64)
+    var bytes = try Data(contentsOf: url)
+    bytes[bytes.count - 1] ^= 1
+    try bytes.write(to: url, options: .atomic)
+    #expect(throws: (any Error).self) { try lease.verifyUnchanged() }
+    let workspace = url.deletingLastPathComponent()
+    let relocated = root.appending(path: "relocated", directoryHint: .isDirectory)
+    try FileManager.default.moveItem(at: workspace, to: relocated)
+    try FileManager.default.createSymbolicLink(at: workspace, withDestinationURL: relocated)
+    #expect(files.queueReceipt(jobID: identity.id.description) == nil)
+  }
+
   @Test func syntheticAACIsDecodedBeforePendingReceipt() throws {
     let root = FileManager.default.temporaryDirectory.appending(
       path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)

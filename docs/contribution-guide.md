@@ -12,9 +12,7 @@ How to set up `Narihito's Diary Mobile`, validate a change, write commit message
 - An iPhone simulator suitable for the target device.
 
 ```sh
-swift-format format --in-place --recursive .  # format Swift source
-swift-format lint --strict --recursive .      # check Swift formatting
-swiftlint lint --strict                       # lint Swift source
+make lint                                     # check Swift formatting and lint
 make generate                                 # generate the Xcode project
 make build                                    # generate and build for the iOS Simulator
 make open                                     # generate and open the project in Xcode
@@ -35,12 +33,11 @@ available team; no machine-specific Team ID is committed to the repository.
 For milestones other than P1-M1, P1-M2, and P1-M4, run the full checks from the repository root before opening a pull request. The owner exempted P1-M1 and P1-M2 from all build, lint, and test gates, and P1-M4 from its build, lint, and test exit gate; see the [Phase 1 changelog](phase-1/changelog.md).
 
 ```sh
-swift-format lint --strict --recursive .
-swiftlint lint --strict
+make lint
 TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh
 ```
 
-The validation script keeps successful command output silent and prints a short log tail on failure. Set `TEST_DESTINATION` to a working iPhone simulator; without it, the script exits before running checks because the full gate requires tests. Simulator destination resolution fails after 60 seconds, and each test receives at most 120 seconds, so unavailable simulators and nonsettling tests do not stall the gate. Positive-integer `SIMULATOR_DESTINATION_TIMEOUT_SECONDS` and `TEST_EXECUTION_TIMEOUT_SECONDS` overrides are available for slower machines or explicitly long-running tests.
+The lint script checks tracked and unignored new Swift files, including trial sources, while excluding ignored build and dependency output. It requires Git, swift-format, and SwiftLint; run it independently with `make lint`. The validation script keeps successful command output silent and prints a short log tail on failure. Set `TEST_DESTINATION` to a working iPhone simulator; without it, the script exits before running checks because the full gate requires tests. Simulator destination resolution fails after 60 seconds, and each test receives at most 120 seconds, so unavailable simulators and nonsettling tests do not stall the gate. Positive-integer `SIMULATOR_DESTINATION_TIMEOUT_SECONDS` and `TEST_EXECUTION_TIMEOUT_SECONDS` overrides are available for slower machines or explicitly long-running tests.
 
 ## Commit messages
 

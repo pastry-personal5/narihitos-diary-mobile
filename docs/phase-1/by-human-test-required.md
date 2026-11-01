@@ -4,6 +4,10 @@ Status: Active
 
 This tracker lists physical-device scenarios that still need human observations. Record redacted results in the linked milestone evidence records.
 
+## P1-M11
+
+M11-D01–M11-D10 remain unrun. Record redacted results in the [M11 device evidence record](milestone-11-apple-on-device-transcription-device-evidence.md); installation scenarios depend on resolving the documented size and storage-preflight blocker. Simulator tests do not establish real model availability, file protection, offline inference, resource use, or network behavior.
+
 ## P1-M10
 
 The owner marked M10 done except for human tests. Record an actual backup and restore and a controlled prior-install quarantine fixture in the [M10 device evidence record](milestone-10-durable-processing-queue-device-evidence.md). Both remain pending.

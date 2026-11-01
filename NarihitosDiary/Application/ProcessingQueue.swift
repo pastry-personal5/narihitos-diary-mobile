@@ -111,15 +111,23 @@ protocol QueueReceiptSourcePort: AnyObject {
 
 enum TranscriptionWaitReason: Equatable, Sendable {
   case appleNotReady
+  case protectedDataUnavailable
   case cohereNotInstalled
   case methodUnavailable
 
   var message: String {
     switch self {
     case .appleNotReady: "Apple transcription isn’t ready for this language."
+    case .protectedDataUnavailable: "Recording is waiting for protected data."
     case .cohereNotInstalled: "Cohere model isn’t installed."
     case .methodUnavailable: "The selected transcription method isn’t ready."
     }
+  }
+
+  func message(for language: CaptureLanguage) -> String {
+    guard self == .appleNotReady else { return message }
+    let name = language == .english ? "English" : "Korean"
+    return "Apple transcription isn’t ready for \(name)."
   }
 }
 
@@ -134,9 +142,13 @@ struct TranscriptionDescriptor: Equatable, Sendable {
   let requiresMonoAAC: Bool
 }
 
+enum TranscriptionMethodIdentifiers {
+  static let apple = "ndm.transcription.apple"
+}
+
 struct EffectiveTranscriptionSettings: Equatable, Sendable {
   let values: [String: String]
-  let modelIdentity: String
+  let modelIdentity: String?
   let conversionIdentity: String
 }
 
@@ -152,12 +164,16 @@ struct TranscriptionRequest: Equatable, Sendable {
 
 enum TranscriptionFailure: Equatable, Sendable {
   case unusableText
+  case audioUnreadable
+  case outputTooLarge
   case inference
   case cancelled
 
   var message: String {
     switch self {
     case .unusableText: "No usable diary text was found."
+    case .audioUnreadable: "This recording can’t be read."
+    case .outputTooLarge: "The transcription is too long."
     case .inference: "Transcription couldn’t finish."
     case .cancelled: "Transcription was cancelled."
     }
@@ -165,7 +181,8 @@ enum TranscriptionFailure: Equatable, Sendable {
 }
 
 enum TranscriptionResult: Equatable, Sendable {
-  case success
+  case success(TranscriptionPayload)
+  case waiting(TranscriptionWaitReason)
   case failure(TranscriptionFailure)
 }
 
@@ -182,6 +199,16 @@ protocol TranscriptionMethodAdapter: AnyObject {
     _ request: TranscriptionRequest,
     completion: @escaping @MainActor (TranscriptionResult) -> Void
   ) -> any TranscriptionWork
+}
+
+struct TranscriptionPreflight: Sendable {
+  let readiness: TranscriptionReadiness
+  let effectiveValues: [String: String]
+}
+
+@MainActor
+protocol AsynchronousTranscriptionReadiness: TranscriptionMethodAdapter {
+  func preflight(for language: CaptureLanguage) async -> TranscriptionPreflight
 }
 
 @MainActor
@@ -230,46 +257,60 @@ final class ProcessingQueueCoordinator {
   private let identity: any InstallationIdentityPort
   private let settings: any TranscriptionSettingsPort
   private let registry: TranscriptionMethodRegistry
+  private let candidates: any TranscriptionCandidateStore
   private let timeout: Duration
   private struct ActiveAttempt {
     let jobID: String
     let generation: Int
     let work: any TranscriptionWork
+    var invalidated = false
   }
 
   private var activeWork: ActiveAttempt?
+  private var readinessGeneration = 0
+  private var readinessTasks: [String: Task<Void, Never>] = [:]
   private var timeoutTask: Task<Void, Never>?
+  var onChange: (@MainActor () -> Void)?
   private(set) var isActive = false
   private(set) var pausedReason: String?
 
   init(
     store: any QueueStorePort, receipts: any QueueReceiptSourcePort,
     identity: any InstallationIdentityPort, settings: any TranscriptionSettingsPort,
-    registry: TranscriptionMethodRegistry, timeout: Duration = .seconds(600)
+    registry: TranscriptionMethodRegistry,
+    candidates: any TranscriptionCandidateStore = UnavailableTranscriptionCandidateStore(),
+    timeout: Duration = .seconds(600)
   ) {
     self.store = store
     self.receipts = receipts
     self.identity = identity
     self.settings = settings
     self.registry = registry
+    self.candidates = candidates
     self.timeout = timeout
   }
 
   func activate() {
+    invalidateReadiness()
     isActive = true
     registry.refreshReadiness()
     reconcile()
-    processNext()
+    reconsiderWaitingJobs()
   }
 
-  func deactivate() { isActive = false }
+  func deactivate() {
+    isActive = false
+    invalidateReadiness()
+  }
 
   func settingsEntered() {
+    invalidateReadiness()
     registry.refreshReadiness()
     reconsiderWaitingJobs()
   }
 
   func prerequisiteChanged() {
+    invalidateReadiness()
     registry.refreshReadiness()
     reconsiderWaitingJobs()
   }
@@ -316,14 +357,34 @@ final class ProcessingQueueCoordinator {
         try store.replace(job)
       }
       // swiftlint:enable opening_brace
+      // swiftlint:disable opening_brace
       for var job in try store.jobs()
-      where job.state == .transcribing && activeWork?.jobID != job.id {
-        job.attemptGeneration += 1
-        job.attemptID = nil
-        job.state = .failed
-        job.reason = "Transcription was interrupted. Retry when ready."
-        try store.replace(job)
+      where (job.state == .transcribing && activeWork?.jobID != job.id)
+        || job.state == .resultReady
+      {
+        let inspection = try candidates.inspect(job: job)
+        switch inspection {
+        case .verified:
+          if job.state == .transcribing {
+            job.state = .resultReady
+            job.reason = nil
+            try store.replace(job)
+          }
+        case .protectedDataUnavailable:
+          continue
+        case .missing, .invalid:
+          let needsReview = job.state == .resultReady || inspection == .invalid
+          job.attemptGeneration += 1
+          job.attemptID = nil
+          job.state = .failed
+          job.reason =
+            needsReview
+            ? "This recording needs review."
+            : "Transcription was interrupted. Retry when ready."
+          try store.replace(job)
+        }
       }
+      // swiftlint:enable opening_brace
       for job in try store.jobs() where job.state == .removing {
         guard finishRemoval(jobID: job.id) else { return }
       }
@@ -334,12 +395,25 @@ final class ProcessingQueueCoordinator {
         guard finishRemoval(jobID: job.id) else { return }
       }
       pausedReason = nil
+      onChange?()
     } catch {
       pauseQueue()
     }
   }
 
   func manualRetry(jobID: String) {
+    do {
+      // swiftlint:disable opening_brace
+      if let job = try store.jobs().first(where: { $0.id == jobID }),
+        job.state == .failed || job.state == .waiting
+      {
+        try candidates.discard(job: job)
+      }
+      // swiftlint:enable opening_brace
+    } catch {
+      pauseQueue()
+      return
+    }
     mutate(jobID: jobID) { job in
       guard job.state == .failed || job.state == .waiting else { return }
       job.attemptGeneration += 1
@@ -378,6 +452,7 @@ final class ProcessingQueueCoordinator {
 
   func remove(jobID: String) {
     if let activeWork, activeWork.jobID == jobID {
+      self.activeWork?.invalidated = true
       guard
         mutate(
           jobID: jobID,
@@ -386,7 +461,10 @@ final class ProcessingQueueCoordinator {
             job.state = .cancelling
             job.reason = nil
           })
-      else { return }
+      else {
+        activeWork.work.cancel()
+        return
+      }
       activeWork.work.cancel()
       return
     }
@@ -420,8 +498,11 @@ final class ProcessingQueueCoordinator {
     }
     for var job in jobs where job.state == .waiting {
       guard let methodID = settings.selectedMethodID(for: job.language),
-        let adapter = registry.adapter(id: methodID),
-        adapter.readiness(for: job.language) == .ready
+        let adapter = registry.adapter(id: methodID)
+      else { continue }
+      guard
+        adapter is any AsynchronousTranscriptionReadiness
+          || adapter.readiness(for: job.language) == .ready
       else { continue }
       job.state = .ready
       job.reason = nil
@@ -433,7 +514,7 @@ final class ProcessingQueueCoordinator {
     processNext()
   }
 
-  // swiftlint:disable:next cyclomatic_complexity function_body_length
+  // swiftlint:disable:next cyclomatic_complexity
   private func processNext() {
     guard isActive, pausedReason == nil, activeWork == nil else { return }
     let jobs: [QueueJob]
@@ -461,46 +542,114 @@ final class ProcessingQueueCoordinator {
         if !persist(job) { return }
         continue
       }
+      if let asynchronous = adapter as? any AsynchronousTranscriptionReadiness {
+        beginPreflight(job: job, methodID: methodID, adapter: asynchronous)
+        continue
+      }
       switch adapter.readiness(for: job.language) {
       case .waiting(let reason):
         job.state = .waiting
-        job.reason = reason.message
+        job.reason = reason.message(for: job.language)
         if !persist(job) { return }
         continue
       case .ready: break
       }
-      let snapshot = settings.effectiveSettings(methodID: methodID, language: job.language)
-      job.attemptGeneration += 1
-      let attemptID = UUID()
-      job.attemptID = attemptID
-      job.selectedMethodID = methodID
-      job.effectiveSettings = snapshot.values
-      job.modelIdentity = snapshot.modelIdentity
-      job.conversionIdentity = snapshot.conversionIdentity
-      job.state = .transcribing
-      job.reason = nil
-      guard persist(job) else { return }
-      let request = TranscriptionRequest(
-        jobID: job.id, attemptID: attemptID, generation: job.attemptGeneration,
-        language: job.language, settings: snapshot,
-        destinationRevision: job.destinationRevision, bodyRevision: job.bodyRevision)
-      let lease = TranscriptionWorkLease()
-      activeWork = ActiveAttempt(
-        jobID: job.id, generation: job.attemptGeneration, work: lease)
-      let work = adapter.start(request) { [weak self] result in
-        self?.settle(request: request, result: result)
-      }
-      lease.attach(work)
-      guard activeWork?.jobID == job.id, activeWork?.generation == job.attemptGeneration else {
+      claim(job: job, methodID: methodID, adapter: adapter, effectiveValues: [:])
+      return
+    }
+  }
+
+  private func invalidateReadiness() {
+    readinessGeneration += 1
+    for task in readinessTasks.values { task.cancel() }
+    readinessTasks.removeAll()
+  }
+
+  private func beginPreflight(
+    job: QueueJob, methodID: String, adapter: any AsynchronousTranscriptionReadiness
+  ) {
+    guard readinessTasks[job.id] == nil else { return }
+    let generation = readinessGeneration
+    readinessTasks[job.id] = Task { [weak self] in
+      let result = await adapter.preflight(for: job.language)
+      guard let self, !Task.isCancelled, self.readinessGeneration == generation else { return }
+      self.readinessTasks[job.id] = nil
+      self.finishPreflight(job: job, methodID: methodID, adapter: adapter, result: result)
+    }
+  }
+
+  private func finishPreflight(
+    job: QueueJob, methodID: String, adapter: any AsynchronousTranscriptionReadiness,
+    result: TranscriptionPreflight
+  ) {
+    guard isActive, pausedReason == nil else { return }
+    guard settings.selectedMethodID(for: job.language) == methodID else {
+      processNext()
+      return
+    }
+    let current: QueueJob
+    do {
+      guard let found = try store.jobs().first(where: { $0.id == job.id }), found == job else {
+        processNext()
         return
       }
-      timeoutTask = Task { [weak self] in
-        guard let self else { return }
-        try? await Task.sleep(for: self.timeout)
-        guard !Task.isCancelled else { return }
-        self.timeoutReached(jobID: request.jobID, generation: request.generation)
-      }
+      current = found
+    } catch {
+      pauseQueue()
       return
+    }
+    switch result.readiness {
+    case .waiting(let reason):
+      var waiting = current
+      waiting.state = .waiting
+      waiting.reason = reason.message(for: waiting.language)
+      guard persist(waiting) else { return }
+      processNext()
+    case .ready:
+      guard activeWork == nil else { return }
+      claim(
+        job: current, methodID: methodID, adapter: adapter, effectiveValues: result.effectiveValues)
+    }
+  }
+
+  private func claim(
+    job initial: QueueJob, methodID: String, adapter: any TranscriptionMethodAdapter,
+    effectiveValues: [String: String]
+  ) {
+    var job = initial
+    let base = settings.effectiveSettings(methodID: methodID, language: job.language)
+    let snapshot = EffectiveTranscriptionSettings(
+      values: base.values.merging(effectiveValues) { _, current in current },
+      modelIdentity: base.modelIdentity, conversionIdentity: base.conversionIdentity)
+    job.attemptGeneration += 1
+    let attemptID = UUID()
+    job.attemptID = attemptID
+    job.selectedMethodID = methodID
+    job.effectiveSettings = snapshot.values
+    job.modelIdentity = snapshot.modelIdentity
+    job.conversionIdentity = snapshot.conversionIdentity
+    job.state = .transcribing
+    job.reason = nil
+    guard persist(job) else { return }
+    let request = TranscriptionRequest(
+      jobID: job.id, attemptID: attemptID, generation: job.attemptGeneration,
+      language: job.language, settings: snapshot,
+      destinationRevision: job.destinationRevision, bodyRevision: job.bodyRevision)
+    let lease = TranscriptionWorkLease()
+    activeWork = ActiveAttempt(
+      jobID: job.id, generation: job.attemptGeneration, work: lease)
+    let work = adapter.start(request) { [weak self] result in
+      self?.settle(request: request, result: result)
+    }
+    lease.attach(work)
+    guard activeWork?.jobID == job.id, activeWork?.generation == job.attemptGeneration else {
+      return
+    }
+    timeoutTask = Task { [weak self] in
+      guard let self else { return }
+      try? await Task.sleep(for: self.timeout)
+      guard !Task.isCancelled else { return }
+      self.timeoutReached(jobID: request.jobID, generation: request.generation)
     }
   }
 
@@ -508,6 +657,7 @@ final class ProcessingQueueCoordinator {
     guard let activeWork, activeWork.jobID == jobID, activeWork.generation == generation else {
       return
     }
+    self.activeWork?.invalidated = true
     mutate(jobID: jobID) { job in
       guard job.attemptGeneration == generation, job.state == .transcribing else { return }
       job.attemptGeneration += 1
@@ -517,40 +667,89 @@ final class ProcessingQueueCoordinator {
     activeWork.work.cancel()
   }
 
+  // swiftlint:disable:next cyclomatic_complexity function_body_length
   private func settle(request: TranscriptionRequest, result: TranscriptionResult) {
     guard let activeWork, activeWork.jobID == request.jobID,
       activeWork.generation == request.generation
     else { return }
     timeoutTask?.cancel()
     timeoutTask = nil
-    self.activeWork = nil
     guard let job = try? store.jobs().first(where: { $0.id == request.jobID }) else {
+      self.activeWork = nil
       pauseQueue()
       return
     }
     if job.state == .cancelling {
+      self.activeWork = nil
       finishRemoval(jobID: request.jobID)
       processNext()
       return
     }
+    if activeWork.invalidated {
+      self.activeWork = nil
+      processNext()
+      return
+    }
     // swiftlint:disable opening_brace
-    if job.attemptGeneration == request.generation && job.state == .transcribing
+    if job.attemptGeneration == request.generation && job.attemptID == request.attemptID
+      && job.state == .transcribing && job.language == request.language
+      && job.effectiveSettings == request.settings.values
+      && job.modelIdentity == request.settings.modelIdentity
+      && job.conversionIdentity == request.settings.conversionIdentity
       && job.destinationRevision == request.destinationRevision
       && job.bodyRevision == request.bodyRevision
     {
       var settled = job
-      settled.attemptID = nil
       switch result {
-      case .success:
+      case .success(let payload):
+        do {
+          try candidates.publish(payload, request: request, job: job)
+        } catch TranscriptionCandidateFailure.invalidSource {
+          do {
+            try candidates.discard(job: job)
+          } catch {
+            self.activeWork = nil
+            pauseQueue()
+            return
+          }
+          settled.attemptID = nil
+          settled.state = .failed
+          settled.reason = TranscriptionFailure.audioUnreadable.message
+          guard persist(settled) else {
+            self.activeWork = nil
+            return
+          }
+          self.activeWork = nil
+          processNext()
+          return
+        } catch {
+          self.activeWork = nil
+          pauseQueue()
+          return
+        }
         settled.state = .resultReady
         settled.reason = nil
       case .failure(let reason):
+        settled.attemptID = nil
         settled.state = .failed
         settled.reason = reason.message
+      case .waiting(let reason):
+        settled.attemptID = nil
+        settled.state = .waiting
+        settled.reason = reason.message(for: settled.language)
       }
-      guard persist(settled) else { return }
+      guard persist(settled) else {
+        self.activeWork = nil
+        return
+      }
+    } else {
+      self.activeWork = nil
+      reconcile()
+      processNext()
+      return
     }
     // swiftlint:enable opening_brace
+    self.activeWork = nil
     processNext()
   }
 
@@ -559,6 +758,7 @@ final class ProcessingQueueCoordinator {
     do {
       try receipts.removePrivateCapture(jobID: jobID)
       try store.remove(jobID: jobID)
+      onChange?()
       return true
     } catch {
       pauseQueue()
@@ -572,6 +772,7 @@ final class ProcessingQueueCoordinator {
       guard var job = try store.jobs().first(where: { $0.id == jobID }) else { return false }
       body(&job)
       try store.replace(job)
+      onChange?()
       return true
     } catch {
       pauseQueue()
@@ -582,6 +783,7 @@ final class ProcessingQueueCoordinator {
   private func persist(_ job: QueueJob) -> Bool {
     do {
       try store.replace(job)
+      onChange?()
       return true
     } catch {
       pauseQueue()
@@ -592,6 +794,7 @@ final class ProcessingQueueCoordinator {
   private func pauseQueue() {
     pausedReason = Self.pausedReason
     isActive = false
+    onChange?()
   }
 }
 

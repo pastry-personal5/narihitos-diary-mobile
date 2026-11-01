@@ -20,6 +20,8 @@
   <string>1</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Record audio for your diary.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Transcribe your recordings on this device to create diary text.</string>
   <key>NSLocationWhenInUseUsageDescription</key>
   <string>Add optional recording-time place and weather context to your diary.</string>
   <key>UIBackgroundModes</key>

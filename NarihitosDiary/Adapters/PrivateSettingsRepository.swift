@@ -17,6 +17,7 @@ protocol DestinationSettingsStore: AnyObject {
 private struct StoredApplicationSettings: Codable {
   var firstLaunch = FirstLaunchProgress()
   var destination: StoredDestinationRecord?
+  var selectedTranscriptionMethodID: String?
 }
 
 @MainActor
@@ -53,6 +54,22 @@ final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettings
   func saveDestination(_ destination: StoredDestinationRecord) throws {
     var proposed = settings
     proposed.destination = destination
+    try persist(proposed)
+    settings = proposed
+  }
+
+  func selectedTranscriptionMethodID() -> String? {
+    settings.selectedTranscriptionMethodID
+  }
+
+  func selectTranscriptionMethod(_ id: String) throws {
+    guard !id.isEmpty, id.utf8.count <= 128,
+      id.utf8.allSatisfy({
+        (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 46
+      })
+    else { throw QueueStoreFailure.corrupt }
+    var proposed = settings
+    proposed.selectedTranscriptionMethodID = id
     try persist(proposed)
     settings = proposed
   }

@@ -80,11 +80,17 @@ Notes: The owner marked implementation done except human tests on 2026-11-02. Ph
 
 ### P1-M11: Add Apple On-Device Transcription
 
-Status: Planned
+Status: Active
+Goal: Integrate Apple SpeechTranscriber for explicit English/Korean local transcription, truthful system-asset readiness and installation, durable result handoff, and acknowledged cancellation.
+Plan: [overview](milestone-11-apple-on-device-transcription-overview.md), [approach](milestone-11-apple-on-device-transcription-architecture.md), [device evidence](milestone-11-apple-on-device-transcription-device-evidence.md)
+Notes: Implementation started by owner request after the P1-M10 owner decision. Apple installation remains blocked pending direction on the unavailable documented download-size and storage-preflight information. M11 stages a protected transcription-result candidate; P1-M13 adopts it as the managed Diary body, and P1-M12 adds the separately approved Cohere method.
 
 ### P1-M12: Add Cohere Model Installation and On-Device Transcription
 
 Status: Planned
+Goal: Install the verified approved Cohere model and integrate local Metal transcription with bounded chunking, durable handoff, and target-phone evidence.
+Plan: [overview](milestone-12-cohere-transcription-overview.md), [approach](milestone-12-cohere-transcription-architecture.md), [device evidence](milestone-12-cohere-transcription-device-evidence.md)
+Notes: Implementation follows P1-M11 unless the owner authorizes a reorder; production dependency changes require separate owner approval.
 
 ### P1-M13: Create Diary Drafts and Generate Titles
 

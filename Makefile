@@ -1,4 +1,7 @@
-.PHONY: build generate open
+.PHONY: build generate lint open
+
+lint:
+	scripts/lint.sh
 
 generate:
 	scripts/generate-project.sh

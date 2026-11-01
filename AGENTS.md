@@ -14,7 +14,7 @@ See [README.md](README.md) for the overview and [docs/product-behavior.md](docs/
 
 - Work only on a clear task in the active milestone. Read its plans, relevant design docs, and applicable "Undecided" items first.
 - Before implementation, add a verifiable completion checklist to the milestone overview. Check items only when evidence exists.
-- Keep implementation, tests, and affected docs together. A milestone is done only when its checklist is complete and the gate passes: `swift-format lint --strict --recursive .`, `swiftlint lint --strict`, and `TBD: xcodebuild test with the generated project, scheme, and simulator`. The owner exempts P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6 from build, lint, and test gates. For other milestones, if a required command cannot run, leave its item unchecked and report the blocker.
+- Keep implementation, tests, and affected docs together. A milestone is done only when its checklist is complete and the gate passes: `make lint` and `TEST_DESTINATION=… scripts/validate.sh`. The owner exempts P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6 from build, lint, and test gates. For other milestones, if a required command cannot run, leave its item unchecked and report the blocker.
 - Ask before building on an undecided item, changing dependencies or build tools, deleting user data, or broadly restructuring the repository. Other work within the approved task and milestone may proceed.
 - Follow the active phase and milestone order in `docs/roadmap.md` unless the phase plan says otherwise. Create the roadmap when planning the first phase.
 - Do not place Git worktrees under the project root's `tmp/` directory, including `tmp/worktree/`; they cause SwiftLint to fail.
@@ -69,9 +69,7 @@ P1-M5 and P1-M6 resolved the current v1 product and Cohere-direction choices. As
 ## Commands
 
 ```sh
-swift-format format --in-place --recursive .  # format Swift source
-swift-format lint --strict --recursive .      # check Swift formatting
-swiftlint lint --strict                       # lint Swift source
+make lint                                     # check Swift formatting and lint
 make generate                                 # generate with the first available Xcode team
 make build                                    # generate and build for the iOS Simulator
 make open                                     # generate and open the project in Xcode

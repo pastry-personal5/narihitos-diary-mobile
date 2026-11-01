@@ -185,13 +185,27 @@ final class FileQueueStore: QueueStorePort {
 
 @MainActor
 final class ProductionTranscriptionSettings: TranscriptionSettingsPort {
-  func selectedMethodID(for _: CaptureLanguage) -> String? { nil }
+  private let repository: PrivateSettingsRepository
+
+  init(repository: PrivateSettingsRepository) { self.repository = repository }
+
+  func selectedMethodID(for _: CaptureLanguage) -> String? {
+    repository.selectedTranscriptionMethodID()
+  }
 
   func effectiveSettings(
-    methodID _: String, language _: CaptureLanguage
+    methodID: String, language: CaptureLanguage
   ) -> EffectiveTranscriptionSettings {
-    EffectiveTranscriptionSettings(
-      values: [:], modelIdentity: "unavailable", conversionIdentity: "unavailable")
+    if methodID == TranscriptionMethodIdentifiers.apple {
+      return EffectiveTranscriptionSettings(
+        values: [
+          "settingsRevision": "1", "requestedLocale": language.rawValue,
+          "preset": "transcription", "resultPolicy": "final-only",
+          "runtime": "apple-speech-analyzer",
+        ], modelIdentity: nil, conversionIdentity: "ndm.apple-speech.av-audio-file-v1")
+    }
+    return EffectiveTranscriptionSettings(
+      values: [:], modelIdentity: nil, conversionIdentity: "unavailable")
   }
 }
 

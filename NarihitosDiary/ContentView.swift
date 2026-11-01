@@ -1,5 +1,7 @@
 import SwiftUI
 
+// swiftlint:disable file_length
+
 struct ContentView: View {
   @Environment(\.scenePhase) private var scenePhase
   @StateObject private var model = AppModel()
@@ -181,7 +183,7 @@ private struct AllView: View {
             title: "Pending Recordings", captures: model.pendingCaptures,
             queueEntries: model.queuePending, pausedReason: model.queuePausedReason,
             onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
-            onRemove: model.removeQueueJob)
+            onRemove: model.removeQueueJob, onChooseMethod: model.chooseMethodForRecovery)
         }
         NavigationLink("Failed Recordings") {
           CaptureListView(
@@ -189,7 +191,7 @@ private struct AllView: View {
             issues: model.captureIssues, queueEntries: model.queueFailed,
             pausedReason: model.queuePausedReason, showFailureReason: true,
             onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
-            onRemove: model.removeQueueJob)
+            onRemove: model.removeQueueJob, onChooseMethod: model.chooseMethodForRecovery)
         }
         placeholder("Incomplete Diary Snippets")
         placeholder("Conflicting Versions")
@@ -197,12 +199,13 @@ private struct AllView: View {
           .accessibilityLabel("Settings")
       }
       .navigationTitle("All")
+      .navigationDestination(isPresented: $model.showSettings) { SettingsView(model: model) }
       .navigationDestination(isPresented: $model.showPendingRecordings) {
         CaptureListView(
           title: "Pending Recordings", captures: model.pendingCaptures,
           queueEntries: model.queuePending, pausedReason: model.queuePausedReason,
           onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
-          onRemove: model.removeQueueJob)
+          onRemove: model.removeQueueJob, onChooseMethod: model.chooseMethodForRecovery)
       }
     }
   }
@@ -259,6 +262,7 @@ private struct CaptureListView: View {
   var onRetry: (String) -> Void = { _ in }
   var onResume: (String) -> Void = { _ in }
   var onRemove: (String) -> Void = { _ in }
+  var onChooseMethod: (CaptureLanguage) -> Void = { _ in }
 
   var body: some View {
     List {
@@ -285,6 +289,8 @@ private struct CaptureListView: View {
             Button("Resume") { onResume(entry.id) }
           } else if entry.state == .failed {
             Button("Retry") { onRetry(entry.id) }
+          } else if entry.state == .waiting {
+            Button("Choose Method") { onChooseMethod(entry.language) }
           }
           if entry.state != .cancelling {
             Button("Remove", role: .destructive) { removalCandidate = entry.id }
@@ -334,6 +340,29 @@ private struct SettingsView: View {
 
   var body: some View {
     Form {
+      Section("Apple Transcription") {
+        appleStatus(.english, label: "English")
+        appleStatus(.korean, label: "Korean")
+        Button(action: model.selectAppleTranscription) {
+          HStack {
+            Text("Use Apple Transcription")
+            Spacer()
+            if model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.apple {
+              Image(systemName: "checkmark")
+                .accessibilityHidden(true)
+            }
+          }
+        }
+        .frame(minHeight: 44)
+        .disabled(!model.appleReadyForRecovery)
+        .accessibilityValue(
+          model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.apple
+            ? "Selected" : "Not selected")
+        if model.recoveryMethodLanguage != nil && !model.appleReadyForRecovery {
+          Text("No transcription method is ready for this recording.")
+            .foregroundStyle(.secondary)
+        }
+      }
       Section("Active Folder") {
         Text(model.destination.summary?.displayName ?? "No folder selected")
           .lineLimit(1)
@@ -357,10 +386,19 @@ private struct SettingsView: View {
       }
     }
     .navigationTitle("Settings")
+    .onDisappear { model.leftSettings() }
     .task {
       await model.becameActive()
       model.refreshTranscriptionReadiness()
     }
+  }
+
+  private func appleStatus(_ language: CaptureLanguage, label: String) -> some View {
+    LabeledContent(
+      label, value: AppleReadinessPresentation.label(model.appleReadinessStates[language])
+    )
+    .accessibilityLabel("\(label) Apple transcription")
+    .accessibilityValue(AppleReadinessPresentation.label(model.appleReadinessStates[language]))
   }
 
   private var locationLabel: String {

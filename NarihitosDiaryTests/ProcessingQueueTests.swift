@@ -3,6 +3,8 @@ import Testing
 
 @testable import NarihitosDiary
 
+// swiftlint:disable file_length
+
 @MainActor
 struct ProcessingQueueTests {
   @Test func existingJobFromAnotherInstallationRequiresReview() throws {
@@ -98,7 +100,7 @@ struct ProcessingQueueTests {
     #expect(store.values[first.id.description]?.state == .failed)
     #expect(store.values[first.id.description]?.reason == ProcessingQueueCoordinator.timeoutReason)
 
-    adapter.finish(.success)
+    adapter.finish(.success(payload))
     #expect(adapter.requests.map(\.jobID) == [first.id.description, second.id.description])
     #expect(store.values[first.id.description]?.state == .failed)
   }
@@ -190,6 +192,9 @@ struct ProcessingQueueTests {
     #expect(adapter.requests.isEmpty)
   }
 
+}
+
+extension ProcessingQueueTests {
   @Test func unavailableInstallationIdentityPausesWithoutClassifyingReceipts() throws {
     let item = try receipt(start: 1)
     let store = MemoryQueueStore()
@@ -242,16 +247,270 @@ struct ProcessingQueueTests {
     #expect(values.isExcludedFromBackup == true)
   }
 
+  @Test func successIsPublishedBeforeQueueBecomesResultReady() throws {
+    let item = try receipt(start: 1)
+    let store = MemoryQueueStore()
+    let source = MemoryReceiptSource([item])
+    let registry = TranscriptionMethodRegistry()
+    let adapter = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "ready"
+    let candidates = MemoryCandidateStore()
+    candidates.onPublish = { #expect(store.values[item.id.description]?.state == .transcribing) }
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry,
+      candidates: candidates)
+    coordinator.activate()
+    adapter.finish(.success(payload))
+    #expect(candidates.published[item.id.description] == payload)
+    #expect(store.values[item.id.description]?.state == .resultReady)
+    #expect(store.values[item.id.description]?.attemptID != nil)
+  }
+
+  @Test func slowReadinessDoesNotBlockAnotherReadyMethod() async throws {
+    let slowItem = try receipt(start: 1, language: .english)
+    let readyItem = try receipt(start: 2, language: .korean)
+    let store = MemoryQueueStore()
+    let source = MemoryReceiptSource([slowItem, readyItem])
+    let registry = TranscriptionMethodRegistry()
+    let slow = SuspendedPreflightTranscriber()
+    let ready = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(slow)
+    registry.register(ready)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = slow.descriptor.id
+    settings.methods[.korean] = ready.descriptor.id
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry)
+    coordinator.activate()
+    #expect(ready.requests.map(\.jobID) == [readyItem.id.description])
+    while slow.pending == nil { await Task.yield() }
+    coordinator.deactivate()
+    slow.resolve(.ready)
+    await Task.yield()
+    #expect(slow.requests.isEmpty)
+  }
+
+  @Test func selectionChangeFencesAnOlderPreflight() async throws {
+    let item = try receipt(start: 1)
+    let store = MemoryQueueStore()
+    let source = MemoryReceiptSource([item])
+    let registry = TranscriptionMethodRegistry()
+    let slow = SuspendedPreflightTranscriber()
+    let ready = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(slow)
+    registry.register(ready)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = slow.descriptor.id
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry)
+    coordinator.activate()
+    while slow.pending == nil { await Task.yield() }
+    settings.methods[.english] = "ready"
+    coordinator.prerequisiteChanged()
+    slow.resolve(.ready)
+    await Task.yield()
+    #expect(slow.requests.isEmpty)
+    #expect(ready.requests.map(\.jobID) == [item.id.description])
+  }
+
+  @Test func preflightSnapshotsEffectiveValuesAndWaitsWhenAssetDisappears() async throws {
+    let item = try receipt(start: 1, language: .english)
+    let store = MemoryQueueStore()
+    let source = MemoryReceiptSource([item])
+    let registry = TranscriptionMethodRegistry()
+    let adapter = SuspendedPreflightTranscriber()
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = adapter.descriptor.id
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry)
+    coordinator.activate()
+    while adapter.pending == nil { await Task.yield() }
+    adapter.resolve(.waiting(.appleNotReady))
+    while store.values[item.id.description]?.state == .ready { await Task.yield() }
+    #expect(store.values[item.id.description]?.state == .waiting)
+    #expect(
+      store.values[item.id.description]?.reason == "Apple transcription isn’t ready for English.")
+    #expect(adapter.requests.isEmpty)
+    coordinator.prerequisiteChanged()
+    while adapter.pending == nil { await Task.yield() }
+    adapter.resolve(.ready, values: ["resolvedLocale": "en-US"])
+    while adapter.requests.isEmpty { await Task.yield() }
+    #expect(adapter.requests[0].settings.values["resolvedLocale"] == "en-US")
+    #expect(store.values[item.id.description]?.effectiveSettings?["resolvedLocale"] == "en-US")
+  }
+
+  @Test func candidateFailurePausesWithoutClaimingSuccess() throws {
+    let item = try receipt(start: 1)
+    let store = MemoryQueueStore()
+    let registry = TranscriptionMethodRegistry()
+    let adapter = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "ready"
+    let candidates = MemoryCandidateStore()
+    candidates.failPublish = true
+    let coordinator = makeCoordinator(
+      store: store, source: MemoryReceiptSource([item]), settings: settings,
+      registry: registry, candidates: candidates)
+    coordinator.activate()
+    adapter.finish(.success(payload))
+    #expect(store.values[item.id.description]?.state == .transcribing)
+    #expect(coordinator.pausedReason == ProcessingQueueCoordinator.pausedReason)
+  }
+
+  @Test func substitutedAudioFailsOnlyItsJobAndDoesNotPauseTheQueue() throws {
+    let first = try receipt(start: 1)
+    let second = try receipt(start: 2)
+    let store = MemoryQueueStore()
+    let source = MemoryReceiptSource([first, second])
+    let registry = TranscriptionMethodRegistry()
+    let adapter = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "ready"
+    let candidates = MemoryCandidateStore()
+    candidates.publishFailure = .invalidSource
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry, candidates: candidates)
+    coordinator.activate()
+    adapter.finish(.success(payload))
+    #expect(store.values[first.id.description]?.state == .failed)
+    #expect(store.values[first.id.description]?.reason == "This recording can’t be read.")
+    #expect(coordinator.pausedReason == nil)
+    #expect(source.removed.isEmpty)
+    #expect(adapter.requests.map(\.jobID) == [first.id.description, second.id.description])
+  }
+
+  @Test func failedRemovalWriteStillInvalidatesInFlightResult() throws {
+    let item = try receipt(start: 1)
+    let store = MemoryQueueStore()
+    let registry = TranscriptionMethodRegistry()
+    let adapter = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "ready"
+    let candidates = MemoryCandidateStore()
+    let coordinator = makeCoordinator(
+      store: store, source: MemoryReceiptSource([item]), settings: settings,
+      registry: registry, candidates: candidates)
+    coordinator.activate()
+    store.failReplace = true
+    coordinator.remove(jobID: item.id.description)
+    #expect(adapter.cancelCalls == 1)
+    adapter.finish(.success(payload))
+    #expect(candidates.published.isEmpty)
+    #expect(coordinator.pausedReason == ProcessingQueueCoordinator.pausedReason)
+  }
+
+  @Test func publishedResultSurvivesQueueTransitionFailure() throws {
+    let item = try receipt(start: 1)
+    let store = MemoryQueueStore()
+    let registry = TranscriptionMethodRegistry()
+    let adapter = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "ready"
+    let candidates = MemoryCandidateStore()
+    let source = MemoryReceiptSource([item])
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry,
+      candidates: candidates)
+    coordinator.activate()
+    candidates.onPublish = { store.failReplace = true }
+    adapter.finish(.success(payload))
+    #expect(store.values[item.id.description]?.state == .transcribing)
+    #expect(coordinator.pausedReason != nil)
+    store.failReplace = false
+    let reopened = makeCoordinator(store: store, source: source, candidates: candidates)
+    reopened.reconcile()
+    #expect(store.values[item.id.description]?.state == .resultReady)
+  }
+
+  @Test func duplicateAndStaleResultsCannotPublishToAnotherAttempt() throws {
+    let first = try receipt(start: 1)
+    let second = try receipt(start: 2)
+    let store = MemoryQueueStore()
+    let source = MemoryReceiptSource([first, second])
+    let registry = TranscriptionMethodRegistry()
+    let adapter = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "ready"
+    let candidates = MemoryCandidateStore()
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry, candidates: candidates)
+    coordinator.activate()
+    adapter.finish(.success(payload))
+    #expect(adapter.requests.map(\.jobID) == [first.id.description, second.id.description])
+    adapter.replayCallback(at: 0, result: .success(payload))
+    #expect(candidates.published.keys.count == 1)
+    #expect(store.values[second.id.description]?.state == .transcribing)
+    store.values[second.id.description]?.bodyRevision += 1
+    adapter.finish(.success(payload))
+    #expect(candidates.published[second.id.description] == nil)
+    #expect(store.values[second.id.description]?.state != .resultReady)
+  }
+
+  @Test func reconciliationPromotesOnlyAClaimWithVerifiedCandidate() throws {
+    let item = try receipt(start: 1)
+    let store = MemoryQueueStore()
+    let registry = TranscriptionMethodRegistry()
+    let adapter = FakeTranscriber(id: "ready", readiness: .ready)
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "ready"
+    let candidates = MemoryCandidateStore()
+    let source = MemoryReceiptSource([item])
+    let first = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry,
+      candidates: candidates)
+    first.activate()
+    let claim = try #require(store.values[item.id.description])
+    let request = try #require(adapter.requests.first)
+    try candidates.publish(payload, request: request, job: claim)
+    let reopened = makeCoordinator(store: store, source: source, candidates: candidates)
+    reopened.reconcile()
+    #expect(store.values[item.id.description]?.state == .resultReady)
+  }
+
+  @Test func restoredCandidateIsQuarantinedBeforeInspection() throws {
+    let item = try receipt(start: 1, binding: "former")
+    let store = MemoryQueueStore()
+    var restored = QueueJob(receipt: item, state: .resultReady)
+    restored.attemptID = UUID()
+    restored.attemptGeneration = 1
+    store.values[item.id.description] = restored
+    let candidates = MemoryCandidateStore()
+    candidates.published[item.id.description] = payload
+    let coordinator = makeCoordinator(
+      store: store, source: MemoryReceiptSource([item]), candidates: candidates)
+    coordinator.reconcile()
+    #expect(store.values[item.id.description]?.state == .reviewRequired)
+    #expect(candidates.inspected.isEmpty)
+    #expect(candidates.published[item.id.description] != nil)
+  }
+
+  private var payload: TranscriptionPayload {
+    TranscriptionPayload(
+      text: "A diary entry", sourceDigest: String(repeating: "0", count: 64),
+      resolvedLocale: "en-US", runtime: "test", conversion: "test",
+      operatingSystemVersion: "test")
+  }
+
   private func makeCoordinator(
     store: MemoryQueueStore, source: MemoryReceiptSource,
     identity: FakeInstallationIdentity = FakeInstallationIdentity(),
     settings: FakeTranscriptionSettings = FakeTranscriptionSettings(),
     registry: TranscriptionMethodRegistry = TranscriptionMethodRegistry(),
+    candidates: MemoryCandidateStore = MemoryCandidateStore(),
     timeout: Duration = .seconds(600)
   ) -> ProcessingQueueCoordinator {
     ProcessingQueueCoordinator(
       store: store, receipts: source, identity: identity,
-      settings: settings, registry: registry, timeout: timeout)
+      settings: settings, registry: registry, candidates: candidates, timeout: timeout)
   }
 
   private func receipt(
@@ -267,107 +526,4 @@ struct ProcessingQueueTests {
         byteCount: 1_024, duration: 1, isMonoAAC: true, isPlayable: true,
         sampleRate: 44_100, channelCount: 1))
   }
-}
-
-@MainActor
-private final class MemoryQueueStore: QueueStorePort {
-  var values: [String: QueueJob] = [:]
-  var createCalls = 0
-  var failReplace = false
-
-  func jobs() throws -> [QueueJob] { Array(values.values) }
-
-  func createIfAbsent(_ job: QueueJob) throws -> QueueJob {
-    if let existing = values[job.id] { return existing }
-    createCalls += 1
-    values[job.id] = job
-    return job
-  }
-
-  func replace(_ job: QueueJob) throws {
-    if failReplace { throw QueueStoreFailure.unavailable }
-    values[job.id] = job
-  }
-
-  func remove(jobID: String) throws { values.removeValue(forKey: jobID) }
-}
-
-@MainActor
-private final class MemoryReceiptSource: QueueReceiptSourcePort {
-  var values: [String: QueueReceipt]
-  var removed: [String] = []
-
-  init(_ values: [QueueReceipt]) {
-    self.values = Dictionary(uniqueKeysWithValues: values.map { ($0.id.description, $0) })
-  }
-
-  func pendingReceipts() -> [QueueReceipt] { Array(values.values) }
-  func receipt(jobID: String) -> QueueReceipt? { values[jobID] }
-
-  func removePrivateCapture(jobID: String) throws {
-    guard values.removeValue(forKey: jobID) != nil else { throw QueueStoreFailure.corrupt }
-    removed.append(jobID)
-  }
-}
-
-@MainActor
-private final class FakeInstallationIdentity: InstallationIdentityPort {
-  var result: InstallationIdentityResult = .available("current")
-  func currentOrCreate() -> InstallationIdentityResult { result }
-  func current() -> InstallationIdentityResult { result }
-}
-
-@MainActor
-private final class FakeTranscriptionSettings: TranscriptionSettingsPort {
-  var methods: [CaptureLanguage: String] = [:]
-  var revision = "one"
-
-  func selectedMethodID(for language: CaptureLanguage) -> String? { methods[language] }
-
-  func effectiveSettings(
-    methodID: String, language _: CaptureLanguage
-  ) -> EffectiveTranscriptionSettings {
-    EffectiveTranscriptionSettings(
-      values: ["revision": revision], modelIdentity: "\(methodID)-model",
-      conversionIdentity: "pcm-v1")
-  }
-}
-
-@MainActor
-private final class FakeTranscriber: TranscriptionMethodAdapter {
-  let descriptor: TranscriptionDescriptor
-  var readinessValue: TranscriptionReadiness
-  var requests: [TranscriptionRequest] = []
-  var cancelCalls = 0
-  private var completion: (@MainActor (TranscriptionResult) -> Void)?
-
-  init(id: String, readiness: TranscriptionReadiness) {
-    descriptor = TranscriptionDescriptor(
-      id: id, supportedLanguages: [.english, .korean], requiresMonoAAC: true)
-    readinessValue = readiness
-  }
-
-  func readiness(for _: CaptureLanguage) -> TranscriptionReadiness { readinessValue }
-
-  func start(
-    _ request: TranscriptionRequest,
-    completion: @escaping @MainActor (TranscriptionResult) -> Void
-  ) -> any TranscriptionWork {
-    requests.append(request)
-    self.completion = completion
-    return FakeWork { [weak self] in self?.cancelCalls += 1 }
-  }
-
-  func finish(_ result: TranscriptionResult) {
-    let callback = completion
-    completion = nil
-    callback?(result)
-  }
-}
-
-@MainActor
-private final class FakeWork: TranscriptionWork {
-  let onCancel: () -> Void
-  init(onCancel: @escaping () -> Void) { self.onCancel = onCancel }
-  func cancel() { onCancel() }
 }

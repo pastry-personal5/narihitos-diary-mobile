@@ -4,7 +4,7 @@ import OSLog
 import SwiftUI
 
 // Capture presentation adds the M9 lifecycle to the M8 root model.
-// swiftlint:disable type_body_length
+// swiftlint:disable type_body_length file_length
 
 enum RootTab: Hashable {
   case main
@@ -35,8 +35,13 @@ final class AppModel: ObservableObject {
   @Published private(set) var queuePending: [QueueProjection] = []
   @Published private(set) var queueFailed: [QueueProjection] = []
   @Published private(set) var queuePausedReason: String?
+  @Published private(set) var appleReadinessStates:
+    [CaptureLanguage: AppleTranscriptionAssetState] = [:]
+  @Published private(set) var selectedTranscriptionMethodID: String?
   @Published var selectedRoot: RootTab = .main
   @Published var showPendingRecordings = false
+  @Published var showSettings = false
+  @Published private(set) var recoveryMethodLanguage: CaptureLanguage?
 
   private let microphone: any MicrophoneAuthorizationPort
   private let location: any LocationAuthorizationPort
@@ -46,6 +51,8 @@ final class AppModel: ObservableObject {
   private var captureEnvironment: AppleCaptureEnvironment?
   private var captureCoordinator: CaptureCoordinator?
   private var processingQueue: ProcessingQueueCoordinator?
+  private var transcriptionSettings: PrivateSettingsRepository?
+  private var appleReadiness: AppleTranscriptionReadiness?
   private var captureEntryInProgress = false
   private var captureTimer: Task<Void, Never>?
   private var interruptionObserver: NSObjectProtocol?
@@ -69,6 +76,13 @@ final class AppModel: ObservableObject {
     let repository = PrivateSettingsRepository()
     let destination = AppleDestinationService(repository: repository)
     let files = CapturePrivateFiles()
+    let audioSource = VerifiedCaptureAudioSource(files: files)
+    let readinessSource = AppleSpeechReadinessSource()
+    let queueStore = FileQueueStore()
+    let registry = TranscriptionMethodRegistry()
+    registry.register(
+      AppleTranscriptionAdapter(
+        store: queueStore, audio: audioSource, readinessSource: readinessSource))
     let installationIdentity = KeychainInstallationIdentity()
     self.init(
       microphone: AppleMicrophoneAuthorization(),
@@ -79,10 +93,16 @@ final class AppModel: ObservableObject {
     captureEnvironment = AppleCaptureEnvironment(
       microphone: microphone, destination: destination, files: files,
       installationIdentity: installationIdentity)
+    transcriptionSettings = repository
+    selectedTranscriptionMethodID = repository.selectedTranscriptionMethodID()
+    appleReadiness = AppleTranscriptionReadiness(source: readinessSource)
     processingQueue = ProcessingQueueCoordinator(
-      store: FileQueueStore(), receipts: CaptureQueueReceiptSource(files: files),
-      identity: installationIdentity, settings: ProductionTranscriptionSettings(),
-      registry: TranscriptionMethodRegistry())
+      store: queueStore, receipts: CaptureQueueReceiptSource(files: files),
+      identity: installationIdentity,
+      settings: ProductionTranscriptionSettings(repository: repository),
+      registry: registry,
+      candidates: FileTranscriptionCandidateStore(root: files.root, audio: audioSource))
+    processingQueue?.onChange = { [weak self] in self?.refreshCaptureLists() }
   }
 
   init(
@@ -111,11 +131,14 @@ final class AppModel: ObservableObject {
     firstLaunchStep = firstLaunch.pendingExplanation
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
+    refreshAppleReadiness()
     refreshCaptureLists()
   }
 
   func becameInactive() {
     processingQueue?.deactivate()
+    appleReadiness?.invalidate()
+    appleReadinessStates = [:]
     destinationService.invalidateAccess()
     preparedDestination = nil
     isFolderPickerPresented = false
@@ -330,14 +353,65 @@ final class AppModel: ObservableObject {
     }
     failedCaptures = captureEnvironment?.failed() ?? []
     captureIssues = captureEnvironment?.issues() ?? []
-    queuePending = queue.filter { $0.state != .failed && $0.state != .resultReady }
+    queuePending = queue.filter { $0.state != .failed }
     queueFailed = queue.filter { $0.state == .failed }
     queuePausedReason = processingQueue?.pausedReason
   }
 
   func refreshTranscriptionReadiness() {
     processingQueue?.settingsEntered()
+    refreshAppleReadiness()
     refreshCaptureLists()
+  }
+
+  func selectAppleTranscription() {
+    guard let language = recoveryMethodLanguage else {
+      persistAppleSelection()
+      return
+    }
+    guard let appleReadiness else { return }
+    Task { [weak self] in
+      guard let state = await appleReadiness.refresh(language), let self else { return }
+      self.appleReadinessStates[language] = state
+      guard case .ready = state, self.recoveryMethodLanguage == language else { return }
+      self.persistAppleSelection()
+    }
+  }
+
+  func chooseMethodForRecovery(_ language: CaptureLanguage) {
+    recoveryMethodLanguage = language
+    showSettings = true
+    refreshAppleReadiness()
+  }
+
+  func leftSettings() { recoveryMethodLanguage = nil }
+
+  var appleReadyForRecovery: Bool {
+    guard let language = recoveryMethodLanguage else { return true }
+    guard case .ready = appleReadinessStates[language] else { return false }
+    return true
+  }
+
+  private func persistAppleSelection() {
+    guard let transcriptionSettings else { return }
+    do {
+      try transcriptionSettings.selectTranscriptionMethod(TranscriptionMethodIdentifiers.apple)
+      selectedTranscriptionMethodID = TranscriptionMethodIdentifiers.apple
+      processingQueue?.prerequisiteChanged()
+      refreshCaptureLists()
+    } catch {
+      presentMessage("The transcription method could not be saved. Try again.")
+    }
+  }
+
+  private func refreshAppleReadiness() {
+    guard let appleReadiness else { return }
+    for language in [CaptureLanguage.english, .korean] {
+      Task { [weak self] in
+        guard let state = await appleReadiness.refresh(language) else { return }
+        self?.appleReadinessStates[language] = state
+      }
+    }
   }
 
   func retryQueueJob(_ id: String) {

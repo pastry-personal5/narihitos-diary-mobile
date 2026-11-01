@@ -38,8 +38,7 @@ run_check() {
 }
 
 run_check 'project generation' scripts/generate-project.sh
-run_check 'swift-format' swift-format lint --strict --recursive .
-run_check 'swiftlint' swiftlint lint --strict --quiet --no-cache
+run_check 'lint' scripts/lint.sh
 run_check 'build' xcodebuild -quiet -project NarihitosDiary.xcodeproj -scheme NarihitosDiary -destination 'generic/platform=iOS Simulator' -derivedDataPath "$log_dir/DerivedData" CODE_SIGNING_ALLOWED=NO build
 
 run_check 'tests' xcodebuild -quiet -project NarihitosDiary.xcodeproj -scheme NarihitosDiary -destination "$TEST_DESTINATION" -destination-timeout "$simulator_destination_timeout_seconds" -derivedDataPath "$log_dir/DerivedData" -test-timeouts-enabled YES -default-test-execution-time-allowance "$test_execution_timeout_seconds" -maximum-test-execution-time-allowance "$test_execution_timeout_seconds" CODE_SIGNING_ALLOWED=NO test

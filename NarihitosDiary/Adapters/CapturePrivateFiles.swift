@@ -223,14 +223,7 @@ final class CapturePrivateFiles {
 
   func pendingQueueReceipts() -> [QueueReceipt] {
     workspaceIDs().compactMap { id in
-      guard let journal = validatedReceipt(id: id), journal.outcome == "pending",
-        let inspection = journal.inspection, inspection.isAccepted,
-        let identity = try? journal.identity()
-      else { return nil }
-      return QueueReceipt(
-        id: identity.id, startedAt: identity.startedAt, language: identity.language,
-        destinationReference: identity.destinationReference,
-        installationBinding: identity.installationBinding, inspection: inspection)
+      queueReceipt(jobID: id.description)
     }.sorted {
       $0.startedAt == $1.startedAt
         ? $0.id.description < $1.id.description : $0.startedAt < $1.startedAt
@@ -238,8 +231,17 @@ final class CapturePrivateFiles {
   }
 
   func queueReceipt(jobID: String) -> QueueReceipt? {
-    guard let id = try? WorkspaceID(jobID) else { return nil }
-    return pendingQueueReceipts().first { $0.id == id }
+    guard let id = try? WorkspaceID(jobID),
+      (try? requirePlainDirectory(root)) != nil,
+      (try? requirePlainDirectory(workspaceURL(id))) != nil,
+      let journal = validatedReceipt(id: id), journal.outcome == "pending",
+      let inspection = journal.inspection, inspection.isAccepted,
+      let identity = try? journal.identity()
+    else { return nil }
+    return QueueReceipt(
+      id: identity.id, startedAt: identity.startedAt, language: identity.language,
+      destinationReference: identity.destinationReference,
+      installationBinding: identity.installationBinding, inspection: inspection)
   }
 
   func removeWorkspace(jobID: String) throws {
@@ -249,14 +251,32 @@ final class CapturePrivateFiles {
     guard manager.fileExists(atPath: directory.path) else { return }
     try requirePlainDirectory(directory)
     let children = try manager.contentsOfDirectory(
-      at: directory, includingPropertiesForKeys: [.isSymbolicLinkKey, .isAliasFileKey])
+      at: directory,
+      includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .isAliasFileKey])
     for child in children {
-      let values = try child.resourceValues(forKeys: [.isSymbolicLinkKey, .isAliasFileKey])
-      guard values.isSymbolicLink != true, values.isAliasFile != true else {
+      let values = try child.resourceValues(forKeys: [
+        .isRegularFileKey, .isSymbolicLinkKey, .isAliasFileKey,
+      ])
+      guard isOwnedCaptureFile(child.lastPathComponent), values.isRegularFile == true,
+        values.isSymbolicLink == false, values.isAliasFile != true
+      else {
         throw CaptureGateFailure.storage
       }
     }
     try manager.removeItem(at: directory)
+  }
+
+  private func isOwnedCaptureFile(_ name: String) -> Bool {
+    let fixed = [
+      "capture.json", "receipt.json", "pending-audio.m4a", "transcription-result-v1.json",
+    ]
+    if fixed.contains(name) { return true }
+    for prefix in [".write-", ".result-"] where name.hasPrefix(prefix) {
+      let suffix = String(name.dropFirst(prefix.count))
+      guard let id = UUID(uuidString: suffix) else { return false }
+      return id.uuidString.lowercased() == suffix
+    }
+    return false
   }
 
 }
