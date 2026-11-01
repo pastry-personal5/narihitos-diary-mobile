@@ -67,6 +67,9 @@ Notes: The owner explicitly requested implementation while P1-M7's environment-b
 ### P1-M9: Implement Recording and Capture Recovery
 
 Status: Planned
+Goal: Capture private playable audio through lock and backgrounding, settle it durably on stop/interruption/five minutes, and recover playable partials after relaunch.
+Plan: [overview](milestone-09-recording-capture-recovery-overview.md), [approach](milestone-09-recording-capture-recovery-architecture.md)
+Notes: Implementation follows P1-M8 completion or an explicit owner reorder. P1-M9 provides the minimal durable capture receipt that P1-M10 adopts into the full processing queue; target-phone Data Protection and interruption evidence are required.
 
 ### P1-M10: Implement the Durable Processing Queue
 
