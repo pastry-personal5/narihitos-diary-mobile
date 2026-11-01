@@ -2,9 +2,25 @@
 
 Status: Active
 
-This log records owner decisions and significant plan changes for Phase 1. Research implications and remaining questions are in the [open-decision inventory](../research/p1-m1-open-decisions.md).
+This log records owner decisions and significant plan changes for Phase 1. P1-M5 closed the former [open-decision inventory](../research/p1-m1-open-decisions.md); its remaining entries are implementation evidence or P1-M6/future work.
 
 ## Entries
+
+- 2026-11-01 — P1-M5 owner review complete — approved the consolidated [decision contracts](milestone-05-decisions-architecture.md), completed every [P1-M5 checklist item](milestone-05-decisions-overview.md#completion-checklist), assigned remaining device evidence to P1-M8/P1-M9/P1-M14/P1-M17/P1-M19, and marked P1-M5 Done. P1-M5 remains exempt from lint, build, and test exit gates.
+
+- 2026-11-01 — Final schema and title decisions — chose random UUID v4 serialized as lowercase canonical hyphenated text and RFC 3339 UTC timestamps at whole-second precision with `Z`; preserved the UTC year/month/day layout with timestamp-plus-UUID Markdown and sibling `.assets` names. Approved strict flat-scalar YAML, exact required/conditional/provenance/context fields, stable kind/method/title-origin values, unknown-scalar preservation, unsupported and legacy recovery placement, parser/audio/catalog/storage limits, and inert noninteractive Markdown. Approved 30-Swift-grapheme titles, prompt revision `title-v1`, eight 2,000-token chunks, two passes, 80-grapheme intermediates, 128/64 output-token budgets, 30 seconds total, confidence 0.8, and first-sentence fallback.
+
+- 2026-11-01 — Final recording, queue, and privacy decisions — continued capture while locked or backgrounded and required immediate locked finalization/queuing; chose mono 44.1 kHz AAC `.m4a` around 64 kb/s, 100 MiB recording reserve, crash recovery of playable partials, backup exclusion, `ThisDeviceOnly` installation identity, and quarantined restored jobs in Pending Recordings with Resume-current-Settings/Remove. Approved readiness refresh points, wait/fail classification, sanitized exact recovery messages/actions, ten-minute nonsettling cutoff, generic next-day reminder and DST behavior, removal-versus-save barrier, privacy cover, diagnostic allowlist, no biometric lock, and no app-level encryption.
+
+- 2026-11-01 — Final iCloud, context, and interface decisions — required positive iCloud Drive identity, user-confirmed permanent loss before per-job retargeting, local pair plus two successful upload reports before staging deletion, and protected conflict-pair snapshots until the chosen pair is published and verified. Context represents recording start; location must be within five minutes/500 m and weather within 60 minutes, with coordinates retained after geocoding failure, Celsius storage, locale display, and Weather attribution. Approved the six-second `Diary saved to {folder}.` banner, semantic bitmap-icon brief, exact accessibility labels/values/headings, polite notices, and no word-linked replay.
+
+- 2026-11-01 — Final security and process decisions — model downloads require an app-bundled URL/length/digest allowlist, HTTPS, at most three allowlisted redirects, expanded-size validation, 1 GiB free-space preflight, and app-update approval/revocation, with no installed model/cache cap. Removed dependency-license compatibility as a gate for all dependencies while retaining Apache-2.0 for project code and owner approval for dependency/build-tool changes. Restricted main to the P1-M6 handoff: run each viable candidate once per available English/Korean clip, stop after ten minutes if nonsettling, and privately show text/failure only—no WER/CER, Apple comparison, manual grading, cold/warm, latency, memory, battery, thermal, storage-performance, repeated/stress, or five-minute test. Detailed M6 planning stays in its worktree.
+
+- 2026-11-01 — Owner P1-M1 closeout — reviewed the added research and marked P1-M1 Done with its [research checklist](milestone-01-research-overview.md#completion-checklist) complete. The physical iPhone 17 Pro Max Cohere comparison, resource measurements, model distribution review, and v1 runtime approval are assigned to P1-M6 after P1-M5 sets acceptance targets. No Cohere path is approved or claimed to have target-phone measurements by this closeout.
+
+- 2026-11-01 — P1-M5 planning — added the product, data, and security decision [overview](milestone-05-decisions-overview.md) and [approach](milestone-05-decisions-architecture.md), with evidence requirements and downstream handoffs. P1-M5 remains Planned while P1-M1 is active; no open choice is approved by this plan.
+
+- 2026-11-01 — Owner decision — exempted P1-M5 and P1-M6 from build, lint, and test completion gates. Their checklists and documentation remain required; the standard gate resumes at P1-M7.
 
 - 2026-11-01 — Owner P1-M4 review — reviewed the UX and architecture documents and closed the information architecture and canonical UX terms milestone. Icon assets, accessibility names, and completion notice presentation remain decisions for later implementation work.
 

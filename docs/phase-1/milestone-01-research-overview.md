@@ -1,10 +1,10 @@
 # P1-M1: Research overview
 
-Status: Active
+Status: Done
 
 Research transcription options for diary recordings and document findings that can inform software architecture.
 
-The owner now places on-device Cohere Transcribe in v1 and moves hosted Qwen to future work. Existing Qwen research remains historical evidence. The target-phone Cohere runtime and conversion trial is still open.
+The owner places on-device Cohere Transcribe in v1 and moves hosted Qwen to future work. Existing Qwen research remains historical evidence. P1-M1 closes with a sourced comparison and trial plan; physical-phone Cohere validation and runtime selection remain open in P1-M6.
 
 ## Scope
 
@@ -14,7 +14,7 @@ The owner now places on-device Cohere Transcribe in v1 and moves hosted Qwen to 
 - Investigate Qwen3-ForcedAligner-0.6B for English and Korean word timing on up-to-five-minute recordings, including its input transcript contract, iOS runtime and model availability, accuracy, latency, memory, licensing, and whether the current product needs alignment.
 - Investigate the WhisperKit and FluidAudio Swift SDKs for local speech transcription on the target iPhone: supported models and languages, five-minute recording handling, input conversion, word timing, installation and offline behavior, licensing, and measured device performance.
 - Investigate on-device Cohere Transcribe **ASR only** for en-US and ko-KR on iPhone 17 Pro Max, comparing Core ML, GGUF/Metal, and Swift/MLX paths, model sizes and licenses, five-minute input limits, measured quality and performance, and efficient loading, compute-unit, chunking, and failure handling. Distinguish phone measurements from Mac benchmarks and feasibility claims.
-- Select a viable v1 on-device Cohere conversion and runtime only after the same physical-phone en-US/ko-KR recordings establish accuracy, five-minute completion, latency, peak memory, battery, thermal behavior, and model distribution requirements. Obtain owner approval before changing dependencies or build tools.
+- Define the same-recording physical-phone comparison needed to select a viable v1 Cohere conversion and runtime in P1-M6. Document the missing accuracy, five-minute completion, latency, peak memory, battery, thermal, and model distribution evidence; do not treat estimates as target-phone results.
 - Document deployment and integration options, quality evaluation, privacy, costs, licensing, and relevant constraints, with sources and unresolved questions.
 - Research the following items derived from the [owner’s initial ideas](../research/initial-ideas-from-owner.md), treating them as proposed requirements to reconcile with the current product and UX docs:
   - Apple on-device speech recognition for en-US and ko-KR, including iOS availability, offline capability, permissions, quality, and how it compares with Qwen and service-provider/model/prompt combinations.
@@ -31,6 +31,7 @@ The owner now places on-device Cohere Transcribe in v1 and moves hosted Qwen to 
 ## Out of scope
 
 - Selecting or implementing a transcription provider or model.
+- Running the physical-phone Cohere trial or approving its conversion, runtime, and distribution; these are P1-M6 work after P1-M5 sets acceptance targets.
 - Implementing the app or changing dependencies and build tools.
 
 ## Completion checklist
@@ -56,5 +57,6 @@ The owner now places on-device Cohere Transcribe in v1 and moves hosted Qwen to 
 - [x] Update the [research index](../README.md) and [open decisions](../research/p1-m1-open-decisions.md) with the Cohere findings, keeping model and runtime choices open.
 - [x] Extend the Cohere research to ASR-only iPhone deployment evidence, Swift/MLX feasibility and memory costs, compact GGUF English/Korean quality, and a practical physical-phone efficiency comparison: [research findings](../research/p1-m1-cohere-transcribe-iphone.md).
 - [x] Add independent ASR app evidence for iPhone Cohere deployment and Mac Core ML working-memory cost, with clear limits on transferring either result to iPhone 17 Pro Max: [research findings](../research/p1-m1-cohere-transcribe-iphone.md).
-- [ ] Compare candidate Cohere conversions and runtimes on the physical target phone with the same English and Korean diary recordings; record quality and resource measurements, model distribution terms, and an owner-approved v1 choice.
-- [ ] Owner reviews the added research and decides when to close the reopened milestone.
+- [x] Narrow the remaining Apple platform questions with primary documentation, separating observable signals from unverified physical-device behavior: [platform decision evidence](../research/p1-m1-platform-decision-evidence.md).
+- [x] Assign the physical target-phone Cohere comparison, resource measurements, distribution review, and owner-approved v1 runtime choice to P1-M6 without presenting unmeasured claims as results: see the [Phase 1 plan](phase-1.md#p1-m6-validate-the-cohere-iphone-runtime-and-model-distribution) and [Cohere trial design](../research/p1-m1-cohere-transcribe-iphone.md).
+- [x] Owner reviewed the added research and directed P1-M1 closure on 2026-11-01; the [Phase 1 changelog](changelog.md) records the handoff and remaining gates.

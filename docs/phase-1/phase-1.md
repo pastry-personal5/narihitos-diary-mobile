@@ -8,10 +8,11 @@ Phase 1 is organized into the following milestones.
 
 ### P1-M1: Research
 
-Status: Active
+Status: Done
 Goal: Research transcription and optional word-alignment options for diary recordings, including hosted Qwen, on-device Qwen3-ASR, whisper.cpp, WhisperKit, FluidAudio, Cohere Transcribe, and Qwen3-ForcedAligner on the target iPhone.
 Plan: [overview](milestone-01-research-overview.md), [approach](milestone-01-research-architecture.md)
 Validation: The owner exempted this milestone from all build, lint, and test gates; see the [changelog](changelog.md).
+Notes: Target-phone Cohere comparison and runtime approval remain P1-M6 work; P1-M1 records the research and evaluation plan.
 
 ### P1-M2: Software Architecture
 
@@ -33,11 +34,14 @@ Goal: Define the v1 screen hierarchy and consistent names for approved destinati
 Plan: [overview](milestone-04-ux-overview.md), [approach](milestone-04-ux-architecture.md), [information architecture](../ux-information-architecture.md), [terms](../ux-terms.md)
 Validation: The owner exempted this milestone from build, lint, and test exit gates; see the [changelog](changelog.md).
 
-The following milestone themes are provisional while P1-M1 remains active. Their detailed plans and completion checklists will be written before implementation.
+P1-M5 is Done with owner-approved product, data, privacy, and interface contracts. Later milestone themes remain provisional; their detailed plans and completion checklists will be written before implementation.
 
 ### P1-M5: Resolve V1 Product, Data, and Security Decisions
 
-Status: Planned
+Status: Done
+Goal: Approve the remaining v1 product, data, privacy, and security contracts with evidence and explicit downstream handoffs.
+Plan: [overview](milestone-05-decisions-overview.md), [approach](milestone-05-decisions-architecture.md)
+Validation: No lint, build, or test exit gate; the completed checklist, reconciled decision documents, and owner review are the evidence.
 
 ### P1-M6: Validate the Cohere iPhone Runtime and Model Distribution
 

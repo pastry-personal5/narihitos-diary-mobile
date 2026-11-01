@@ -50,6 +50,6 @@ Arrows indicate destinations or actions, not an approved navigation presentation
 | Main → Diary Snippet detail | Read, edit body, Favorite, replay | Title is read-only. Metadata is below the body. |
 | All → Settings | Method readiness and selection, model installation, location control | No hosted Qwen controls in v1. |
 
-## Decisions still needed
+## P1-M5 decisions
 
-This containment does not settle other non-tab headings, icon art and accessibility names, visual layout, or completion notice presentation. Controls prefer custom bitmap icons; no Main Toolbar is specified. See the [open-decision inventory](research/p1-m1-open-decisions.md).
+P1-M5 approved the non-tab headings, semantic bitmap-icon brief, accessibility names and values, completion banner, and recovery placement without changing this containment model. Detailed visual styling and bitmap production belong to the implementing UI milestones. No Main Toolbar is specified. See the [approved decision contracts](phase-1/milestone-05-decisions-architecture.md#context-and-interface-contract).

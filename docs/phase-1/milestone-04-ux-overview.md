@@ -23,7 +23,7 @@ Define a reviewable v1 screen hierarchy and canonical vocabulary from approved p
 - [x] [UX terms](../ux-terms.md) maps approved labels and workflow concepts to consistent code-facing names, distinguishing final labels from terms that still need copy review.
 - [x] [UX GUI](../ux-gui.md) references the hierarchy and keeps unapproved interaction details explicit.
 - [x] The Phase 1 plan, index, and validation exemption record P1-M4.
-- [x] Owner reviewed the UX and architecture documents and confirmed P1-M4 complete. Separate All recovery screens, a Main notice, read-only Metadata fields, exact control labels and empty-state copy, and tabbed conflict review are approved. Icon assets, accessibility names, and completion notice presentation remain open for later implementation work.
+- [x] Owner reviewed the UX and architecture documents and confirmed P1-M4 complete. Separate All recovery screens, a Main notice, read-only Metadata fields, exact control labels and empty-state copy, and tabbed conflict review are approved. P1-M5 later approved the icon, accessibility, and completion-notice contracts.
 
 ## Validation
 

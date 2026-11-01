@@ -8,7 +8,7 @@ This index lists the design and process docs, one line each. Read only the doc y
 |-----|----------------|
 | [roadmap.md](roadmap.md) | Project phases and the active phase. |
 | [phase-1/phase-1.md](phase-1/phase-1.md) | Phase 1 milestones. |
-| [phase-1/milestone-01-research-overview.md](phase-1/milestone-01-research-overview.md) | Reopened P1-M1 research scope and evidence checklist. |
+| [phase-1/milestone-01-research-overview.md](phase-1/milestone-01-research-overview.md) | Completed P1-M1 research scope, evidence checklist, and Cohere device-trial handoff. |
 | [phase-1/milestone-01-research-architecture.md](phase-1/milestone-01-research-architecture.md) | P1-M1 research approach. |
 | [phase-1/milestone-02-software-architecture-overview.md](phase-1/milestone-02-software-architecture-overview.md) | P1-M2 scope and completion checklist. |
 | [phase-1/milestone-02-software-architecture-architecture.md](phase-1/milestone-02-software-architecture-architecture.md) | P1-M2 architecture work sequence and review criteria. |
@@ -16,8 +16,10 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/milestone-03-scaffolding-architecture.md](phase-1/milestone-03-scaffolding-architecture.md) | P1-M3 target structure, project generation, and validation approach. |
 | [phase-1/milestone-04-ux-overview.md](phase-1/milestone-04-ux-overview.md) | P1-M4 scope, completion checklist, and validation exemption. |
 | [phase-1/milestone-04-ux-architecture.md](phase-1/milestone-04-ux-architecture.md) | P1-M4 design sequence and review criteria. |
-| [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and decision gates. |
-| [security-review.md](security-review.md) | Architecture threat model, prioritized findings, proposed controls, and pending adversarial verification. |
+| [phase-1/milestone-05-decisions-overview.md](phase-1/milestone-05-decisions-overview.md) | Completed P1-M5 decision checklist and downstream evidence assignments. |
+| [phase-1/milestone-05-decisions-architecture.md](phase-1/milestone-05-decisions-architecture.md) | Owner-approved title, schema, recording, queue, iCloud, security, context, and interface contracts. |
+| [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and implementation evidence gates. |
+| [security-review.md](security-review.md) | Architecture threat model, approved controls, prioritized findings, and pending adversarial verification. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
 | [contribution-guide.md](contribution-guide.md) | Local setup, required validation, commit message style, and pull request conventions. |
 | [product-behavior.md](product-behavior.md) | Product scope: what the app does and what it deliberately does not do. |
@@ -32,5 +34,6 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [research/p1-m1-qwen3-forced-aligner-iphone.md](research/p1-m1-qwen3-forced-aligner-iphone.md) | Qwen3-ForcedAligner-0.6B word-timing evidence, native runtimes, and iPhone test gaps. |
 | [research/p1-m1-swift-speech-sdks.md](research/p1-m1-swift-speech-sdks.md) | WhisperKit and FluidAudio Swift/Core ML integration, English/Korean model coverage, and long-audio constraints. |
 | [research/p1-m1-cohere-transcribe-iphone.md](research/p1-m1-cohere-transcribe-iphone.md) | ASR-only Cohere Transcribe en-US/ko-KR iPhone paths across Core ML, GGUF, and Swift/MLX, with measured evidence and efficient device-trial design. |
-| [research/p1-m1-open-decisions.md](research/p1-m1-open-decisions.md) | Owner interview answers, platform findings, and product/architecture decisions still open. |
+| [research/p1-m1-platform-decision-evidence.md](research/p1-m1-platform-decision-evidence.md) | Apple platform evidence and device-trial gaps for iCloud commits, speech readiness, titles, context, private staging, and reminders. |
+| [research/p1-m1-open-decisions.md](research/p1-m1-open-decisions.md) | Closed P1-M1/P1-M5 decision inventory with remaining implementation-evidence and P1-M6 handoffs. |
 | [phase-1/changelog.md](phase-1/changelog.md) | Phase 1 owner decisions and plan changes. |
