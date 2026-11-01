@@ -3,6 +3,8 @@ options:
   bundleIdPrefix: com.narihitosdiary
 settings:
   base:
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ${NDM_DEVELOPMENT_TEAM}
     IPHONEOS_DEPLOYMENT_TARGET: '27.0'
     TARGETED_DEVICE_FAMILY: '1'
     SWIFT_VERSION: '6.0'
@@ -16,6 +18,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.narihitosdiary.mobile
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Record audio for your diary.
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: Add optional recording-time place and weather context to your diary.
   NarihitosDiaryTests:
     type: bundle.unit-test
     platform: iOS

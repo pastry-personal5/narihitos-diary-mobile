@@ -71,6 +71,9 @@ P1-M5 and P1-M6 resolved the current v1 product and Cohere-direction choices. As
 swift-format format --in-place --recursive .  # format Swift source
 swift-format lint --strict --recursive .      # check Swift formatting
 swiftlint lint --strict                       # lint Swift source
+make generate                                 # generate with the first available Xcode team
+make build                                    # generate and build for the iOS Simulator
+make open                                     # generate and open the project in Xcode
 TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh  # quiet full gate
 ```
 

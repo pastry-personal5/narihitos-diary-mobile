@@ -37,7 +37,7 @@ run_check() {
   fi
 }
 
-run_check 'project generation' xcodegen generate --quiet
+run_check 'project generation' scripts/generate-project.sh
 run_check 'swift-format' swift-format lint --strict --recursive .
 run_check 'swiftlint' swiftlint lint --strict --quiet --no-cache
 run_check 'build' xcodebuild -quiet -project NarihitosDiary.xcodeproj -scheme NarihitosDiary -destination 'generic/platform=iOS Simulator' -derivedDataPath "$log_dir/DerivedData" CODE_SIGNING_ALLOWED=NO build

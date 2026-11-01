@@ -15,9 +15,20 @@ How to set up `Narihito's Diary Mobile`, validate a change, write commit message
 swift-format format --in-place --recursive .  # format Swift source
 swift-format lint --strict --recursive .      # check Swift formatting
 swiftlint lint --strict                       # lint Swift source
-xcodegen generate --quiet                     # generate the Xcode project
+make generate                                 # generate the Xcode project
+make build                                    # generate and build for the iOS Simulator
+make open                                     # generate and open the project in Xcode
 TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh
 ```
+
+The root Makefile is a convenience wrapper around XcodeGen and `xcodebuild`;
+`project.yml` remains the project source of truth. `make build` regenerates the
+project before building it for the generic iOS Simulator with code signing disabled;
+`make open` regenerates it before opening it in Xcode.
+
+Generation selects the first development team in Xcode's local account settings and
+uses automatic signing. The generated project has no selected team when Xcode has no
+available team; no machine-specific Team ID is committed to the repository.
 
 ## Required validation
 

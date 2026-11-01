@@ -6,7 +6,19 @@ This log records owner decisions and significant plan changes for Phase 1. P1-M5
 
 ## Entries
 
+- 2026-11-02 — Automatic development-team selection — project generation now selects the first development team in Xcode's local account settings and enables automatic signing without committing a machine-specific Team ID. Generation remains valid with an empty team when Xcode has no available account team.
+
+- 2026-11-02 — P1-M8 implementation review — made permission requests nonblocking after durable attempt persistence, preserved the unattempted state when that persistence fails, rejected missing symbolic-link metadata, sanitized restored folder names before projection, rechecked iCloud identity at resolution and commit boundaries, hid covered UI from accessibility outside the foreground, replaced message-text recovery inference with explicit presentation state, and added focused regression coverage. Strict format, SwiftLint, project generation, generic build, and generic `build-for-testing` pass; concrete simulator tests remain blocked by unavailable CoreSimulatorService/runtimes, and target-iPhone M8-D01–M8-D11 evidence remains open.
+
+- 2026-11-02 — Build convenience targets — the owner approved a root Makefile with phony `generate`, `build`, and `open` targets. XcodeGen and `project.yml` remain the project-generation source of truth; `build` regenerates before performing the existing generic iOS Simulator build with code signing disabled, and `open` regenerates before opening the project in Xcode.
+
 - 2026-11-01 — P1-M7 validation complete — the exact repository-wide gate passed on an iPhone 18 Pro simulator running iOS 27.0. Project generation, strict formatting, SwiftLint, the generic simulator build, and all tests completed successfully; every [P1-M7 checklist item](milestone-07-asset-storage-overview.md#completion-checklist) is complete and P1-M7 is Done.
+
+- 2026-11-01 — P1-M8 implementation active — implemented resumable microphone/location onboarding, the five-root Settings and Record-prerequisite shell, bounded private settings, transactional iCloud-only bookmark selection bound to an opaque identity snapshot, and the nonforeground privacy cover. Strict repository format/lint and the generated generic simulator build pass; simulator test execution and all target-iPhone M8-D01–M8-D11 evidence remain open, so P1-M8 stays Active.
+
+- 2026-11-01 — P1-M8 implementation start — the owner explicitly requested P1-M8 implementation while P1-M7's environment-blocked exact full-gate item remains open; the existing reviewed M8 completion checklist is the implementation gate, and no P1-M7 evidence is reclassified.
+
+- 2026-11-01 — P1-M8 plan review — made first-launch permission attempts crash-safe and nonrepeating, bound destination access to the accepted opaque iCloud identity, removed File Provider identifiers from production authority, fenced concurrent selection callbacks, added the approved nonforeground privacy cover, and defined an M8-D01–M8-D11 target-phone evidence matrix with explicit controlled-account/provider prerequisites. These refinements preserve the approved P1-M5 outcomes and keep provider admission fail closed.
 
 - 2026-11-01 — Validation stall bounds — bounded simulator destination resolution at 60 seconds and individual test execution at 120 seconds in `scripts/validate.sh`, with validated environment overrides for explicitly slower validation environments.
 
