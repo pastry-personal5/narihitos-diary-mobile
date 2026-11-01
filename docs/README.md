@@ -12,6 +12,8 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/milestone-01-research-architecture.md](phase-1/milestone-01-research-architecture.md) | P1-M1 research approach. |
 | [phase-1/milestone-02-software-architecture-overview.md](phase-1/milestone-02-software-architecture-overview.md) | P1-M2 scope and completion checklist. |
 | [phase-1/milestone-02-software-architecture-architecture.md](phase-1/milestone-02-software-architecture-architecture.md) | P1-M2 architecture work sequence and review criteria. |
+| [phase-1/milestone-03-scaffolding-overview.md](phase-1/milestone-03-scaffolding-overview.md) | P1-M3 scope and completion checklist. |
+| [phase-1/milestone-03-scaffolding-architecture.md](phase-1/milestone-03-scaffolding-architecture.md) | P1-M3 target structure, project generation, and validation approach. |
 | [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and decision gates. |
 | [security-review.md](security-review.md) | Architecture threat model, prioritized findings, proposed controls, and pending adversarial verification. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |

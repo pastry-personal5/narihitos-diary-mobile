@@ -44,6 +44,7 @@ See [README.md](README.md) for the overview and [docs/product-behavior.md](docs/
 - **Interaction model:** [ux-gui.md](docs/ux-gui.md). Component vocabulary is in [ux-terms.md](docs/ux-terms.md) and the layout containment model in [ux-information-architecture.md](docs/ux-information-architecture.md).
 - **License:** Apache-2.0 for all project code.
 - **Project generation:** use XcodeGen in P1-M3; see the [Phase 1 changelog](docs/phase-1/changelog.md).
+- **Minimum iOS version:** set the Xcode deployment target to iOS 27.0 and enforce iOS 27.0.1 at launch; see the [P1-M3 approach](docs/phase-1/milestone-03-scaffolding-architecture.md).
 - **P1-M1 and P1-M2 validation:** no build, lint, or test gate is required for completion; see the [Phase 1 changelog](docs/phase-1/changelog.md).
 - **Process:** numbered phases contain numbered milestones; milestone numbering restarts per phase. IDs use `P1-M2`. See [docs/development-process.md](docs/development-process.md).
 
@@ -54,7 +55,6 @@ The [P1-M1 open-decision inventory](docs/research/p1-m1-open-decisions.md) lists
 - Remaining title-generation implementation details, asset schema details, and screen interactions, including detail metadata controls.
 - The v1 Cohere conversion, iOS runtime, model distribution, and target-phone quality, memory, battery, and latency targets. Hosted Qwen model IDs, controls, and budget details remain future work.
 - iCloud access-loss detection and recovery details, sync details, and the conflict-resolution interface.
-- Deployment-target representation of iOS 27.0.1 and a usable simulator fallback.
 - Private-data protection and capture behavior on lock, pending-data backup/restore policy, security resource limits, and the model trust/distribution mechanism; see the [security review](docs/security-review.md#open-gates-and-residual-risks).
 
 ## Environment
@@ -69,7 +69,7 @@ The [P1-M1 open-decision inventory](docs/research/p1-m1-open-decisions.md) lists
 swift-format format --in-place --recursive .  # format Swift source
 swift-format lint --strict --recursive .      # check Swift formatting
 swiftlint lint --strict                       # lint Swift source
-TBD: xcodebuild test                          # run tests after the Xcode project and scheme exist
+TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh  # quiet full gate
 ```
 
 ## Code conventions

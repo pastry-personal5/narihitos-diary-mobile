@@ -8,13 +8,15 @@ How to set up `Narihito's Diary Mobile`, validate a change, write commit message
 
 - macOS with Xcode 27.2 or later and the iOS SDK.
 - SwiftLint installed and available on PATH.
+- XcodeGen installed and available on PATH.
 - An iPhone simulator suitable for the target device.
 
 ```sh
 swift-format format --in-place --recursive .  # format Swift source
 swift-format lint --strict --recursive .      # check Swift formatting
 swiftlint lint --strict                       # lint Swift source
-TBD: xcodebuild test                          # run tests after the Xcode project and scheme exist
+xcodegen generate --quiet                     # generate the Xcode project
+TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh
 ```
 
 ## Required validation
@@ -24,8 +26,10 @@ For milestones other than P1-M1 and P1-M2, run the full checks from the reposito
 ```sh
 swift-format lint --strict --recursive .
 swiftlint lint --strict
-TBD: xcodebuild test with the generated project, scheme, and simulator
+TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh
 ```
+
+The validation script keeps successful command output silent and prints a short log tail on failure. Set `TEST_DESTINATION` to a working iPhone simulator; without it, the script exits before running checks because the full gate requires tests.
 
 ## Commit messages
 

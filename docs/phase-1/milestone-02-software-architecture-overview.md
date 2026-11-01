@@ -1,6 +1,6 @@
 # P1-M2: Software architecture overview
 
-Status: Planned
+Status: Done
 
 Define a reviewable software architecture for the confirmed iPhone app behavior. Keep unresolved product choices visible so later implementation does not silently settle them.
 
@@ -38,4 +38,4 @@ Describe the app's responsibilities, data flow, persistence boundaries, failure 
 - [x] Document the architecture work sequence and affected interfaces in the [approach](milestone-02-software-architecture-architecture.md).
 - [x] Link the new documents from the [phase plan](phase-1.md) and [documentation index](../README.md), and record the plan change in the [changelog](changelog.md).
 - [x] Apply the owner's P1-M2 exemption from build, lint, and test gates. Documentation review found no missing local links or phase/milestone references in the standalone architecture.
-- [ ] Review the proposal with the owner and record any approved architectural decisions before marking this milestone Done.
+- [x] Complete the owner review. No additional architectural decisions were approved; the proposal continues to distinguish confirmed behavior from implementation-dependent open decisions.

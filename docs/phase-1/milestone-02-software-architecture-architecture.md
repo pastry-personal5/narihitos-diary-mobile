@@ -1,6 +1,6 @@
 # P1-M2: Software architecture approach
 
-Status: Planned
+Status: Done
 
 This plan describes how the architecture deliverable is organized and how its unresolved choices are carried into later work. The standalone [software architecture](../architecture.md) is the technical reference.
 

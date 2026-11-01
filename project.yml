@@ -1,0 +1,36 @@
+name: NarihitosDiary
+options:
+  bundleIdPrefix: com.narihitosdiary
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: '27.0'
+    TARGETED_DEVICE_FAMILY: '1'
+    SWIFT_VERSION: '6.0'
+targets:
+  NarihitosDiary:
+    type: application
+    platform: iOS
+    sources: [NarihitosDiary]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.narihitosdiary.mobile
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+  NarihitosDiaryTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [NarihitosDiaryTests]
+    dependencies:
+      - target: NarihitosDiary
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.narihitosdiary.mobile.tests
+schemes:
+  NarihitosDiary:
+    build:
+      targets:
+        NarihitosDiary: all
+        NarihitosDiaryTests: [test]
+    test:
+      targets: [NarihitosDiaryTests]
