@@ -8,7 +8,7 @@ This index lists the design and process docs, one line each. Read only the doc y
 |-----|----------------|
 | [roadmap.md](roadmap.md) | Project phases and the active phase. |
 | [phase-1/phase-1.md](phase-1/phase-1.md) | Phase 1 milestones. |
-| [phase-1/milestone-01-research-overview.md](phase-1/milestone-01-research-overview.md) | Completed P1-M1 research scope and evidence checklist. |
+| [phase-1/milestone-01-research-overview.md](phase-1/milestone-01-research-overview.md) | Reopened P1-M1 research scope and evidence checklist. |
 | [phase-1/milestone-01-research-architecture.md](phase-1/milestone-01-research-architecture.md) | P1-M1 research approach. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
 | [contribution-guide.md](contribution-guide.md) | Local setup, required validation, commit message style, and pull request conventions. |
@@ -19,5 +19,10 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [research/initial-ideas-from-owner.md](research/initial-ideas-from-owner.md) | Narihito's Diary Mobile, in short, NDM, or ndm is an app that creates assets. |
 | [research/p1-m1-qwen-transcription.md](research/p1-m1-qwen-transcription.md) | Qwen transcription research for English and Korean diary recordings. |
 | [research/p1-m1-audio-format.md](research/p1-m1-audio-format.md) | iPhone recording format research and provisional codec/bitrate recommendation. |
+| [research/p1-m1-whisper-cpp-iphone.md](research/p1-m1-whisper-cpp-iphone.md) | whisper.cpp iPhone 17 Pro Max feasibility and compatible local model candidates. |
+| [research/p1-m1-qwen3-asr-iphone.md](research/p1-m1-qwen3-asr-iphone.md) | On-device Qwen3-ASR 0.6B/1.7B iPhone feasibility, published benchmarks, and device-test gaps. |
+| [research/p1-m1-qwen3-forced-aligner-iphone.md](research/p1-m1-qwen3-forced-aligner-iphone.md) | Qwen3-ForcedAligner-0.6B word-timing evidence, native runtimes, and iPhone test gaps. |
+| [research/p1-m1-swift-speech-sdks.md](research/p1-m1-swift-speech-sdks.md) | WhisperKit and FluidAudio Swift/Core ML integration, English/Korean model coverage, and long-audio constraints. |
+| [research/p1-m1-cohere-transcribe-iphone.md](research/p1-m1-cohere-transcribe-iphone.md) | ASR-only Cohere Transcribe en-US/ko-KR iPhone paths across Core ML, GGUF, and Swift/MLX, with measured evidence and efficient device-trial design. |
 | [research/p1-m1-open-decisions.md](research/p1-m1-open-decisions.md) | Owner interview answers, platform findings, and product/architecture decisions still open. |
 | [phase-1/changelog.md](phase-1/changelog.md) | Phase 1 owner decisions and plan changes. |

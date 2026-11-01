@@ -8,8 +8,8 @@ Phase 1 is organized into the following milestones.
 
 ### P1-M1: Research
 
-Status: Done
-Goal: Research Qwen-based AI audio transcription for diary recordings.
+Status: Active
+Goal: Research transcription and optional word-alignment options for diary recordings, including hosted Qwen, on-device Qwen3-ASR, whisper.cpp, WhisperKit, FluidAudio, Cohere Transcribe, and Qwen3-ForcedAligner on the target iPhone.
 Plan: [overview](milestone-01-research-overview.md), [approach](milestone-01-research-architecture.md)
 Validation: The owner exempted this milestone from all build, lint, and test gates; see the [changelog](changelog.md).
 
