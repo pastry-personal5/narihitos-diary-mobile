@@ -4,7 +4,7 @@ Status: Done
 
 Research transcription options for diary recordings and document findings that can inform software architecture.
 
-The owner places on-device Cohere Transcribe in v1 and moves hosted Qwen to future work. Existing Qwen research remains historical evidence. P1-M1 closes with a sourced comparison and trial plan; physical-phone Cohere validation and runtime selection remain open in P1-M6.
+The owner places on-device Cohere Transcribe in v1 and moves hosted Qwen to future work. Existing Qwen research remains historical evidence. P1-M1 closed with a sourced comparison and handed physical-phone validation and runtime selection to P1-M6, which later selected the P1-M12 direction.
 
 ## Scope
 

@@ -20,9 +20,11 @@ This inventory began as the evidence and question list from P1-M1. P1-M5 resolve
 | UI and accessibility | Six-second former-folder banner, approved semantic bitmap icon brief, exact playback/conflict/headings labels, polite notice behavior, unsupported/ambiguous recovery placement, and no word-linked replay. | P1-M15–P1-M18 |
 | Dependency policy | Project-owned code remains Apache-2.0. Dependency license compatibility is not a gate; owner approval for dependency/build-tool changes remains required. | All implementation milestones |
 
-## P1-M6 boundary
+## P1-M6 result
 
-The concrete Cohere conversion, runtime, artifact, and host remain P1-M6 work in its separate worktree. Its phone trial runs each viable candidate once on each available English and Korean clip, stops a nonsettling run at ten minutes, and privately shows returned text or failure. It does not perform WER/CER, Apple comparison, manual grading, cold/warm analysis, latency, memory, battery, thermal, storage-performance, repeated/stress, or five-minute testing.
+P1-M6 is Done. The owner selected the runtime-publisher `cohere-transcribe-03-2026-Q4_K_M.gguf` with `transcribe.cpp` and Metal as the P1-M12 implementation direction after short English/Korean runs on an iPhone 17 Pro Max. Q4 was faster and used less peak memory than Q5 on the observed clips; the English output matched, while the differing Korean outputs were not reference-scored. See the [sanitized results](../phase-1/milestone-06-cohere-runtime-trial-results.md).
+
+The owner closed the unperformed five-minute, true-cold, cancellation, profiler, energy, and WER/CER work without claiming it as evidence. P1-M12 must pin trusted artifact/runtime provenance, use explicit language, reject incomplete output, use silence-aware chunks no longer than 45 seconds until long input is proven complete, and verify production seam and cancellation behavior. A different runtime, quantization, backend, or host requires a new owner decision.
 
 Hosted Qwen, local Qwen ASR, whisper.cpp, and word alignment remain outside v1. Their research documents are retained as future evidence, not open P1-M5 decisions.
 

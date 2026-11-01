@@ -33,6 +33,13 @@ xcuserdata/
 Pods/
 Carthage/Build/
 
+# P1-M6 generated Cohere trial artifacts and private evidence
+Trials/CohereRuntimeTrial/CohereRuntimeTrial.xcodeproj/
+Trials/CohereRuntimeTrial/Configs/Local.xcconfig
+Trials/CohereRuntimeTrial/Vendor/
+Trials/CohereRuntimeTrial/TrialResults/
+????????-????-????-????-????????????.json
+
 # fastlane generated files
 fastlane/report.xml
 fastlane/Preview.html

@@ -18,6 +18,10 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/milestone-04-ux-architecture.md](phase-1/milestone-04-ux-architecture.md) | P1-M4 design sequence and review criteria. |
 | [phase-1/milestone-05-decisions-overview.md](phase-1/milestone-05-decisions-overview.md) | Completed P1-M5 decision checklist and downstream evidence assignments. |
 | [phase-1/milestone-05-decisions-architecture.md](phase-1/milestone-05-decisions-architecture.md) | Owner-approved title, schema, recording, queue, iCloud, security, context, and interface contracts. |
+| [phase-1/milestone-06-cohere-runtime-trial-overview.md](phase-1/milestone-06-cohere-runtime-trial-overview.md) | Completed P1-M6 isolated Cohere iPhone trial scope and evidence checklist. |
+| [phase-1/milestone-06-cohere-runtime-trial-architecture.md](phase-1/milestone-06-cohere-runtime-trial-architecture.md) | P1-M6 trial boundaries, implementation approach, result contract, and decision gate. |
+| [phase-1/milestone-06-cohere-runtime-trial-protocol.md](phase-1/milestone-06-cohere-runtime-trial-protocol.md) | Original target-iPhone Q4/Q5 English/Korean measurement protocol. |
+| [phase-1/milestone-06-cohere-runtime-trial-results.md](phase-1/milestone-06-cohere-runtime-trial-results.md) | P1-M6 target-phone evidence, Q4_K_M/Metal decision, and explicitly unperformed checks. |
 | [phase-1/milestone-07-asset-storage-overview.md](phase-1/milestone-07-asset-storage-overview.md) | P1-M7 asset-schema and private-storage scope, checklist, and acceptance evidence. |
 | [phase-1/milestone-07-asset-storage-architecture.md](phase-1/milestone-07-asset-storage-architecture.md) | P1-M7 domain boundaries, strict codec, confined workspace, tests, and downstream handoff. |
 | [phase-1/milestone-08-first-launch-settings-icloud-overview.md](phase-1/milestone-08-first-launch-settings-icloud-overview.md) | P1-M8 permission onboarding, Settings, iCloud-only destination scope, checklist, and device evidence. |

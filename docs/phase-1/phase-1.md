@@ -12,7 +12,7 @@ Status: Done
 Goal: Research transcription and optional word-alignment options for diary recordings, including hosted Qwen, on-device Qwen3-ASR, whisper.cpp, WhisperKit, FluidAudio, Cohere Transcribe, and Qwen3-ForcedAligner on the target iPhone.
 Plan: [overview](milestone-01-research-overview.md), [approach](milestone-01-research-architecture.md)
 Validation: The owner exempted this milestone from all build, lint, and test gates; see the [changelog](changelog.md).
-Notes: Target-phone Cohere comparison and runtime approval remain P1-M6 work; P1-M1 records the research and evaluation plan.
+Notes: P1-M1 recorded the research and evaluation plan; P1-M6 later completed the target-phone comparison and selected the P1-M12 runtime direction.
 
 ### P1-M2: Software Architecture
 
@@ -45,7 +45,10 @@ Validation: No lint, build, or test exit gate; the completed checklist, reconcil
 
 ### P1-M6: Validate the Cohere iPhone Runtime and Model Distribution
 
-Status: Planned
+Status: Done
+Goal: Build an isolated physical-iPhone Cohere trial, compare Q4/Q5 on available English/Korean clips, and select an implementation direction without overstating unperformed quality or long-form evidence.
+Plan: [overview](milestone-06-cohere-runtime-trial-overview.md), [approach](milestone-06-cohere-runtime-trial-architecture.md), [device protocol](milestone-06-cohere-runtime-trial-protocol.md), [results](milestone-06-cohere-runtime-trial-results.md)
+Notes: The owner selected Q4_K_M with `transcribe.cpp` Metal for P1-M12 after the available short English/Korean phone runs and explicitly closed the remaining trial matrix without claiming it as evidence.
 
 ### P1-M7: Establish Asset Schema and Private Storage
 

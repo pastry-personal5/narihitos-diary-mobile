@@ -1,0 +1,50 @@
+name: CohereRuntimeTrial
+options:
+  bundleIdPrefix: com.narihitosdiary.trials
+  deploymentTarget:
+    iOS: '27.0'
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    TARGETED_DEVICE_FAMILY: '1'
+targets:
+  CohereRuntimeTrial:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    configFiles:
+      Debug: Configs/Local.xcconfig
+      Release: Configs/Local.xcconfig
+    dependencies:
+      - framework: Vendor/TranscribeCpp.xcframework
+        embed: true
+    settings:
+      base:
+        CURRENT_PROJECT_VERSION: '1'
+        MARKETING_VERSION: '0.1'
+        PRODUCT_BUNDLE_IDENTIFIER: com.narihitosdiary.trials.cohere-runtime
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Cohere Trial
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_TrialBuildRevision: $(TRIAL_BUILD_REVISION)
+        INFOPLIST_KEY_TranscribeArtifactSHA256: $(TRANSCRIBE_ARTIFACT_SHA256)
+  CohereRuntimeTrialTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: CohereRuntimeTrial
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.narihitosdiary.trials.cohere-runtime.tests
+schemes:
+  CohereRuntimeTrial:
+    build:
+      targets:
+        CohereRuntimeTrial: all
+        CohereRuntimeTrialTests: [test]
+    test:
+      targets: [CohereRuntimeTrialTests]

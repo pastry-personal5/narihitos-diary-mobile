@@ -2,9 +2,13 @@
 
 Status: Active
 
-This log records owner decisions and significant plan changes for Phase 1. P1-M5 closed the former [open-decision inventory](../research/p1-m1-open-decisions.md); its remaining entries are implementation evidence or P1-M6/future work.
+This log records owner decisions and significant plan changes for Phase 1. P1-M5 closed the product decisions and P1-M6 selected the Cohere implementation direction; remaining entries are implementation evidence or future work.
 
 ## Entries
+
+- 2026-11-01 — Owner P1-M6 closeout — accepted the available iPhone 17 Pro Max short English/Korean comparison, selected the runtime-publisher Q4_K_M GGUF with `transcribe.cpp` Metal as the P1-M12 direction, and marked P1-M6 Done. Q4 was faster and used less memory than Q5; English output matched and Korean output was not reference-scored. The owner explicitly closed the unperformed five-minute, true-cold, cancellation, profiler, energy, and WER/CER work without claiming it as evidence. Production must use a trusted manifest, bounded long-audio chunking, explicit language, complete-output checks, and real provenance; see the [results](milestone-06-cohere-runtime-trial-results.md).
+
+- 2026-11-01 — Owner P1-M6 request — activated an isolated Cohere runtime trial before P1-M5 completion. The trial gathered physical-iPhone Q4/Q5 English/Korean evidence without changing the production target.
 
 - 2026-11-01 — P1-M8 planning — added the first-launch, Settings, and iCloud-folder [overview](milestone-08-first-launch-settings-icloud-overview.md) and [approach](milestone-08-first-launch-settings-icloud-architecture.md). The plan keeps permission truth live, treats folder selection as a transactional opaque capability, requires positive iCloud metadata plus target-phone provider/bookmark evidence, and fails closed if arbitrary iCloud Drive cannot be distinguished from local or third-party providers. Capture remains P1-M9, Apple/Cohere readiness remains P1-M11/P1-M12, and coordinated publication/upload proof remains P1-M14.
 
