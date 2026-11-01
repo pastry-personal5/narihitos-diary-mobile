@@ -17,6 +17,7 @@ See [README.md](README.md) for the overview and [docs/product-behavior.md](docs/
 - Keep implementation, tests, and affected docs together. A milestone is done only when its checklist is complete and the gate passes: `swift-format lint --strict --recursive .`, `swiftlint lint --strict`, and `TBD: xcodebuild test with the generated project, scheme, and simulator`. The owner exempts P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6 from build, lint, and test gates. For other milestones, if a required command cannot run, leave its item unchecked and report the blocker.
 - Ask before building on an undecided item, changing dependencies or build tools, deleting user data, or broadly restructuring the repository. Other work within the approved task and milestone may proceed.
 - Follow the active phase and milestone order in `docs/roadmap.md` unless the phase plan says otherwise. Create the roadmap when planning the first phase.
+- Do not place Git worktrees under the project root's `tmp/` directory, including `tmp/worktree/`; they cause SwiftLint to fail.
 
 ## Decided — ask before changing
 
