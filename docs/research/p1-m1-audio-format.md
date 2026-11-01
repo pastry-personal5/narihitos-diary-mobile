@@ -31,7 +31,7 @@ The provider's [speech-to-text audio specifications](https://docs.qwencloud.com/
 
 The short Qwen3-ASR-Flash list includes raw AAC but omits the .m4a container, while its filetrans variant explicitly lists .m4a. Do not assume a .m4a file works with the short API. Avoid transcoding AAC to another lossy codec merely to use that API; it cannot restore detail already lost in AAC and adds complexity. A lossless/PCM conversion may satisfy an API format check but increases upload size without restoring the original signal. The [Qwen3 API reference](https://www.alibabacloud.com/help/en/model-studio/qwen-asr-api-reference) also warns that Base64 expansion counts toward the input-size limit.
 
-Real-time Qwen ASR uses a binary audio stream, not a completed .m4a file. The [real-time format table](https://docs.qwencloud.com/developer-guides/speech/speech-to-text-models) requires mono input and lists PCM/Opus at 8 or 16 kHz for Qwen3-ASR-Flash-Realtime. The v1 queue transcribes after recording while the app is open, so real-time protocols add work without meeting a current v1 requirement.
+Real-time Qwen ASR uses a binary audio stream, not a completed .m4a file. The [real-time format table](https://docs.qwencloud.com/developer-guides/speech/speech-to-text-models) requires mono input and lists PCM/Opus at 8 or 16 kHz for Qwen3-ASR-Flash-Realtime. Hosted Qwen is now future work; v1 uses the completed recording for local transcription, so real-time protocols do not meet a current v1 requirement.
 
 ## Provisional recommendation and validation
 

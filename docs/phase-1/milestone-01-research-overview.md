@@ -4,6 +4,8 @@ Status: Active
 
 Research transcription options for diary recordings and document findings that can inform software architecture.
 
+The owner now places on-device Cohere Transcribe in v1 and moves hosted Qwen to future work. Existing Qwen research remains historical evidence. The target-phone Cohere runtime and conversion trial is still open.
+
 ## Scope
 
 - Investigate Qwen-based transcription options for recorded audio, including support for Korean and English and compatibility with the app's recording format.
@@ -12,13 +14,14 @@ Research transcription options for diary recordings and document findings that c
 - Investigate Qwen3-ForcedAligner-0.6B for English and Korean word timing on up-to-five-minute recordings, including its input transcript contract, iOS runtime and model availability, accuracy, latency, memory, licensing, and whether the current product needs alignment.
 - Investigate the WhisperKit and FluidAudio Swift SDKs for local speech transcription on the target iPhone: supported models and languages, five-minute recording handling, input conversion, word timing, installation and offline behavior, licensing, and measured device performance.
 - Investigate on-device Cohere Transcribe **ASR only** for en-US and ko-KR on iPhone 17 Pro Max, comparing Core ML, GGUF/Metal, and Swift/MLX paths, model sizes and licenses, five-minute input limits, measured quality and performance, and efficient loading, compute-unit, chunking, and failure handling. Distinguish phone measurements from Mac benchmarks and feasibility claims.
+- Select a viable v1 on-device Cohere conversion and runtime only after the same physical-phone en-US/ko-KR recordings establish accuracy, five-minute completion, latency, peak memory, battery, thermal behavior, and model distribution requirements. Obtain owner approval before changing dependencies or build tools.
 - Document deployment and integration options, quality evaluation, privacy, costs, licensing, and relevant constraints, with sources and unresolved questions.
 - Research the following items derived from the [owner’s initial ideas](../research/initial-ideas-from-owner.md), treating them as proposed requirements to reconcile with the current product and UX docs:
   - Apple on-device speech recognition for en-US and ko-KR, including iOS availability, offline capability, permissions, quality, and how it compares with Qwen and service-provider/model/prompt combinations.
   - Configuring transcription choices as provider, model, and optional prompt: what users can select, what must be stored with each asset, and the credential, privacy, and fallback implications of service-based options.
   - iPhone recording and playback of `.m4a`: codec and format choices, microphone permissions, interruptions, level metering, duration, the en-US/ko-KR recording language choice, and compatibility with each transcription option.
   - A transcription queue for recorded audio: background execution constraints, persistence, ordering, retries, connectivity, failure recovery, and creating a diary snippet after transcription.
-  - Turning a transcript into diary snippet text: whether it is copied or transformed, how title and language are determined, what happens when transcription or text creation fails, and how users review or edit the result.
+  - Turning transcription output into one managed diary body: how title and language are determined, what happens when transcription yields no usable text, and how users edit the result.
   - Diary snippet assets: paired Markdown and audio files, the owner’s example under `tmp/assets/example-on-2026-11-01`, UTC directory and file naming (including `.assets` audio directories) versus local display, the Markdown front-matter schema (including required and optional fields), title and preview extraction, edits and `updated_at`, and keeping audio and transcription provenance associated with the text.
   - User-selected local or iCloud folders: iOS document access, permissions, persistence, synchronization, conflicts, and changing the asset location without losing data.
   - Optional weather and location metadata: Apple Weather and location APIs, permissions, availability, accuracy, costs or service limits, and behavior when data is unavailable.
@@ -53,4 +56,5 @@ Research transcription options for diary recordings and document findings that c
 - [x] Update the [research index](../README.md) and [open decisions](../research/p1-m1-open-decisions.md) with the Cohere findings, keeping model and runtime choices open.
 - [x] Extend the Cohere research to ASR-only iPhone deployment evidence, Swift/MLX feasibility and memory costs, compact GGUF English/Korean quality, and a practical physical-phone efficiency comparison: [research findings](../research/p1-m1-cohere-transcribe-iphone.md).
 - [x] Add independent ASR app evidence for iPhone Cohere deployment and Mac Core ML working-memory cost, with clear limits on transferring either result to iPhone 17 Pro Max: [research findings](../research/p1-m1-cohere-transcribe-iphone.md).
+- [ ] Compare candidate Cohere conversions and runtimes on the physical target phone with the same English and Korean diary recordings; record quality and resource measurements, model distribution terms, and an owner-approved v1 choice.
 - [ ] Owner reviews the added research and decides when to close the reopened milestone.

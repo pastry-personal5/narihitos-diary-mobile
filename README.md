@@ -1,6 +1,10 @@
 # Narihito's Diary Mobile
 
-An iPhone app that creates diary assets from voice recordings.
+An iPhone app that creates personal data assets from other multimodal data.
+
+V1 plans offline transcription with Apple on-device speech and an on-device Cohere Transcribe model. The Cohere iPhone runtime and model download are still under evaluation. Hosted Qwen transcription is planned for future work.
+
+Each recording becomes a Markdown diary entry paired with its audio. Transcription initializes the diary text, and later edits replace that text; the app does not keep a separate original transcript.
 
 ## License
 

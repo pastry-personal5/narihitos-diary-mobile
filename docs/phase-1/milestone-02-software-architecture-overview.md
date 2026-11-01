@@ -12,9 +12,9 @@ Describe the app's responsibilities, data flow, persistence boundaries, failure 
 
 - Map confirmed product and UX behavior to Clean Architecture layers with inward source dependencies, use-case-owned ports, and outer adapters.
 - Define type-neutral asset discovery and registered, type-specific creation/storage so additional asset kinds do not inherit Diary Snippet's file bundle.
-- Define a transcription-method registry and normalized transcript port so adding another approved local or hosted method does not change queue and diary rules.
+- Define a transcription-method registry and normalized text port for Apple and on-device Cohere in v1, while keeping future hosted methods from changing queue and diary rules.
 - Define conceptual recording, processing, and asset lifecycles, including offline staging, foreground queue processing, provenance, and iCloud folder ownership.
-- Describe how the app preserves recordings and the original transcript through retries, destination failures, app closure, and partial writes.
+- Describe how the app preserves recording audio and one managed Markdown draft through retries, destination failures, app closure, and partial writes.
 - Identify test seams and observable evidence for critical flows.
 - Enumerate decisions that must be resolved before the corresponding behavior is implemented. Recommendations may be recorded as proposals, not owner-approved product decisions.
 - Publish a standalone [software architecture](../architecture.md) that remains useful outside this milestone.
@@ -22,11 +22,13 @@ Describe the app's responsibilities, data flow, persistence boundaries, failure 
 ## Out of scope
 
 - App code, project generation, dependency or build-tool changes, and provider calls.
-- Selecting exact Qwen models, recording encoding, remaining asset schema, title-length rules, conflict timestamp tie handling, or the remaining screen interactions.
+- Selecting the Cohere iOS runtime or conversion, exact future Qwen models, recording encoding, remaining asset schema, title-generation details, conflict timestamp tie handling, or the remaining screen interactions.
 - Resolving the open product and platform questions without the owner's decision or device evidence.
 
 ## Completion checklist
 
+- [x] Replace preserved-transcript and text-creation stages with one managed diary text file in the [architecture](../architecture.md) and affected product, UX, process, and decision docs. The documentation check found no whitespace errors or broken local links; only dated changelog entries retain the superseded design.
+- [x] Review the architecture against confirmed behavior and close gaps in local capture recovery, attempt snapshots, iCloud bundle publication, catalog refresh, and edit durability; keep unresolved choices explicit in the [architecture proposal](../architecture.md). The documentation check found no whitespace errors or broken local links and fragments.
 - [x] Publish the standalone [software architecture](../architecture.md) with Clean Architecture dependencies, extension contracts for asset kinds and transcription methods, lifecycle diagrams, persistence, error handling, privacy, and test seams.
 - [x] Keep confirmed behavior distinct from proposals and enumerate the open decisions that block implementation of specific paths: [decisions required](../architecture.md#decisions-required-before-dependent-implementation).
 - [x] Document the architecture work sequence and affected interfaces in the [approach](milestone-02-software-architecture-architecture.md).
