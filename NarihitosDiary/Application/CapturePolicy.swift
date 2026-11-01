@@ -1,6 +1,6 @@
 import Foundation
 
-enum CaptureLanguage: String, Codable, Sendable {
+enum CaptureLanguage: String, Codable, Hashable, Sendable {
   case english = "en-US"
   case korean = "ko-KR"
 }
@@ -30,6 +30,18 @@ struct CaptureIdentity: Equatable, Sendable {
   let startedAt: Date
   let language: CaptureLanguage
   let destinationReference: UUID
+  let installationBinding: String?
+
+  init(
+    id: WorkspaceID, startedAt: Date, language: CaptureLanguage,
+    destinationReference: UUID, installationBinding: String? = nil
+  ) {
+    self.id = id
+    self.startedAt = startedAt
+    self.language = language
+    self.destinationReference = destinationReference
+    self.installationBinding = installationBinding
+  }
 }
 
 enum CapturePhase: Equatable {
@@ -41,7 +53,7 @@ enum CapturePhase: Equatable {
   case paused(CaptureIdentity)
 }
 
-struct CaptureInspection: Codable, Equatable {
+struct CaptureInspection: Codable, Equatable, Sendable {
   let byteCount: Int64
   let duration: TimeInterval
   let isMonoAAC: Bool
@@ -74,6 +86,7 @@ struct CaptureInspection: Codable, Equatable {
 
 @MainActor
 protocol CaptureEnvironmentPort: AnyObject {
+  func installationBinding() throws -> String
   func microphoneState() -> PermissionState
   func destinationState() async -> CaptureDestinationState
   func freeBytes() -> Int64?
@@ -112,6 +125,7 @@ final class CaptureCoordinator {
     isStarting = true
     defer { isStarting = false }
     try await checkPrerequisites()
+    let installationBinding = try environment.installationBinding()
     // The adapter persists its own independent reference before audio may begin.
     let reference = try await environment.snapshotDestination()
     guard environment.microphoneState() == .authorized else {
@@ -119,7 +133,7 @@ final class CaptureCoordinator {
     }
     let identity = CaptureIdentity(
       id: try WorkspaceID.random(), startedAt: now(), language: language,
-      destinationReference: reference)
+      destinationReference: reference, installationBinding: installationBinding)
     do {
       try environment.persistStart(identity)
       try environment.startAudio(id: identity.id)

@@ -177,12 +177,19 @@ private struct AllView: View {
     NavigationStack {
       List {
         NavigationLink("Pending Recordings") {
-          CaptureListView(title: "Pending Recordings", captures: model.pendingCaptures)
+          CaptureListView(
+            title: "Pending Recordings", captures: model.pendingCaptures,
+            queueEntries: model.queuePending, pausedReason: model.queuePausedReason,
+            onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
+            onRemove: model.removeQueueJob)
         }
         NavigationLink("Failed Recordings") {
           CaptureListView(
             title: "Failed Recordings", captures: model.failedCaptures,
-            issues: model.captureIssues, showFailureReason: true)
+            issues: model.captureIssues, queueEntries: model.queueFailed,
+            pausedReason: model.queuePausedReason, showFailureReason: true,
+            onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
+            onRemove: model.removeQueueJob)
         }
         placeholder("Incomplete Diary Snippets")
         placeholder("Conflicting Versions")
@@ -191,7 +198,11 @@ private struct AllView: View {
       }
       .navigationTitle("All")
       .navigationDestination(isPresented: $model.showPendingRecordings) {
-        CaptureListView(title: "Pending Recordings", captures: model.pendingCaptures)
+        CaptureListView(
+          title: "Pending Recordings", captures: model.pendingCaptures,
+          queueEntries: model.queuePending, pausedReason: model.queuePausedReason,
+          onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
+          onRemove: model.removeQueueJob)
       }
     }
   }
@@ -238,26 +249,56 @@ private struct RecordingView: View {
 }
 
 private struct CaptureListView: View {
+  @State private var removalCandidate: String?
   let title: String
   let captures: [CaptureIdentity]
   var issues: [CaptureRecoveryIssue] = []
+  var queueEntries: [QueueProjection] = []
+  var pausedReason: String?
   var showFailureReason = false
+  var onRetry: (String) -> Void = { _ in }
+  var onResume: (String) -> Void = { _ in }
+  var onRemove: (String) -> Void = { _ in }
 
   var body: some View {
-    List(captures, id: \.id) { capture in
-      VStack(alignment: .leading) {
-        Text(capture.startedAt.formatted(date: .abbreviated, time: .shortened))
-        Text(capture.language == .english ? "English" : "Korean")
-          .foregroundStyle(.secondary)
-        if showFailureReason {
-          Text("This recording can’t be read.")
+    List {
+      ForEach(captures, id: \.id) { capture in
+        VStack(alignment: .leading) {
+          Text(capture.startedAt.formatted(date: .abbreviated, time: .shortened))
+          Text(capture.language == .english ? "English" : "Korean")
             .foregroundStyle(.secondary)
+          if showFailureReason {
+            Text("This recording can’t be read.")
+              .foregroundStyle(.secondary)
+          }
         }
+      }
+      ForEach(queueEntries) { entry in
+        VStack(alignment: .leading, spacing: 6) {
+          Text(entry.startedAt.formatted(date: .abbreviated, time: .shortened))
+          Text(entry.language == .english ? "English" : "Korean")
+            .foregroundStyle(.secondary)
+          if let reason = entry.reason {
+            Text(reason).foregroundStyle(.secondary)
+          }
+          if entry.state == .reviewRequired {
+            Button("Resume") { onResume(entry.id) }
+          } else if entry.state == .failed {
+            Button("Retry") { onRetry(entry.id) }
+          }
+          if entry.state != .cancelling {
+            Button("Remove", role: .destructive) { removalCandidate = entry.id }
+          } else {
+            Text("Cancelling").foregroundStyle(.secondary)
+          }
+        }
+        .accessibilityElement(children: .contain)
       }
     }
     .safeAreaInset(edge: .bottom) {
-      if !issues.isEmpty {
+      if !issues.isEmpty || pausedReason != nil {
         VStack {
+          if let pausedReason { Text(pausedReason) }
           ForEach(issues) { issue in
             Text(issue.reason)
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -267,11 +308,24 @@ private struct CaptureListView: View {
       }
     }
     .overlay {
-      if captures.isEmpty && issues.isEmpty {
+      if captures.isEmpty && queueEntries.isEmpty && issues.isEmpty {
         ContentUnavailableView("No Recordings", systemImage: "waveform")
       }
     }
     .navigationTitle(title)
+    .confirmationDialog(
+      "Remove this recording and its private audio?",
+      isPresented: Binding(
+        get: { removalCandidate != nil },
+        set: { if !$0 { removalCandidate = nil } })
+    ) {
+      Button("Remove Recording", role: .destructive) {
+        guard let removalCandidate else { return }
+        onRemove(removalCandidate)
+        self.removalCandidate = nil
+      }
+      Button("Cancel", role: .cancel) { removalCandidate = nil }
+    }
   }
 }
 
@@ -303,7 +357,10 @@ private struct SettingsView: View {
       }
     }
     .navigationTitle("Settings")
-    .task { await model.becameActive() }
+    .task {
+      await model.becameActive()
+      model.refreshTranscriptionReadiness()
+    }
   }
 
   private var locationLabel: String {

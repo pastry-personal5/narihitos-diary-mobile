@@ -10,17 +10,27 @@ final class AppleCaptureEnvironment: CaptureEnvironmentPort {
   private let microphone: any MicrophoneAuthorizationPort
   private let destination: AppleDestinationService
   private let files: CapturePrivateFiles
+  private let installationIdentity: any InstallationIdentityPort
   private var recorder: AVAudioRecorder?
   private var currentID: WorkspaceID?
 
   init(
     microphone: any MicrophoneAuthorizationPort,
     destination: AppleDestinationService,
-    files: CapturePrivateFiles = CapturePrivateFiles()
+    files: CapturePrivateFiles = CapturePrivateFiles(),
+    installationIdentity: any InstallationIdentityPort = KeychainInstallationIdentity()
   ) {
     self.microphone = microphone
     self.destination = destination
     self.files = files
+    self.installationIdentity = installationIdentity
+  }
+
+  func installationBinding() throws -> String {
+    switch installationIdentity.currentOrCreate() {
+    case .available(let value): value
+    case .missing, .temporarilyUnavailable: throw CaptureGateFailure.storage
+    }
   }
 
   func microphoneState() -> PermissionState { microphone.currentState() }

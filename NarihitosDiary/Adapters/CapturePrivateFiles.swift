@@ -3,13 +3,15 @@ import Foundation
 import UIKit
 
 // swift-format's multiline collections conflict with SwiftLint's trailing-comma rule.
-// swiftlint:disable trailing_comma
+// Capture persistence intentionally keeps its journal and verification logic together.
+// swiftlint:disable trailing_comma file_length
 
 private struct CaptureJournal: Codable, Equatable {
   let id: String
   let startedAt: Date
   let language: CaptureLanguage
   let destinationReference: UUID
+  let installationBinding: String?
   let outcome: String?
   let failureReason: String?
   let inspection: CaptureInspection?
@@ -17,7 +19,7 @@ private struct CaptureJournal: Codable, Equatable {
   func identity() throws -> CaptureIdentity {
     CaptureIdentity(
       id: try WorkspaceID(id), startedAt: startedAt, language: language,
-      destinationReference: destinationReference)
+      destinationReference: destinationReference, installationBinding: installationBinding)
   }
 }
 
@@ -74,6 +76,7 @@ final class CapturePrivateFiles {
     let marker = CaptureJournal(
       id: identity.id.description, startedAt: identity.startedAt,
       language: identity.language, destinationReference: identity.destinationReference,
+      installationBinding: identity.installationBinding,
       outcome: nil, failureReason: nil, inspection: nil)
     try writeNew(JSONEncoder().encode(marker), to: directory.appending(path: "capture.json"))
   }
@@ -156,6 +159,7 @@ final class CapturePrivateFiles {
     let journal = CaptureJournal(
       id: identity.id.description, startedAt: identity.startedAt,
       language: identity.language, destinationReference: identity.destinationReference,
+      installationBinding: identity.installationBinding,
       outcome: verifiedPending ? "pending" : "failed",
       failureReason: verifiedPending ? nil : "This recording can’t be read.",
       inspection: inspection)
@@ -217,6 +221,44 @@ final class CapturePrivateFiles {
     }
   }
 
+  func pendingQueueReceipts() -> [QueueReceipt] {
+    workspaceIDs().compactMap { id in
+      guard let journal = validatedReceipt(id: id), journal.outcome == "pending",
+        let inspection = journal.inspection, inspection.isAccepted,
+        let identity = try? journal.identity()
+      else { return nil }
+      return QueueReceipt(
+        id: identity.id, startedAt: identity.startedAt, language: identity.language,
+        destinationReference: identity.destinationReference,
+        installationBinding: identity.installationBinding, inspection: inspection)
+    }.sorted {
+      $0.startedAt == $1.startedAt
+        ? $0.id.description < $1.id.description : $0.startedAt < $1.startedAt
+    }
+  }
+
+  func queueReceipt(jobID: String) -> QueueReceipt? {
+    guard let id = try? WorkspaceID(jobID) else { return nil }
+    return pendingQueueReceipts().first { $0.id == id }
+  }
+
+  func removeWorkspace(jobID: String) throws {
+    let id = try WorkspaceID(jobID)
+    let directory = workspaceURL(id)
+    try requirePlainDirectory(root)
+    guard manager.fileExists(atPath: directory.path) else { return }
+    try requirePlainDirectory(directory)
+    let children = try manager.contentsOfDirectory(
+      at: directory, includingPropertiesForKeys: [.isSymbolicLinkKey, .isAliasFileKey])
+    for child in children {
+      let values = try child.resourceValues(forKeys: [.isSymbolicLinkKey, .isAliasFileKey])
+      guard values.isSymbolicLink != true, values.isAliasFile != true else {
+        throw CaptureGateFailure.storage
+      }
+    }
+    try manager.removeItem(at: directory)
+  }
+
 }
 
 extension CapturePrivateFiles {
@@ -226,6 +268,7 @@ extension CapturePrivateFiles {
       marker.startedAt == receipt.startedAt,
       marker.language == receipt.language,
       marker.destinationReference == receipt.destinationReference,
+      marker.installationBinding == receipt.installationBinding,
       let measured = receipt.inspection,
       receipt.outcome == "pending" || receipt.outcome == "failed",
       (try? requirePlainFile(audioURL(id))) != nil
@@ -279,6 +322,7 @@ extension CapturePrivateFiles {
       receipt.startedAt == marker.startedAt,
       receipt.language == marker.language,
       receipt.destinationReference == marker.destinationReference
+        && receipt.installationBinding == marker.installationBinding
     else { return false }
     let url = workspaceURL(id).appending(path: "receipt.json")
     guard (try? setPrivateAttributes(url, open: false)) != nil else { return false }
@@ -372,4 +416,4 @@ extension CapturePrivateFiles {
   }
 }
 
-// swiftlint:enable trailing_comma
+// swiftlint:enable trailing_comma file_length

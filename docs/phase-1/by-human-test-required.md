@@ -4,6 +4,10 @@ Status: Active
 
 This tracker lists physical-device scenarios that still need human observations. Record redacted results in the linked milestone evidence records.
 
+## P1-M10
+
+The owner marked M10 done except for human tests. Record an actual backup and restore and a controlled prior-install quarantine fixture in the [M10 device evidence record](milestone-10-durable-processing-queue-device-evidence.md). Both remain pending.
+
 ## P1-M8
 
 The owner reported these P1-M8 scenarios as passed, but the redacted observations needed to verify each result have not been supplied. Record the evidence in the [M8 device evidence record](milestone-08-first-launch-settings-icloud-device-evidence.md) using the [scenario pass criteria](milestone-08-first-launch-settings-icloud-architecture.md#test-and-evidence-strategy).

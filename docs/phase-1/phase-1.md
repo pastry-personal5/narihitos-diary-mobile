@@ -73,7 +73,10 @@ Notes: The owner requested M9 implementation on 2026-11-02 while M8 physical-dev
 
 ### P1-M10: Implement the Durable Processing Queue
 
-Status: Planned
+Status: Done (owner decision; human device tests pending)
+Goal: Adopt verified capture receipts into a durable foreground queue with method readiness, fair failure isolation, restored-work quarantine, and bounded attempt ownership.
+Plan: [overview](milestone-10-durable-processing-queue-overview.md), [approach](milestone-10-durable-processing-queue-architecture.md)
+Notes: The owner marked implementation done except human tests on 2026-11-02. Physical restore evidence remains open in the [human test tracker](by-human-test-required.md#p1-m10); the post-review simulator gate and unchecked evidence in the overview also remain unverified. Production transcription adapters arrive in P1-M11/P1-M12, and diary drafts and iCloud publication follow in P1-M13/P1-M14.
 
 ### P1-M11: Add Apple On-Device Transcription
 

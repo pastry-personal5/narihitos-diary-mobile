@@ -32,6 +32,9 @@ final class AppModel: ObservableObject {
   @Published private(set) var pendingCaptures: [CaptureIdentity] = []
   @Published private(set) var failedCaptures: [CaptureIdentity] = []
   @Published private(set) var captureIssues: [CaptureRecoveryIssue] = []
+  @Published private(set) var queuePending: [QueueProjection] = []
+  @Published private(set) var queueFailed: [QueueProjection] = []
+  @Published private(set) var queuePausedReason: String?
   @Published var selectedRoot: RootTab = .main
   @Published var showPendingRecordings = false
 
@@ -42,6 +45,7 @@ final class AppModel: ObservableObject {
   private let firstLaunch: FirstLaunchCoordinator
   private var captureEnvironment: AppleCaptureEnvironment?
   private var captureCoordinator: CaptureCoordinator?
+  private var processingQueue: ProcessingQueueCoordinator?
   private var captureEntryInProgress = false
   private var captureTimer: Task<Void, Never>?
   private var interruptionObserver: NSObjectProtocol?
@@ -64,13 +68,21 @@ final class AppModel: ObservableObject {
   convenience init() {
     let repository = PrivateSettingsRepository()
     let destination = AppleDestinationService(repository: repository)
+    let files = CapturePrivateFiles()
+    let installationIdentity = KeychainInstallationIdentity()
     self.init(
       microphone: AppleMicrophoneAuthorization(),
       location: AppleLocationAuthorization(),
       systemSettings: AppleSystemSettings(),
       destinationService: destination,
       firstLaunchStore: repository)
-    captureEnvironment = AppleCaptureEnvironment(microphone: microphone, destination: destination)
+    captureEnvironment = AppleCaptureEnvironment(
+      microphone: microphone, destination: destination, files: files,
+      installationIdentity: installationIdentity)
+    processingQueue = ProcessingQueueCoordinator(
+      store: FileQueueStore(), receipts: CaptureQueueReceiptSource(files: files),
+      identity: installationIdentity, settings: ProductionTranscriptionSettings(),
+      registry: TranscriptionMethodRegistry())
   }
 
   init(
@@ -98,10 +110,12 @@ final class AppModel: ObservableObject {
     destination = await destinationService.activeDestination()
     firstLaunchStep = firstLaunch.pendingExplanation
     _ = captureEnvironment?.recover()
+    processingQueue?.activate()
     refreshCaptureLists()
   }
 
   func becameInactive() {
+    processingQueue?.deactivate()
     destinationService.invalidateAccess()
     preparedDestination = nil
     isFolderPickerPresented = false
@@ -294,10 +308,11 @@ final class AppModel: ObservableObject {
       self.interruptionObserver = nil
     }
     isCapturePresented = false
+    processingQueue?.captureSettled()
     refreshCaptureLists()
     switch phase {
     case .pending:
-      presentMessage("Recording saved in Pending Recordings. Processing will be available later.")
+      presentMessage("Recording saved in Pending Recordings.")
     case .failed:
       presentMessage("This recording can’t be read.")
     case .paused:
@@ -308,9 +323,36 @@ final class AppModel: ObservableObject {
   }
 
   func refreshCaptureLists() {
-    pendingCaptures = captureEnvironment?.pending() ?? []
+    let queue = processingQueue?.projections() ?? []
+    let adoptedIDs = Set(queue.map(\.id))
+    pendingCaptures = (captureEnvironment?.pending() ?? []).filter {
+      !adoptedIDs.contains($0.id.description)
+    }
     failedCaptures = captureEnvironment?.failed() ?? []
     captureIssues = captureEnvironment?.issues() ?? []
+    queuePending = queue.filter { $0.state != .failed && $0.state != .resultReady }
+    queueFailed = queue.filter { $0.state == .failed }
+    queuePausedReason = processingQueue?.pausedReason
+  }
+
+  func refreshTranscriptionReadiness() {
+    processingQueue?.settingsEntered()
+    refreshCaptureLists()
+  }
+
+  func retryQueueJob(_ id: String) {
+    processingQueue?.manualRetry(jobID: id)
+    refreshCaptureLists()
+  }
+
+  func resumeQueueJob(_ id: String) {
+    processingQueue?.resumeRestored(jobID: id)
+    refreshCaptureLists()
+  }
+
+  func removeQueueJob(_ id: String) {
+    processingQueue?.remove(jobID: id)
+    refreshCaptureLists()
   }
 
   private func presentMicrophoneRecovery() {

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import NarihitosDiary
 
 @MainActor
@@ -93,6 +94,7 @@ struct CapturePolicyTests {
     #expect(identity.startedAt == Date(timeIntervalSince1970: 10))
     #expect(identity.language == .korean)
     #expect(identity.destinationReference == port.reference)
+    #expect(identity.installationBinding == "test-installation")
     coordinator.end(.user)
     coordinator.end(.timeLimit)
     #expect(coordinator.phase == .pending(identity))
@@ -234,6 +236,8 @@ private final class FakeCaptureEnvironment: CaptureEnvironmentPort {
   var bytes: Int64 = 1_024
   var inspection = CaptureInspection(
     byteCount: 1024, duration: 1, isMonoAAC: true, isPlayable: true)
+
+  func installationBinding() throws -> String { "test-installation" }
 
   func microphoneState() -> PermissionState { microphone }
   func destinationState() async -> CaptureDestinationState { destination }

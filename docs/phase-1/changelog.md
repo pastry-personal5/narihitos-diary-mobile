@@ -6,6 +6,12 @@ This log records owner decisions and significant plan changes for Phase 1. P1-M5
 
 ## Entries
 
+- 2026-11-02 — P1-M10 status — the owner marked implementation done except human device tests. The physical restore scenarios remain in the human test tracker; unchecked checklist evidence and the post-review simulator gate remain unverified.
+
+- 2026-11-02 — P1-M10 implementation — added `ThisDeviceOnly` installation identity binding before capture, compatible unbound-receipt quarantine, a bounded backup-excluded queue store, deterministic foreground scheduling through a method registry, durable attempt provenance, typed sanitized adapter outcomes, timeout and cancellation acknowledgment, fresh manual retries, idempotent removal cleanup, and minimal Pending/Failed recovery actions. Synthetic adapters cover failure isolation, settings resnapshot, late timeout results, removal, and storage-pause behavior. The full gate passed on the iPhone 18 Pro iOS 27.0 simulator; physical backup/restore evidence remains open.
+
+- 2026-11-02 — P1-M10 planning — added and reviewed the durable processing-queue [overview](milestone-10-durable-processing-queue-overview.md) and [approach](milestone-10-durable-processing-queue-architecture.md). The plan adopts M9 capture receipts once, migrates their journal schema for `ThisDeviceOnly` installation binding, distinguishes unavailable Keychain/protected storage from missing data, quarantines restored work, and schedules oldest-ready foreground attempts through registered methods. It also defines readiness rechecks, crash-after-claim recovery, and cancellation/removal barriers with synthetic adapters. Production transcription, draft creation, iCloud publication, and full recovery UI retain their later milestone gates; M10 implementation remains ordered after active M9 unless the owner explicitly reorders it.
+
 - 2026-11-02 — P1-M8 owner reported that the by-human test run was done and passed. The overall attestation is recorded in the device evidence log; required redacted scenario-level observations and device/app metadata remain pending before the physical-device checklist and milestone can be closed.
 
 - 2026-11-02 — P1-M8 automated gate passed on the booted iPhone 18 Pro iOS 27.0 simulator through host-level Simulator access. `scripts/validate.sh` passed project generation, strict format, SwiftLint, generic build, and all tests after correcting a regression fixture to keep both progression writes failing. Physical-device M8-D01–M8-D11 evidence remains for the by-human run, so P1-M8 stays Active.

@@ -31,6 +31,9 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/milestone-09-recording-capture-recovery-overview.md](phase-1/milestone-09-recording-capture-recovery-overview.md) | P1-M9 capture, durable settlement, recovery scope, and verifiable completion checklist. |
 | [phase-1/milestone-09-recording-capture-recovery-architecture.md](phase-1/milestone-09-recording-capture-recovery-architecture.md) | P1-M9 audio/workspace boundaries, receipt handoff, sequencing, and target-phone evidence matrix. |
 | [phase-1/milestone-09-recording-capture-recovery-device-evidence.md](phase-1/milestone-09-recording-capture-recovery-device-evidence.md) | P1-M9 redacted target-iPhone scenario record awaiting owner runs. |
+| [phase-1/milestone-10-durable-processing-queue-overview.md](phase-1/milestone-10-durable-processing-queue-overview.md) | P1-M10 queue scope, entry condition, and verifiable completion checklist. |
+| [phase-1/milestone-10-durable-processing-queue-architecture.md](phase-1/milestone-10-durable-processing-queue-architecture.md) | P1-M10 receipt adoption, scheduling, quarantine, cancellation, removal, and validation sequence. |
+| [phase-1/milestone-10-durable-processing-queue-device-evidence.md](phase-1/milestone-10-durable-processing-queue-device-evidence.md) | P1-M10 redacted backup/restore and prior-install quarantine evidence awaiting owner runs. |
 | [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and implementation evidence gates. |
 | [security-review.md](security-review.md) | Architecture threat model, approved controls, prioritized findings, and pending adversarial verification. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
