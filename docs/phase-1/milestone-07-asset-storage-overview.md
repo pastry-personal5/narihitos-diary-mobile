@@ -1,6 +1,6 @@
 # P1-M7: Asset schema and private storage overview
 
-Status: Active
+Status: Done
 
 Implement the bounded Diary Snippet v1 schema and the private local-workspace foundation that later recording, queue, title, and iCloud milestones can use without passing unvalidated paths, unbounded bytes, or persistence details into core use cases.
 
@@ -49,7 +49,7 @@ Implement the bounded Diary Snippet v1 schema and the private local-workspace fo
 - [x] The validation gate bounds simulator destination resolution and individual test execution so an unavailable simulator or nonsettling test fails with diagnostics instead of stalling indefinitely.
 - [x] `swift-format lint --strict --recursive .` passes.
 - [x] `swiftlint lint --strict` passes.
-- [ ] The generated project builds and all tests pass through `scripts/validate.sh` on an available iPhone simulator.
+- [x] The generated project builds and all tests pass through `scripts/validate.sh` on an available iPhone simulator.
 
 ## Acceptance evidence
 
@@ -62,4 +62,4 @@ Check an item only with a focused test name, inspected file attribute/result, so
 - The 2026-11-01 implementation review tightened the strict scalar grammar, added a typed 64 MiB workspace bound, kept URL-based protection policy out of the application contract, made overwrite publication atomic with a retained prior version, restored absence after failed initial publication, and failed closed on an unexpected recovery artifact. Focused regression tests cover each corrected state transition.
 - On 2026-11-01 the required test runner reported passing scoped strict `swift-format` and `swiftlint`, the generic simulator build, and the complete M7 test suite on an iPhone 18 Pro simulator running iOS 27.0. `git diff --check` also passes.
 - After the implementation review, the required test runner again reported passing scoped strict format and lint checks, a generic simulator build, and `git diff --check`; a host-side probe also confirmed that Foundation atomic replacement retained the old destination as the requested backup. The current CoreSimulatorService outage prevented rerunning the changed focused tests in that pass, so this is not additional completion-gate evidence.
-- The exact repository-wide `scripts/validate.sh` gate remains incomplete: its recursive checks traverse the separate `tmp/worktrees/p1-m6-cohere-trial` worktree with existing format/lint failures outside P1-M7, and CoreSimulatorService currently refuses connections before a concrete test destination can be discovered. The final gate item remains unchecked.
+- On 2026-11-01 the required test runner completed the exact repository-wide gate with `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` on an iPhone 18 Pro simulator running iOS 27.0. Project generation, strict formatting, SwiftLint, the generic simulator build, and all tests passed with exit status 0; P1-M7 is complete.

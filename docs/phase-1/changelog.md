@@ -6,6 +6,8 @@ This log records owner decisions and significant plan changes for Phase 1. P1-M5
 
 ## Entries
 
+- 2026-11-01 — P1-M7 validation complete — the exact repository-wide gate passed on an iPhone 18 Pro simulator running iOS 27.0. Project generation, strict formatting, SwiftLint, the generic simulator build, and all tests completed successfully; every [P1-M7 checklist item](milestone-07-asset-storage-overview.md#completion-checklist) is complete and P1-M7 is Done.
+
 - 2026-11-01 — Validation stall bounds — bounded simulator destination resolution at 60 seconds and individual test execution at 120 seconds in `scripts/validate.sh`, with validated environment overrides for explicitly slower validation environments.
 
 - 2026-11-01 — P1-M6 research audit — added the sanitized ten-export evidence range, exact runtime/model metadata, early `OSStatus -39` audio-conversion resolution, pre-fix `unsupported architecture (5)` diagnosis, provenance gaps, and the sourced upstream long-input defect behind the 45-second production safeguard. Private transcripts, filenames, hashes, result IDs, and logs remain outside Git.

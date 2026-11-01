@@ -1,6 +1,6 @@
 # P1-M7: Asset schema and private storage approach
 
-Status: Active
+Status: Done
 
 Build a small trusted boundary around untrusted asset bytes and private app-owned files. The domain sees validated values, application code owns storage capabilities, and Foundation adapters perform bounded parsing and file operations.
 
