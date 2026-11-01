@@ -57,6 +57,9 @@ Notes: The owner explicitly reordered implementation ahead of P1-M6 on 2026-11-0
 ### P1-M8: Build First Launch, Settings, and iCloud Folder Selection
 
 Status: Planned
+Goal: Implement resumable microphone/location onboarding, the Settings and Record prerequisite foundation, and a physically verified iCloud-only persistent folder boundary.
+Plan: [overview](milestone-08-first-launch-settings-icloud-overview.md), [approach](milestone-08-first-launch-settings-icloud-architecture.md)
+Notes: Apple/Cohere readiness remains P1-M11/P1-M12, capture remains P1-M9, and coordinated asset publication/upload proof remains P1-M14.
 
 ### P1-M9: Implement Recording and Capture Recovery
 

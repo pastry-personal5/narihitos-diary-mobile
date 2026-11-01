@@ -20,6 +20,8 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/milestone-05-decisions-architecture.md](phase-1/milestone-05-decisions-architecture.md) | Owner-approved title, schema, recording, queue, iCloud, security, context, and interface contracts. |
 | [phase-1/milestone-07-asset-storage-overview.md](phase-1/milestone-07-asset-storage-overview.md) | P1-M7 asset-schema and private-storage scope, checklist, and acceptance evidence. |
 | [phase-1/milestone-07-asset-storage-architecture.md](phase-1/milestone-07-asset-storage-architecture.md) | P1-M7 domain boundaries, strict codec, confined workspace, tests, and downstream handoff. |
+| [phase-1/milestone-08-first-launch-settings-icloud-overview.md](phase-1/milestone-08-first-launch-settings-icloud-overview.md) | P1-M8 permission onboarding, Settings, iCloud-only destination scope, checklist, and device evidence. |
+| [phase-1/milestone-08-first-launch-settings-icloud-architecture.md](phase-1/milestone-08-first-launch-settings-icloud-architecture.md) | P1-M8 permission state machines, transactional bookmarks, provider validation, tests, and handoffs. |
 | [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and implementation evidence gates. |
 | [security-review.md](security-review.md) | Architecture threat model, approved controls, prioritized findings, and pending adversarial verification. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
