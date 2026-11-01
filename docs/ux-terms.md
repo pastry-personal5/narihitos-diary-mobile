@@ -12,6 +12,6 @@ This is the canonical vocabulary for visible user interface components, and thei
 | Benefits | benefits | Root tab with an explanatory empty state in v1. |
 | Calendar | calendar | Root tab with an explanatory empty state in v1. |
 | Plugins | plugins | Root tab with an explanatory empty state in v1. |
-| All | all | Root tab for the asset collection. |
+| All | all | Root tab with no diary snippets for now; provides Settings, Pending Recordings, and Failed Recordings entries. |
 
 Other component labels remain undecided.

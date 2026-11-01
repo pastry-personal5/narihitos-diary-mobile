@@ -23,6 +23,22 @@ See [README.md](README.md) for the overview and [docs/product-behavior.md](docs/
 - **Technical stack:** Swift and SwiftUI for iOS.
 - **Product scope:** [product-behavior.md](docs/product-behavior.md).
 - **Owner-confirmed v1 behavior:** [confirmed v1 behavior](docs/product-behavior.md#confirmed-v1-behavior).
+- **Diary creation and destination:** automatically save a short generated title above an unchanged transcript copy; keep text-creation failures pending for manual retry. Select an iCloud folder before the first recording and allow an explicit replacement for a pending recording whose original folder is permanently inaccessible; see [product behavior](docs/product-behavior.md).
+- **Transcription availability and key storage:** when Apple on-device transcription is unavailable, ask the user to choose an available approved method; do not switch automatically. Store the user-provided Qwen API key in Keychain until removed; see [product behavior](docs/product-behavior.md).
+- **Title, transcript, and conflicts:** shorten the diary body's first sentence locally for the read-only title, regenerating it when the body is saved. Preserve the original transcript in a plain UTF-8 sidecar, and select the latest conflicting iCloud edit by iCloud modification time; see [product behavior](docs/product-behavior.md).
+- **Recording limit, interruptions, and retries:** stop and queue automatically at five minutes; automatically queue a playable partial recording after an audio interruption. Apply the three automatic transcription retries only to temporary network or server failures; see [product behavior](docs/product-behavior.md).
+- **Qwen consent and budget:** consent can be revoked; revocation deletes the Keychain key. Removing the key fails pending Qwen jobs immediately while retaining their recordings. Stop new Qwen calls before this app's estimated monthly usage would exceed a user-set budget; see [product behavior](docs/product-behavior.md).
+- **Manual retry and reminder:** a manual transcription retry uses current Settings at retry time and is allowed without a fixed count limit while the recording remains. Schedule a local pending-work reminder for the next local day at the same local time the user left the app; see [product behavior](docs/product-behavior.md).
+- **Asset timestamps and optional metadata:** `created_at` is when recording started and controls local-date grouping; `updated_at` changes on a saved text or metadata edit, not on iCloud sync. Omit unavailable weather/location fields; see [product behavior](docs/product-behavior.md).
+- **Asset references and provenance:** Markdown front matter includes a schema version, explicit audio and transcript filenames, and the effective transcription method/model/region/context. When location is allowed, save exact coordinates and a place name; see [product behavior](docs/product-behavior.md).
+- **Optional context and replay:** request location permission on first launch and expose it in Settings; denial does not block recording. If recording-time weather is unavailable, omit it without later backfill. Replay offers play/pause, seeking, and elapsed/total time; see [product behavior](docs/product-behavior.md).
+- **Root screen containment:** Main shows the full active-folder diary collection with on-demand loading and infinite scroll; All shows no diary snippets for now and is the sole Settings entry. Record is a floating control on Main; see [UX GUI](docs/ux-gui.md).
+- **Architecture rule:** follow Clean Architecture's inward source-dependency rule and allow additional asset kinds and transcription methods through registered, type-specific adapters; see [software architecture](docs/architecture.md).
+- **Pending and detail screens:** All contains entries to separate pending and failed recording screens. Asset detail shows title and diary text first, Favorite beside the title, and audio replay inside metadata at the bottom; see [UX GUI](docs/ux-gui.md).
+- **Editing:** the editor changes only the diary body; a save regenerates the title from its first sentence. Favorite is a separate on/off toggle; see [UX GUI](docs/ux-gui.md).
+- **Empty edits and commit recovery:** an empty edited diary body saves with the title "Untitled". Retry a saved draft automatically when iCloud access returns, and delete private local staging immediately after the complete iCloud bundle is verified; see [product behavior](docs/product-behavior.md).
+- **Legacy and interrupted recordings:** show existing Markdown/audio pairs without the new schema fields as read-only without changing their files. Keep an unplayable interrupted recording in Failed Recordings with an entry-level reason; see [product behavior](docs/product-behavior.md).
+- **Recovery edge cases:** unusable transcription fails with audio retained, no asset, manual retry, and an entry-level reason. Equal or missing iCloud conflict times keep both versions for user resolution. Repair incomplete Diary Snippet writes from retained local candidates on reopen; see [product behavior](docs/product-behavior.md).
 - **Interaction model:** [ux-gui.md](docs/ux-gui.md). Component vocabulary is in [ux-terms.md](docs/ux-terms.md) and the layout containment model in [ux-information-architecture.md](docs/ux-information-architecture.md).
 - **License:** Apache-2.0 for all project code.
 - **Project generation:** use XcodeGen in P1-M3; see the [Phase 1 changelog](docs/phase-1/changelog.md).
@@ -33,9 +49,9 @@ See [README.md](README.md) for the overview and [docs/product-behavior.md](docs/
 
 The [P1-M1 open-decision inventory](docs/research/p1-m1-open-decisions.md) lists evidence and specific questions. Resolve these before implementation depends on them:
 
-- Diary text transformation, detailed asset schema, and remaining screen interactions.
-- Exact Qwen model IDs and ASR controls, secure API-key storage, Apple-unavailable behavior, and quality, privacy, cost, and latency targets.
-- Permanent iCloud permission loss, sync and conflict timestamp rules, recording interruption and replay details, and incomplete-pair recovery.
+- Title-length behavior, remaining asset schema details, and remaining screen interactions, including detail metadata controls.
+- Exact Qwen model IDs and ASR controls, monthly-budget estimate details, consent reset details, and quality, privacy, cost, and latency targets. Additional local transcription methods remain undecided.
+- iCloud access-loss detection and recovery details, sync details, and cleanup of unrelated incomplete files.
 - Deployment-target representation of iOS 27.0.1 and a usable simulator fallback.
 
 ## Environment

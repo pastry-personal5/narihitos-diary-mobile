@@ -10,6 +10,9 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/phase-1.md](phase-1/phase-1.md) | Phase 1 milestones. |
 | [phase-1/milestone-01-research-overview.md](phase-1/milestone-01-research-overview.md) | Reopened P1-M1 research scope and evidence checklist. |
 | [phase-1/milestone-01-research-architecture.md](phase-1/milestone-01-research-architecture.md) | P1-M1 research approach. |
+| [phase-1/milestone-02-software-architecture-overview.md](phase-1/milestone-02-software-architecture-overview.md) | P1-M2 scope and completion checklist. |
+| [phase-1/milestone-02-software-architecture-architecture.md](phase-1/milestone-02-software-architecture-architecture.md) | P1-M2 architecture work sequence and review criteria. |
+| [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and decision gates. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
 | [contribution-guide.md](contribution-guide.md) | Local setup, required validation, commit message style, and pull request conventions. |
 | [product-behavior.md](product-behavior.md) | Product scope: what the app does and what it deliberately does not do. |
