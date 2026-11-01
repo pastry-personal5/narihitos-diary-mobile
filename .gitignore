@@ -1,0 +1,37 @@
+config/global_dev_config.yaml
+
+docs/research/initial-ideas-from-owner.md
+
+tmp/
+
+# macOS
+.DS_Store
+
+# Xcode build products and user settings
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xcarchive
+
+# Swift Package Manager
+.build/
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.swiftpm/configuration/registries.json
+
+# Dependency build products
+Pods/
+Carthage/Build/
+
+# fastlane generated files
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
