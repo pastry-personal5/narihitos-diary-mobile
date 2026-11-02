@@ -18,6 +18,7 @@ See [README.md](README.md) for the overview and [docs/product-behavior.md](docs/
 - Ask before building on an undecided item, changing dependencies or build tools, deleting user data, or broadly restructuring the repository. Other work within the approved task and milestone may proceed.
 - Follow the active phase and milestone order in `docs/roadmap.md` unless the phase plan says otherwise. Create the roadmap when planning the first phase.
 - Do not place Git worktrees under the project root's `tmp/` directory, including `tmp/worktree/`; they cause SwiftLint to fail.
+- If using MobileBuildMCP, use the installed MobileBuildMCP skill before calling MobileBuildMCP tools.
 
 ## Decided — ask before changing
 
