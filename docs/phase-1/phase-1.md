@@ -4,6 +4,8 @@ Status: Active
 
 Phase 1 is organized into the following milestones.
 
+The owner placed P1-M20 before P1-M16 in the execution order; milestone IDs remain unchanged.
+
 ## Milestones
 
 ### P1-M1: Research
@@ -113,12 +115,21 @@ Goal: Page and validate the active-folder Diary Snippet collection, surface reco
 Plan: [overview](milestone-15-main-collection-diary-detail-overview.md), [approach](milestone-15-main-collection-diary-detail-architecture.md), [device evidence](milestone-15-main-collection-diary-detail-device-evidence.md)
 Notes: The owner requested implementation on 2026-11-02 ahead of remaining M14 device evidence. M15 now has scoped catalog discovery/paging, exact-version read-only detail, evidenced legacy support, Main notices/All routing, and custom template artwork. Lint and the full simulator gate passed with `platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082`; target-iPhone M15-D01–D10 and the unchecked display/provider/visual checklist items remain open, so the milestone stays Active. M16 retains editing/Favorite mutation/replay; M17 retains complete recovery actions/screens; M18 retains context acquisition/reminders. Earlier device gates are unchanged.
 
+### P1-M20: Enhancements, Fixes, and Refactoring
+
+Status: Active
+Goal: Correct app behavior reported by the owner, with related enhancements and refactoring.
+Plan: [overview](milestone-20-enhancements-fixes-refactoring-overview.md), [approach](milestone-20-enhancements-fixes-refactoring-architecture.md)
+Notes: Tasks 1, 3, and 4 have implemented Settings persistence, post-recording catalog, and AAC/Cohere read repairs, with target-phone confirmation still open. [Task 2 remains planned](milestone-20-enhancements-fixes-refactoring-architecture.md#task-2-dedicated-transcription-settings-and-model-choices): dedicated Transcription Settings with None, Apple Local, Cohere Q4, and Cohere Q5; typed selection/migration; isolated trusted installations; variant-aware preclaim fencing and versioned provenance; and separate implementation/device gates. Q5 production pins and target-phone evidence remain prerequisites, not findings of this plan review. Later reports remain unplanned until supplied by the owner. Complete this milestone before P1-M16; earlier device evidence remains open.
+
+Task 5 repairs Settings still showing `Active Folder` / `No folder selected` after Select Folder → Open. Physical-device debugging proved that dismissal cleared the request before the selected-folder callback; the repair handles either event order. Its [checklist](milestone-20-enhancements-fixes-refactoring-overview.md#task-5-settings-still-shows-no-folder-selected-after-open) records passing focused regressions and the full gate; updated-app iPhone verification remains blocked by the device connection.
+
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 
 Status: Planned
 Goal: Save version-checked body and Favorite edits durably and replay verified audio without compromising capture or legacy read-only behavior.
 Plan: [overview](milestone-16-diary-editing-favorite-audio-replay-overview.md), [approach](milestone-16-diary-editing-favorite-audio-replay-architecture.md), [device evidence](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md)
-Notes: Planning only; implementation follows M15 unless the owner authorizes a reorder. Submitted edits need an independent committed-asset journal and destination capability, and replay needs shared audio-session ownership with capture. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence remains open.
+Notes: Planning only; implementation follows M15 and completion of M20. Submitted edits need an independent committed-asset journal and destination capability, and replay needs shared audio-session ownership with capture. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence remains open.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 

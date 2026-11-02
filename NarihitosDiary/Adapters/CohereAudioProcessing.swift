@@ -63,8 +63,13 @@ enum CohereAudioConversion {
           return nil
         }
         do { try input.read(into: buffer, frameCount: capacity) } catch {
-          inputFailure = true
-          inputStatus.pointee = .noDataNow
+          if input.framePosition > 0, AudioFileReadFailure.isEndOfFile(error) {
+            reachedEnd = true
+            inputStatus.pointee = .endOfStream
+          } else {
+            inputFailure = true
+            inputStatus.pointee = .noDataNow
+          }
           return nil
         }
         guard buffer.frameLength > 0 else {

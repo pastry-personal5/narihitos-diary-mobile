@@ -1,3 +1,4 @@
+import AVFAudio
 import XCTest
 
 @testable import NarihitosDiary
@@ -5,6 +6,32 @@ import XCTest
 // swiftlint:disable trailing_comma
 
 final class CohereAudioProcessingTests: XCTestCase {
+  func testFullAACConversionConsumesNormalAndShortEnglishCaptureFiles() throws {
+    for frameCount in [441, 44_100] {
+      let url = FileManager.default.temporaryDirectory.appending(
+        path: "cohere-conversion-\(UUID()).m4a")
+      defer { try? FileManager.default.removeItem(at: url) }
+      try writeAAC(url: url, frameCount: AVAudioFrameCount(frameCount))
+
+      let samples = try CohereAudioConversion.convert(url: url, cancelled: { false })
+
+      XCTAssertFalse(samples.isEmpty)
+      XCTAssertLessThanOrEqual(samples.count, CohereAudioConversion.maximumSamples)
+      XCTAssertTrue(samples.allSatisfy(\.isFinite))
+    }
+  }
+
+  func testFullAACConversionRejectsSourceTruncatedAfterCaptureAcceptance() throws {
+    let url = FileManager.default.temporaryDirectory.appending(
+      path: "cohere-conversion-\(UUID()).m4a")
+    defer { try? FileManager.default.removeItem(at: url) }
+    try writeAAC(url: url, frameCount: 44_100)
+    let bytes = try Data(contentsOf: url)
+    try bytes.prefix(bytes.count / 2).write(to: url)
+
+    XCTAssertThrowsError(try CohereAudioConversion.convert(url: url, cancelled: { false }))
+  }
+
   func testPlannerCoversEverySampleOnceAndBoundsRuntimeInputs() throws {
     let sampleCount = CohereAudioConversion.sampleRate * 300
     let samples = [Float](repeating: 0.1, count: sampleCount)
@@ -111,6 +138,26 @@ final class CohereAudioProcessingTests: XCTestCase {
           index: 1, primary: CohereSampleSpan(lowerBound: 100, upperBound: 200),
           runtime: CohereSampleSpan(lowerBound: 90, upperBound: 200), boundaryAfter: .end),
       ])
+  }
+
+  private func writeAAC(url: URL, frameCount: AVAudioFrameCount) throws {
+    let format = try XCTUnwrap(
+      AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1))
+    let buffer = try XCTUnwrap(
+      AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount))
+    buffer.frameLength = frameCount
+    if let samples = buffer.floatChannelData {
+      for index in 0..<Int(frameCount) {
+        samples[0][index] = 0.08 * sin(Float(index) * 2 * .pi * 440 / 44_100)
+      }
+    }
+    let writer = try AVAudioFile(
+      forWriting: url,
+      settings: [
+        AVFormatIDKey: Int(kAudioFormatMPEG4AAC), AVSampleRateKey: 44_100,
+        AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 64_000,
+      ])
+    try writer.write(from: buffer)
   }
 }
 

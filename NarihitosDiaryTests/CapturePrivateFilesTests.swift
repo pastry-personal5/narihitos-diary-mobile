@@ -152,6 +152,30 @@ struct CapturePrivateFilesTests {
     #expect(files.reconcile().isEmpty)
   }
 
+  @Test func veryShortEnglishAACReachesPendingWithoutExactReportedFrameEquality() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]), disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 5),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let audio = try files.prepareAudio(id: identity.id)
+    try writeSyntheticAAC(to: audio, frameCount: 441)
+    try files.protectOpenAudio(id: identity.id)
+
+    let inspection = try files.inspectAudio(id: identity.id)
+    #expect(inspection.isAccepted)
+    #expect(inspection.duration > 0)
+    #expect(try files.saveOutcome(identity, inspection: inspection))
+    #expect(files.queueReceipt(jobID: identity.id.description)?.language == .english)
+  }
+
   @Test func playablePartialRecoversToOnePendingReceiptAfterRelaunch() throws {
     let root = FileManager.default.temporaryDirectory.appending(
       path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -375,12 +399,12 @@ struct CapturePrivateFilesTests {
   }
 }
 
-private func writeSyntheticAAC(to url: URL) throws {
+private func writeSyntheticAAC(to url: URL, frameCount: AVAudioFrameCount = 44_100) throws {
   let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1))
-  let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 44_100))
-  buffer.frameLength = 44_100
+  let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount))
+  buffer.frameLength = frameCount
   let samples = try #require(buffer.floatChannelData?[0])
-  for index in 0..<44_100 {
+  for index in 0..<Int(frameCount) {
     samples[index] = 0.08 * sin(Float(index) * 2 * .pi * 440 / 44_100)
   }
   let writer = try AVAudioFile(

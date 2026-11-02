@@ -6,7 +6,7 @@ Add body-only editing, a separate Favorite toggle, and safe audio replay to Diar
 
 ## Entry and locked inputs
 
-- Implementation follows P1-M15 under [Phase 1 order](phase-1.md), unless the owner authorizes a reorder. M15 is active; this planning request does not start M16 implementation or close earlier validation/device evidence.
+- Implementation follows P1-M15 and completion of P1-M20 under the owner-approved [Phase 1 order](phase-1.md). M15 is active; this planning request does not start M16 implementation or close earlier validation/device evidence.
 - Use the approved [product behavior](../product-behavior.md#assets-and-metadata), [GUI](../ux-gui.md#planned-owner-approved-behavior), [schema/title/interface contracts](milestone-05-decisions-architecture.md), and [edit/conflict architecture](../architecture.md#asset-commit-and-icloud-behavior). No new product decision, schema, dependency, build tool, or transcription method is required.
 - Consume M15's [exact-version detail and catalog handoff](milestone-15-main-collection-diary-detail-architecture.md), M7's bounded codec, M8's destination validation, M13's title policy, and M14's [verified pair, upload, and conflict mechanics](milestone-14-icloud-commit-reconciliation-architecture.md). A catalog handle or `audioAvailable` flag alone grants neither write access nor playback access.
 - M17 retains full Pending/Failed/Incomplete/Conflict recovery screens, ambiguous-version choice, and confirmed removal. M18 retains context acquisition and reminders. M19 retains complete-experience validation. M16 must provide durable typed edit-recovery records for M17 rather than lose edits until those screens exist.

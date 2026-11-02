@@ -126,6 +126,12 @@ final class FirstLaunchCoordinator {
   }
 
   func refresh() {
+    let stored = store.loadFirstLaunchProgress()
+    progress.microphoneAttempted = progress.microphoneAttempted || stored.microphoneAttempted
+    progress.locationAttempted = progress.locationAttempted || stored.locationAttempted
+    if stored.step == .complete || (progress.step == .microphone && stored.step == .location) {
+      progress.step = stored.step
+    }
     normalizeProgress()
   }
 

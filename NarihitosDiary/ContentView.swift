@@ -4,7 +4,15 @@ import SwiftUI
 
 struct ContentView: View {
   @Environment(\.scenePhase) private var scenePhase
-  @StateObject private var model = AppModel()
+  @StateObject private var model: AppModel
+
+  init() {
+    _model = StateObject(wrappedValue: AppModel())
+  }
+
+  init(model: AppModel) {
+    _model = StateObject(wrappedValue: model)
+  }
 
   var body: some View {
     ZStack {
@@ -93,8 +101,13 @@ struct ContentView: View {
     .onReceive(NotificationCenter.default.publisher(for: .NSUbiquityIdentityDidChange)) { _ in
       Task { await model.identityChanged() }
     }
-    .sheet(isPresented: $model.isFolderPickerPresented) {
-      FolderPicker(onPick: model.pickedFolder, onCancel: model.cancelFolderPicker)
+    .sheet(
+      isPresented: $model.isFolderPickerPresented, onDismiss: model.folderPickerDismissed
+    ) {
+      let requestID = model.folderPickerRequestID
+      FolderPicker(
+        onPick: { model.pickedFolder($0, requestID: requestID) },
+        onCancel: { model.cancelFolderPicker(requestID: requestID) })
     }
     .fullScreenCover(isPresented: $model.isCapturePresented) {
       RecordingView(model: model)

@@ -8,6 +8,32 @@ import Testing
 
 @MainActor
 struct DestinationTransactionTests {
+  @Test func committedFolderSurvivesOtherSettingsWritesAndServiceRecreation() async throws {
+    let root = FileManager.default.temporaryDirectory.appending(path: "destination-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let repository = PrivateSettingsRepository(root: root)
+    let platform = FakeDestinationPlatform()
+    let service = AppleDestinationService(repository: repository, platform: platform)
+    guard case .prepared(let candidate) = service.prepareSelection(of: platform.url),
+      case .committed(let summary) = service.commitPreparedSelection(candidate.id)
+    else {
+      Issue.record("Expected the synthetic folder to commit to private Settings")
+      return
+    }
+
+    try repository.saveFirstLaunchProgress(FirstLaunchProgress(step: .complete))
+    try repository.selectTranscriptionMethod(TranscriptionMethodIdentifiers.apple)
+    let reopened = PrivateSettingsRepository(root: root)
+    let restored = AppleDestinationService(repository: reopened, platform: platform)
+
+    #expect(
+      await restored.activeDestination()
+        == ActiveDestination(summary: summary, accessState: .accessible))
+    #expect(reopened.loadDestination()?.disclosureAcknowledged == true)
+    #expect(reopened.selectedTranscriptionMethodID() == TranscriptionMethodIdentifiers.apple)
+    #expect(platform.startCount == platform.stopCount)
+  }
+
   @Test func prepareAndCommitBalanceScopesAndPersistDisclosure() async {
     let store = FakeDestinationStore()
     let platform = FakeDestinationPlatform()

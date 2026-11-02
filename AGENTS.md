@@ -53,12 +53,13 @@ See [README.md](README.md) for the overview and [docs/product-behavior.md](docs/
 - **Minimum iOS version:** set the Xcode deployment target to iOS 27.0 and enforce iOS 27.0.1 at launch; see the [P1-M3 approach](docs/phase-1/milestone-03-scaffolding-architecture.md).
 - **P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6 validation:** These milestones have no build, lint, or test completion gate. Their checklists and documentation remain required. See the [Phase 1 changelog](docs/phase-1/changelog.md).
 - **Process:** numbered phases contain numbered milestones; milestone numbering restarts per phase. IDs use `P1-M2`. See [docs/development-process.md](docs/development-process.md).
+- **M20 Transcription Settings plan:** the owner requested a dedicated Transcription Settings screen with explicit None, Apple Local, Cohere Q4, and Cohere Q5 choices. Optional Q5_K_M is authorized for this planned task under the existing runtime and safeguards; its production pins, separate installation/provenance, and target-phone evidence remain required. See the [M20 plan](docs/phase-1/milestone-20-enhancements-fixes-refactoring-overview.md#task-2-dedicated-transcription-settings-and-model-choices).
 
 ## Undecided — ask before inventing
 
 P1-M5 and P1-M6 resolved the current v1 product and Cohere-direction choices. Ask before inventing:
 
-- A different Cohere runtime, quantization, backend, model host, or relaxation of the P1-M6 safeguards. P1-M12 still owes production integration, provenance, chunk-seam, cancellation, and long-input evidence; P1-M6 did not establish five-minute quality, energy, or WER/CER.
+- A different Cohere runtime, quantization beyond the owner-requested M20 Q4/Q5 choices, backend, model host, or relaxation of the P1-M6 safeguards. P1-M12 still owes production integration, provenance, chunk-seam, cancellation, and long-input evidence; P1-M6 did not establish five-minute quality, energy, or WER/CER.
 - Mechanism changes that would alter the approved P1-M5 outcomes. P1-M8, P1-M9, P1-M14, P1-M17, and P1-M19 still owe platform and adversarial evidence.
 - Hosted Qwen model IDs, controls, and budget details, which remain future work.
 

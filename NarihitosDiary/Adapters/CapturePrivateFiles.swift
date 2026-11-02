@@ -1,10 +1,19 @@
 import AVFAudio
+import AudioToolbox
 import Foundation
 import UIKit
 
 // swift-format's multiline collections conflict with SwiftLint's trailing-comma rule.
 // Capture persistence intentionally keeps its journal and verification logic together.
 // swiftlint:disable trailing_comma file_length
+
+enum AudioFileReadFailure {
+  static func isEndOfFile(_ error: Error) -> Bool {
+    let error = error as NSError
+    return error.domain == NSOSStatusErrorDomain
+      && error.code == Int(kAudioFileEndOfFileError)
+  }
+}
 
 private struct CaptureJournal: Codable, Equatable {
   let id: String
@@ -34,6 +43,7 @@ enum CaptureWriteFailurePoint {
 }
 
 @MainActor
+// swiftlint:disable:next type_body_length
 final class CapturePrivateFiles {
   static let maximumAudioBytes: Int64 = 64 * 1_024 * 1_024
   private let manager: FileManager
@@ -113,6 +123,8 @@ final class CapturePrivateFiles {
     try setPrivateAttributes(url, open: true)
   }
 
+  // Full decode and format projection stay in one bounded inspection transaction.
+  // swiftlint:disable:next function_body_length
   func inspectAudio(id: WorkspaceID) throws -> CaptureInspection {
     let url = audioURL(id)
     try requirePlainFile(url)
@@ -145,13 +157,22 @@ final class CapturePrivateFiles {
       var decodedFrames: AVAudioFramePosition = 0
       while decodedFrames < file.length {
         let remaining = file.length - decodedFrames
-        let count = AVAudioFrameCount(min(remaining, 4_096))
-        try file.read(into: buffer, frameCount: count)
-        guard buffer.frameLength > 0 else {
+        let frameCount = AVAudioFrameCount(min(remaining, 4_096))
+        do {
+          try file.read(into: buffer, frameCount: frameCount)
+        } catch let error where decodedFrames > 0 && AudioFileReadFailure.isEndOfFile(error) {
+          break
+        }
+        guard buffer.frameLength > 0 else { break }
+        decodedFrames += AVAudioFramePosition(buffer.frameLength)
+        guard decodedFrames <= AVAudioFramePosition(301 * sampleRate) else {
           return CaptureInspection(
             byteCount: bytes, duration: 0, isMonoAAC: false, isPlayable: false)
         }
-        decodedFrames += AVAudioFramePosition(buffer.frameLength)
+      }
+      guard decodedFrames > 0 else {
+        return CaptureInspection(
+          byteCount: bytes, duration: 0, isMonoAAC: false, isPlayable: false)
       }
       return CaptureInspection(
         byteCount: bytes, duration: player.duration,

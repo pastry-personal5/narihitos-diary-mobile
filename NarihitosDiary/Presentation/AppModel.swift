@@ -29,6 +29,7 @@ final class AppModel: ObservableObject {
     summary: nil, accessState: .restoreAccessRequired)
   @Published private(set) var firstLaunchStep: FirstLaunchStep?
   @Published var isFolderPickerPresented = false
+  @Published private(set) var folderPickerRequestID: UUID?
   @Published var preparedDestination: PreparedDestination?
   @Published var message: String?
   @Published private(set) var savedFolderBanner: String?
@@ -75,6 +76,8 @@ final class AppModel: ObservableObject {
   private var cohereModels: CohereModelManager?
   private var cancellables: Set<AnyCancellable> = []
   private var captureEntryInProgress = false
+  private var pendingFolderSelection: DestinationSelectionOutcome?
+  private var folderPickerHasDismissed = false
   private var isAppActive = false
   private var captureTimer: Task<Void, Never>?
   private var interruptionObserver: NSObjectProtocol?
@@ -228,6 +231,7 @@ final class AppModel: ObservableObject {
     microphoneState = microphone.currentState()
     locationState = location.currentState()
     destination = await destinationService.activeDestination()
+    selectedTranscriptionMethodID = transcriptionSettings?.selectedTranscriptionMethodID()
     firstLaunchStep = firstLaunch.pendingExplanation
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
@@ -249,6 +253,9 @@ final class AppModel: ObservableObject {
     appleReadiness?.invalidate()
     appleReadinessStates = [:]
     destinationService.invalidateAccess()
+    pendingFolderSelection = nil
+    folderPickerHasDismissed = false
+    folderPickerRequestID = nil
     preparedDestination = nil
     isFolderPickerPresented = false
   }
@@ -257,6 +264,11 @@ final class AppModel: ObservableObject {
     catalog.stop()
     catalog.changeScope(nil)
     destinationService.invalidateAccess()
+    pendingFolderSelection = nil
+    folderPickerHasDismissed = false
+    folderPickerRequestID = nil
+    preparedDestination = nil
+    isFolderPickerPresented = false
     destination = await destinationService.activeDestination()
     catalog.activate(destinationID: destination.summary?.id)
     saveAttempted.removeAll()
@@ -295,14 +307,43 @@ final class AppModel: ObservableObject {
   func selectFolder() {
     clearMessage()
     destinationService.invalidateAccess()
+    pendingFolderSelection = nil
+    folderPickerHasDismissed = false
+    preparedDestination = nil
+    folderPickerRequestID = UUID()
     isFolderPickerPresented = true
+    folderSelectionLogger.notice("Folder picker requested")
   }
 
-  func pickedFolder(_ url: URL) {
+  func pickedFolder(_ url: URL, requestID: UUID?) {
+    guard let requestID, requestID == folderPickerRequestID else {
+      folderSelectionLogger.notice("Folder picker result superseded")
+      return
+    }
+    folderPickerRequestID = nil
+    folderSelectionLogger.notice("Folder picker result received")
+    // Prepare while the picker-granted URL is available, but wait for SwiftUI's
+    // dismissal completion before presenting another modal or publishing a commit.
+    // UIKit may deliver this result after SwiftUI has already reported dismissal.
+    pendingFolderSelection = destinationService.prepareSelection(of: url)
     isFolderPickerPresented = false
-    switch destinationService.prepareSelection(of: url) {
+    if folderPickerHasDismissed { presentPendingFolderSelection() }
+  }
+
+  func folderPickerDismissed() {
+    guard !isFolderPickerPresented else { return }
+    folderPickerHasDismissed = true
+    folderSelectionLogger.notice("Folder picker dismissal completed")
+    // Dismissal alone is not cancellation: the system picker can send its result next.
+    presentPendingFolderSelection()
+  }
+
+  private func presentPendingFolderSelection() {
+    guard let outcome = pendingFolderSelection else { return }
+    pendingFolderSelection = nil
+    switch outcome {
     case .prepared(let candidate):
-      folderSelectionLogger.debug(
+      folderSelectionLogger.notice(
         "Folder selection prepared; disclosureRequired=\(candidate.needsDisclosure, privacy: .public)"
       )
       preparedDestination = candidate
@@ -310,27 +351,31 @@ final class AppModel: ObservableObject {
         commitPreparedDestination()
       }
     case .rejected:
-      folderSelectionLogger.debug("Folder selection rejected")
+      folderSelectionLogger.notice("Folder selection rejected")
       presentMessage("Choose a folder in iCloud Drive.")
     case .temporarilyUnavailable:
-      folderSelectionLogger.debug("Folder selection temporarily unavailable")
+      folderSelectionLogger.notice("Folder selection temporarily unavailable")
       presentMessage("The folder is temporarily unavailable. Try again later.")
     }
   }
 
-  func cancelFolderPicker() {
+  func cancelFolderPicker(requestID: UUID?) {
+    guard let requestID, requestID == folderPickerRequestID else { return }
+    folderPickerRequestID = nil
+    pendingFolderSelection = nil
+    folderPickerHasDismissed = false
     isFolderPickerPresented = false
   }
 
   func cancelDisclosure() {
     guard let preparedDestination else { return }
-    folderSelectionLogger.debug("Folder disclosure canceled; prepared selection discarded")
+    folderSelectionLogger.notice("Folder disclosure canceled; prepared selection discarded")
     destinationService.cancelPreparedSelection(preparedDestination.id)
     self.preparedDestination = nil
   }
 
   func acceptDisclosure() {
-    folderSelectionLogger.debug("Folder disclosure accepted; committing prepared selection")
+    folderSelectionLogger.notice("Folder disclosure accepted; committing prepared selection")
     commitPreparedDestination()
   }
 
@@ -726,14 +771,14 @@ final class AppModel: ObservableObject {
     guard let candidate = preparedDestination else { return }
     switch destinationService.commitPreparedSelection(candidate.id) {
     case .committed(let summary):
-      folderSelectionLogger.debug("Folder selection committed")
+      folderSelectionLogger.notice("Folder selection committed")
       destination = ActiveDestination(summary: summary, accessState: .accessible)
       catalog.changeScope(summary.id)
     case .superseded:
-      folderSelectionLogger.debug("Folder selection commit superseded")
+      folderSelectionLogger.notice("Folder selection commit superseded")
       presentMessage("The selection changed before it could be saved.")
     case .failed:
-      folderSelectionLogger.debug("Folder selection commit failed")
+      folderSelectionLogger.notice("Folder selection commit failed")
       presentMessage("The folder could not be saved. Your previous selection was kept.")
     }
     preparedDestination = nil

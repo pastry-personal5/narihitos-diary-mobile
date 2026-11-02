@@ -2,11 +2,13 @@ import Foundation
 
 /// File-presenter callbacks carry only invalidation, never source paths or content.
 private final class CatalogFolderPresenter: NSObject, NSFilePresenter, @unchecked Sendable {
+  let id: UUID
   let presentedItemURL: URL?
   let presentedItemOperationQueue: OperationQueue
   private let changed: @Sendable () -> Void
 
-  init(root: URL, changed: @escaping @Sendable () -> Void) {
+  init(id: UUID = UUID(), root: URL, changed: @escaping @Sendable () -> Void) {
+    self.id = id
     presentedItemURL = root
     self.changed = changed
     let queue = OperationQueue()
@@ -43,6 +45,8 @@ final class AppleAssetCatalog: AssetCatalogPort {
   private var epoch = UUID()
   private var busy = false
   private var refreshAfterSettlement = false
+  private var settlementWaiters: [CheckedContinuation<Void, Never>] = []
+  var activePresenterID: UUID? { presenter?.id }
 
   init(destination: AppleDestinationService, registry: CatalogAssetRegistry) {
     self.destination = destination
@@ -51,9 +55,14 @@ final class AppleAssetCatalog: AssetCatalogPort {
 
   func begin() async -> CatalogStart {
     end()
-    guard !busy else {
+    if busy {
       refreshAfterSettlement = true
-      return .unavailable
+      await withCheckedContinuation { settlementWaiters.append($0) }
+      guard !Task.isCancelled else { return .unavailable }
+      // A refresh that superseded busy work is an internal settlement, not a
+      // destination-access failure. Start against a fresh generation once the
+      // old coordinated operation has relinquished access.
+      end()
     }
     let generation = epoch
     let access = await destination.activeDestination()
@@ -67,8 +76,9 @@ final class AppleAssetCatalog: AssetCatalogPort {
     do {
       try await destination.withActiveCatalog(expectedID: id) { root in
         guard generation == epoch else { throw CatalogIssue.changed }
-        let observer = CatalogFolderPresenter(root: root) { [weak self] in
-          Task { @MainActor [weak self] in self?.providerChanged() }
+        let presenterID = UUID()
+        let observer = CatalogFolderPresenter(id: presenterID, root: root) { [weak self] in
+          Task { @MainActor [weak self] in self?.providerChanged(presenterID: presenterID) }
         }
         presenter = observer
         NSFileCoordinator.addFilePresenter(observer)
@@ -118,17 +128,24 @@ final class AppleAssetCatalog: AssetCatalogPort {
     destinationID = nil
   }
 
-  private func providerChanged() {
-    guard worker != nil else { return }
+  func providerChanged(presenterID: UUID) {
+    guard presenter?.id == presenterID, worker != nil else { return }
     end()
-    if busy { refreshAfterSettlement = true }
+    if busy {
+      refreshAfterSettlement = true
+      return
+    }
     onEvent?(.invalidated)
   }
 
   private func settled() {
     busy = false
+    let waiters = settlementWaiters
+    settlementWaiters.removeAll()
+    for waiter in waiters { waiter.resume() }
     guard refreshAfterSettlement else { return }
     refreshAfterSettlement = false
-    onEvent?(.invalidated)
+    // A waiting explicit refresh already owns the replacement traversal.
+    if waiters.isEmpty { onEvent?(.invalidated) }
   }
 }

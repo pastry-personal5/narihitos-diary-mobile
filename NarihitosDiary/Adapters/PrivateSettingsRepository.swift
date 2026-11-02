@@ -23,43 +23,40 @@ private struct StoredApplicationSettings: Codable {
 @MainActor
 final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettingsStore {
   private static let maximumFileSize = 128 * 1_024
+  private let fileManager: FileManager
   private let fileURL: URL
-  private var settings: StoredApplicationSettings
 
   init(fileManager: FileManager = .default, root: URL? = nil) {
+    self.fileManager = fileManager
     let base =
       root
       ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("NarihitosDiary", isDirectory: true)
-    try? fileManager.createDirectory(at: base, withIntermediateDirectories: true)
     fileURL = base.appendingPathComponent("private-settings.json", isDirectory: false)
-    settings = Self.read(from: fileURL)
   }
 
   func loadFirstLaunchProgress() -> FirstLaunchProgress {
-    settings.firstLaunch
+    (try? read())?.firstLaunch ?? FirstLaunchProgress()
   }
 
   func saveFirstLaunchProgress(_ progress: FirstLaunchProgress) throws {
-    var proposed = settings
+    var proposed = try read()
     proposed.firstLaunch = progress
     try persist(proposed)
-    settings = proposed
   }
 
   func loadDestination() -> StoredDestinationRecord? {
-    settings.destination
+    (try? read())?.destination
   }
 
   func saveDestination(_ destination: StoredDestinationRecord) throws {
-    var proposed = settings
+    var proposed = try read()
     proposed.destination = destination
     try persist(proposed)
-    settings = proposed
   }
 
   func selectedTranscriptionMethodID() -> String? {
-    settings.selectedTranscriptionMethodID
+    (try? read())?.selectedTranscriptionMethodID
   }
 
   func selectTranscriptionMethod(_ id: String) throws {
@@ -68,21 +65,25 @@ final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettings
         (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 46
       })
     else { throw QueueStoreFailure.corrupt }
-    var proposed = settings
+    var proposed = try read()
     proposed.selectedTranscriptionMethodID = id
     try persist(proposed)
-    settings = proposed
   }
 
-  private static func read(from url: URL) -> StoredApplicationSettings {
-    guard
-      let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-      let size = attributes[.size] as? NSNumber,
-      size.intValue <= maximumFileSize,
-      let data = try? Data(contentsOf: url, options: [.mappedIfSafe]),
-      let decoded = try? JSONDecoder().decode(StoredApplicationSettings.self, from: data)
-    else { return StoredApplicationSettings() }
-    return decoded
+  private func read() throws -> StoredApplicationSettings {
+    let handle: FileHandle
+    do {
+      handle = try FileHandle(forReadingFrom: fileURL)
+    } catch let error as CocoaError {
+      guard error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile else { throw error }
+      return StoredApplicationSettings()
+    }
+    defer { try? handle.close() }
+    // A temporary protected-data/read failure must remain retryable. In particular,
+    // a later write must not replace existing settings with cached empty defaults.
+    let data = try handle.read(upToCount: Self.maximumFileSize + 1) ?? Data()
+    guard data.count <= Self.maximumFileSize else { throw CocoaError(.fileReadTooLarge) }
+    return try JSONDecoder().decode(StoredApplicationSettings.self, from: data)
   }
 
   private func persist(_ value: StoredApplicationSettings) throws {
@@ -90,6 +91,8 @@ final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettings
     guard data.count <= Self.maximumFileSize else {
       throw CocoaError(.fileWriteOutOfSpace)
     }
+    try fileManager.createDirectory(
+      at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
   }
 }

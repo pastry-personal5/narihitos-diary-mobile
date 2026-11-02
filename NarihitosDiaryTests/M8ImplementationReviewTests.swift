@@ -93,7 +93,10 @@ struct M8ImplementationReviewTests {
       microphone: ReviewMicrophone(state: .authorized),
       destinationService: destination)
 
-    model.pickedFolder(URL(fileURLWithPath: "/unused-test-folder"))
+    model.selectFolder()
+    model.pickedFolder(
+      URL(fileURLWithPath: "/unused-test-folder"), requestID: model.folderPickerRequestID)
+    model.folderPickerDismissed()
     #expect(model.disclosurePresented.wrappedValue)
 
     model.disclosurePresented.wrappedValue = false
@@ -113,7 +116,10 @@ struct M8ImplementationReviewTests {
       microphone: ReviewMicrophone(state: .authorized),
       destinationService: destination)
 
-    model.pickedFolder(URL(fileURLWithPath: "/unused-test-folder"))
+    model.selectFolder()
+    model.pickedFolder(
+      URL(fileURLWithPath: "/unused-test-folder"), requestID: model.folderPickerRequestID)
+    model.folderPickerDismissed()
     model.cancelDisclosure()
 
     #expect(destination.cancelledIDs == [prepared.id])
@@ -164,7 +170,8 @@ struct M8ImplementationReviewTests {
       destinationService: destination)
 
     model.selectFolder()
-    model.pickedFolder(URL(fileURLWithPath: "/unused-test-folder"))
+    model.pickedFolder(
+      URL(fileURLWithPath: "/unused-test-folder"), requestID: model.folderPickerRequestID)
     model.becameInactive()
 
     #expect(destination.invalidateCount == 2)
@@ -183,12 +190,19 @@ struct M8ImplementationReviewTests {
       destinationService: destination)
 
     destination.prepareOutcome = .rejected
-    model.pickedFolder(URL(fileURLWithPath: "/private/folder-name"))
+    model.selectFolder()
+    model.pickedFolder(
+      URL(fileURLWithPath: "/private/folder-name"), requestID: model.folderPickerRequestID)
+    #expect(model.message == nil)
+    model.folderPickerDismissed()
     #expect(model.message == "Choose a folder in iCloud Drive.")
     #expect(model.message?.contains("private") == false)
 
     destination.prepareOutcome = .temporarilyUnavailable
-    model.pickedFolder(URL(fileURLWithPath: "/another/private-name"))
+    model.selectFolder()
+    model.pickedFolder(
+      URL(fileURLWithPath: "/another/private-name"), requestID: model.folderPickerRequestID)
+    model.folderPickerDismissed()
     #expect(model.message == "The folder is temporarily unavailable. Try again later.")
     #expect(model.message?.contains("another") == false)
   }
