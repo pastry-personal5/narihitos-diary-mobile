@@ -109,6 +109,9 @@ Notes: Implementation follows M13 completion unless the owner authorizes a reord
 ### P1-M15: Build the Main Collection and Diary Detail
 
 Status: Planned
+Goal: Page and validate the active-folder Diary Snippet collection, surface recovery attention, and present safe read-only Diary Snippet detail.
+Plan: [overview](milestone-15-main-collection-diary-detail-overview.md), [approach](milestone-15-main-collection-diary-detail-architecture.md), [device evidence](milestone-15-main-collection-diary-detail-device-evidence.md)
+Notes: M15 is planned after M14. M16 retains body editing, Favorite mutation, and audio replay; M17 retains recovery actions/screens; M18 retains optional-context acquisition and reminders.
 
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 
