@@ -114,7 +114,7 @@ struct FileCatalogWorkerTests {
     let cursor = try CatalogDirectoryCursor(root: root, components: ["notes"])
     _ = try cursor.next(root: root, components: ["notes"], maximum: 1)
     try Data("Synthetic".utf8).write(to: root.appending(path: "notes/new.note"))
-    #expect(throws: CatalogIssue.self) {
+    #expect(throws: CatalogIssue.changed) {
       try cursor.next(root: root, components: ["notes"], maximum: 1)
     }
     let pipe = root.appending(path: "pipe")

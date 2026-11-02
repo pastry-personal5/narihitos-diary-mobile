@@ -23,6 +23,7 @@ Correct app behavior reported by the owner, with related enhancements and target
 - Task 8 changes the existing Pending/Failed Recordings Remove interaction at the owner's request: confirmation appears inline in the recording's row, with explicit Remove Recording and Cancel actions, instead of an overlay dialog. Removal ownership, cancellation, and saved-asset safeguards are unchanged.
 - Task 10 makes Retry and Remove in Pending/Failed Recordings large, full-width buttons with visible backgrounds. Use the full available recording-row width, preserve inline confirmation, and keep existing actions and removal safeguards.
 - Task 9 adds a planned Settings → Danger Zone screen with separate explicit confirmations for recursively purging the contents of the active iCloud folder and purging app-owned internal staging files. The task must define destructive scope, quiesce/invalidate in-flight work, and preserve already-saved assets outside the requested scope.
+- Task 11 reopens the post-stop `Folder Unavailable` report after Task 3's adapter race repair. A catalog page can independently detect the app's own directory mutation as `.changed` before a file-presenter callback; the presentation model must refresh that stale traversal without misreporting a valid folder as unavailable or retrying forever.
 
 ## Out of scope
 
@@ -149,7 +150,21 @@ Status: Done. The owner requested larger Retry and Remove controls with visible 
 - [x] Existing hosted checks pass: Retry keeps its callback, Remove only opens inline confirmation, and confirmation/cancel, one-entry selection, Cancelling, and lifecycle safeguards retain their behavior.
 - [x] Synthetic Pending/Failed previews were visually reviewed; all three existing hosted tests, fresh delegated lint/full simulator validation, and the signed device build pass. The update is installed on the target iPhone; affected docs and actual visual/device limits are recorded below. No real recording was removed for validation.
 
+### Task 11: Post-stop catalog change is reported as Folder Unavailable
+
+Status: Implemented with focused and full simulator validation; target-iPhone confirmation remains open. This owner report is distinct from Task 3's repaired adapter overlap: the catalog model treated a stale page traversal as a destination-access failure. The [Task 11 approach](milestone-20-enhancements-fixes-refactoring-architecture.md#task-11-post-stop-catalog-change-projection) records the bounded repair.
+
+- [x] Reproduce the boundary deterministically: an active catalog page reports `.changed` after the selected folder is mutated, without a preceding presenter callback, and Main enters `.unavailable` even though a fresh traversal succeeds.
+- [x] Refresh a stale traversal without projecting `Folder Unavailable`; coalesce the restart and bound repeated `.changed` results so continuous mutation cannot create an unbounded retry loop. Preserve genuine `.unavailable`, no-folder, cancellation, and visibility/lifecycle behavior.
+- [x] Add focused presentation regressions for one stale traversal followed by success, repeated-change exhaustion, a genuine unavailable page, and lifecycle cancellation. Retain Task 3's adapter settlement and stale-presenter coverage unchanged.
+- [x] Update the M20 cause/evidence record. The delegated runner reports affected catalog tests, `make lint`, and the full simulator gate passing on the recorded destination.
+- [ ] On the real iPhone, repeat Stop & Transcribe with a valid active folder and confirm Main converges to the refreshed collection rather than `Folder Unavailable`, including after relaunch. Keep this item open if device evidence is unavailable.
+
 ## Evidence
+
+**Task 11 cause, repair, and validation (2026-11-02):** the catalog directory cursor deliberately reports `.changed` when a directory's identity/version changes during paging; creating the app's own diary pair can produce that result before a file-presenter callback. `CatalogModel.loadMore()` previously collapsed that retryable consistency result into `.unavailable`. Before the repair, the focused regression ended after one begin/page with Main unavailable instead of starting a fresh traversal. The model now keeps its loading projection, waits 100 ms to coalesce changes, and starts a generation-fenced fresh session. It permits at most three consecutive automatic restarts, resets the budget after accepted progress or explicit/provider refresh, and still projects a genuine `.unavailable` immediately. Stop/hide cancellation prevents a delayed restart from reviving the catalog.
+
+The delegated runner passes 12 focused tests across `CatalogModelTests`, `FileCatalogWorkerTests`, and `AppleAssetCatalogTests`. Fresh `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` pass, including generation, lint, build, and the full simulator suite. The real-iPhone Stop & Transcribe/relaunch item remains open; simulator evidence does not prove Files-provider behavior.
 
 **Task 2 completion (2026-11-02):** the owner confirms Cohere transcription is working on the real iPhone. Together with the implemented dedicated Transcription screen, exact four-choice model selection, typed persistence/migration, isolated Q4/Q5 installations, preclaim fencing, and versioned provenance, this closes the requested M20 Task 2 implementation. This report does not claim Q5-specific phone installation, Apple readiness, accessibility, cancellation, or near-five-minute M12 matrix coverage; those remain separately documented obligations.
 

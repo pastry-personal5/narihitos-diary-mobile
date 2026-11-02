@@ -3,6 +3,8 @@ import Foundation
 
 @MainActor
 final class CatalogModel: ObservableObject {
+  static let maximumAutomaticChangedPageRestarts = 3
+
   enum State: Equatable {
     case idle
     case loading
@@ -33,6 +35,7 @@ final class CatalogModel: ObservableObject {
   private var visible = false
   private var active = false
   private var loading = false
+  private var automaticChangedPageRestarts = 0
 
   init(catalog: any AssetCatalogPort) {
     self.catalog = catalog
@@ -80,6 +83,11 @@ final class CatalogModel: ObservableObject {
   }
 
   func refresh() {
+    automaticChangedPageRestarts = 0
+    startRefresh()
+  }
+
+  private func startRefresh() {
     reset()
     guard active, visible else {
       state = .idle
@@ -124,6 +132,10 @@ final class CatalogModel: ObservableObject {
         }
       } catch {
         guard epoch == generation, !Task.isCancelled else { return }
+        if error as? CatalogIssue == .changed {
+          await restartAfterChangedPage(epoch: epoch)
+          return
+        }
         loading = false
         state = .unavailable
       }
@@ -131,6 +143,7 @@ final class CatalogModel: ObservableObject {
   }
 
   private func accept(_ page: CatalogPage) {
+    automaticChangedPageRestarts = 0
     collection.merge(page)
     summaries = collection.ordered
     recovery = collection.recovery.values.sorted { $0.id.uuidString < $1.id.uuidString }
@@ -192,6 +205,22 @@ final class CatalogModel: ObservableObject {
     detailOperation = nil
     detail = nil
     detailIssue = nil
+  }
+
+  private func restartAfterChangedPage(epoch: UUID) async {
+    guard automaticChangedPageRestarts < Self.maximumAutomaticChangedPageRestarts else {
+      loading = false
+      state = .unavailable
+      return
+    }
+    automaticChangedPageRestarts += 1
+    do {
+      try await Task.sleep(for: .milliseconds(100))
+    } catch {
+      return
+    }
+    guard epoch == generation, !Task.isCancelled, active, visible else { return }
+    startRefresh()
   }
 
   private func reset() {

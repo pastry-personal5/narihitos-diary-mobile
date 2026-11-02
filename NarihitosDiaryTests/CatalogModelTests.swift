@@ -8,18 +8,22 @@ private final class FakeCatalog: AssetCatalogPort {
   var onEvent: (@MainActor (CatalogEvent) -> Void)?
   let session = CatalogSessionID()
   var pages = 0
+  var begins = 0
   var ends = 0
   var holdPage = false
   var waiting: CheckedContinuation<CatalogPage, Error>?
   var queuedPages: [CatalogPage] = []
+  var pageFailures: [CatalogIssue] = []
   func begin() async -> CatalogStart {
-    .ready(session, CatalogCursor(session: session, token: UUID()))
+    begins += 1
+    return .ready(session, CatalogCursor(session: session, token: UUID()))
   }
   func page(_ cursor: CatalogCursor) async throws -> CatalogPage {
     pages += 1
     if holdPage {
       return try await withCheckedThrowingContinuation { waiting = $0 }
     }
+    if !pageFailures.isEmpty { throw pageFailures.removeFirst() }
     if !queuedPages.isEmpty { return queuedPages.removeFirst() }
     return CatalogPage(
       session: session, summaries: [], recovery: [], continuation: nil, examinedCandidates: 0,
@@ -33,6 +37,69 @@ private final class FakeCatalog: AssetCatalogPort {
 
 @MainActor
 struct CatalogModelTests {
+  @Test func changedPageRestartsFreshTraversalInsteadOfReportingFolderUnavailable() async {
+    let fake = FakeCatalog()
+    fake.pageFailures = [.changed]
+    let model = CatalogModel(catalog: fake)
+
+    model.setVisible(true)
+    model.activate()
+    await wait(for: .end, model: model)
+
+    #expect(model.state == .end)
+    #expect(fake.begins == 2)
+    #expect(fake.pages == 2)
+    model.stop()
+  }
+
+  @Test func repeatedChangedPagesExhaustBoundedRestarts() async {
+    let fake = FakeCatalog()
+    fake.pageFailures = Array(repeating: .changed, count: 10)
+    let model = CatalogModel(catalog: fake)
+
+    model.setVisible(true)
+    model.activate()
+    await wait(for: .unavailable, model: model)
+
+    let expectedAttempts = CatalogModel.maximumAutomaticChangedPageRestarts + 1
+    #expect(model.state == .unavailable)
+    #expect(fake.begins == expectedAttempts)
+    #expect(fake.pages == expectedAttempts)
+    model.stop()
+  }
+
+  @Test func unavailablePageDoesNotUseChangedPageRetryBudget() async {
+    let fake = FakeCatalog()
+    fake.pageFailures = [.unavailable]
+    let model = CatalogModel(catalog: fake)
+
+    model.setVisible(true)
+    model.activate()
+    await wait(for: .unavailable, model: model)
+
+    #expect(fake.begins == 1)
+    #expect(fake.pages == 1)
+    model.stop()
+  }
+
+  @Test func stoppingDuringChangedPageDelayCannotRestartCatalog() async {
+    let fake = FakeCatalog()
+    fake.pageFailures = [.changed]
+    let model = CatalogModel(catalog: fake)
+
+    model.setVisible(true)
+    model.activate()
+    for _ in 0..<100 where fake.pages == 0 { await Task.yield() }
+    #expect(fake.pages == 1)
+
+    model.stop()
+    try? await Task.sleep(for: .milliseconds(150))
+
+    #expect(model.state == .idle)
+    #expect(fake.begins == 1)
+    #expect(fake.pages == 1)
+  }
+
   @Test func latePageAfterStopCannotRepopulateCollection() async throws {
     let fake = FakeCatalog()
     fake.holdPage = true
@@ -136,6 +203,13 @@ struct CatalogModelTests {
     for _ in 0..<100 where model.state != .end { await Task.yield() }
     #expect(model.recovery.isEmpty)
     model.stop()
+  }
+
+  private func wait(for state: CatalogModel.State, model: CatalogModel) async {
+    for _ in 0..<200 {
+      if model.state == state { return }
+      try? await Task.sleep(for: .milliseconds(10))
+    }
   }
 }
 

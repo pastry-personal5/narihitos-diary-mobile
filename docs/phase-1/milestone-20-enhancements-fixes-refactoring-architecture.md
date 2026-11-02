@@ -243,4 +243,16 @@ Status: Done. Recovery actions in the shared Pending/Failed list now use full-wi
 2. Keep Task 8's inline confirmation, accessibility IDs/focus, and independent action handling. The first Remove tap still has no deletion side effect; existing confirmation controls remain in the screen.
 3. Reuse existing hosted interaction tests and synthetic preview tooling rather than adding tests that mirror styling. Review both screen states and responsive appearances, delegate lint/full simulator validation, and install the signed update when available.
 
+## Task 11: Post-stop catalog change projection
+
+Status: Implemented with focused and full simulator validation; target-iPhone confirmation remains open. Task 3 repaired an overlapping adapter begin/page race, but it did not cover the presentation model receiving `.changed` directly from a stale directory traversal.
+
+1. Reproduce the boundary without a presenter callback: mutate the selected catalog directory during paging so the cursor's identity/version check reports `.changed`, then prove the current presentation model projects terminal `.unavailable` even though a fresh traversal succeeds.
+2. Keep `.changed` distinct from `.unavailable`. Restart from a fresh catalog session after a short coalescing delay, retaining the loading projection while that restart is pending. Bound consecutive automatic restarts and expose `.unavailable` only when the bounded consistency retry cannot settle or the adapter reports a genuine access failure.
+3. Reset the retry budget after accepted progress and on an explicit user/provider refresh. Cancellation, hidden/inactive state, destination scope changes, and generation fencing must prevent an old delayed restart from reviving access.
+4. Cover one-change convergence, repeated-change exhaustion, and genuine unavailable behavior in `CatalogModelTests`. Keep Task 3's adapter regression intact; no destination/bookmark, security-scope, queue, save, or transcription behavior changes.
+5. Delegate focused checks, lint, and the full simulator gate. The real-iPhone Stop & Transcribe/relaunch outcome remains a separate acceptance item in the overview.
+
+The pre-fix model regression receives `.changed` on its first page, projects `.unavailable`, and performs only one begin/page even though the next traversal would succeed. The repair keeps `.changed` as a consistency invalidation, delays 100 ms to coalesce the app's related writes, and starts a fresh generation. Three consecutive automatic restarts are allowed; accepted progress and explicit/provider refresh reset the budget, while exhaustion becomes unavailable. A genuine `.unavailable` is never retried. Focused tests also prove the directory cursor's exact `.changed` result and prevent a stopped model's delayed retry from reviving access.
+
 Later owner reports extend this plan only when their concrete behavior is known.
