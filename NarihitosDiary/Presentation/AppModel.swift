@@ -49,12 +49,17 @@ final class AppModel: ObservableObject {
   @Published private(set) var appleInstallProgress: [CaptureLanguage: Double] = [:]
   @Published private(set) var appleInstalling: Set<CaptureLanguage> = []
   @Published private(set) var selectedTranscriptionMethodID: String?
+  @Published private(set) var selectedTranscriptionModel: TranscriptionModelSelection = .none
   @Published private(set) var cohereReadiness: CohereModelReadiness = .checking
   @Published private(set) var cohereInstallProgress: CohereInstallProgress?
   @Published private(set) var isInstallingCohere = false
+  @Published private(set) var cohereQ5Readiness: CohereModelReadiness = .checking
+  @Published private(set) var cohereQ5InstallProgress: CohereInstallProgress?
+  @Published private(set) var isInstallingCohereQ5 = false
   @Published var selectedRoot: RootTab = .main
   @Published var showPendingRecordings = false
   @Published var showSettings = false
+  @Published var showTranscriptionSettings = false
   @Published private(set) var recoveryMethodLanguage: CaptureLanguage?
 
   private let microphone: any MicrophoneAuthorizationPort
@@ -74,6 +79,7 @@ final class AppModel: ObservableObject {
   private var appleReadiness: AppleTranscriptionReadiness?
   private var appleInstaller: AppleAssetInstaller?
   private var cohereModels: CohereModelManager?
+  private var cohereQ5Models: CohereModelManager?
   private var cancellables: Set<AnyCancellable> = []
   private var captureEntryInProgress = false
   private var pendingFolderSelection: DestinationSelectionOutcome?
@@ -111,13 +117,20 @@ final class AppModel: ObservableObject {
     let readinessSource = AppleSpeechReadinessSource()
     let queueStore = FileQueueStore()
     let registry = TranscriptionMethodRegistry()
-    let cohereModels = CohereModelManager()
+    let cohereModels = CohereModelManager(descriptor: .productionQ4)
+    let cohereQ5Models = CohereModelManager(descriptor: .productionQ5)
     registry.register(
       AppleTranscriptionAdapter(
         store: queueStore, audio: audioSource, readinessSource: readinessSource))
     registry.register(
       CohereTranscriptionAdapter(
-        store: queueStore, audio: audioSource, models: cohereModels))
+        store: queueStore, audio: audioSource, models: cohereModels, q5Models: cohereQ5Models,
+        selectedModel: { [weak repository] in
+          guard let repository,
+            case .value(let selection) = repository.loadTranscriptionModelSelection()
+          else { return .cohereQ4 }
+          return selection
+        }))
     let installationIdentity = KeychainInstallationIdentity()
     self.init(
       microphone: AppleMicrophoneAuthorization(),
@@ -129,7 +142,10 @@ final class AppModel: ObservableObject {
       microphone: microphone, destination: destination, files: files,
       installationIdentity: installationIdentity)
     transcriptionSettings = repository
-    selectedTranscriptionMethodID = repository.selectedTranscriptionMethodID()
+    if case .value(let selection) = repository.loadTranscriptionModelSelection() {
+      selectedTranscriptionModel = selection
+      selectedTranscriptionMethodID = selection.methodID
+    }
     appleReadiness = AppleTranscriptionReadiness(source: readinessSource)
     let installer = AppleAssetInstaller(backend: SystemAppleAssetInstallationBackend())
     installer.onChange = { [weak self, weak installer] in
@@ -137,7 +153,9 @@ final class AppModel: ObservableObject {
     }
     appleInstaller = installer
     self.cohereModels = cohereModels
+    self.cohereQ5Models = cohereQ5Models
     observeCohereModel(cohereModels)
+    observeCohereQ5Model(cohereQ5Models)
     let conflictSnapshots = try? FileDiaryConflictSnapshotStore()
     let receipts = CaptureQueueReceiptSource(files: files, snapshots: conflictSnapshots)
     processingQueue = ProcessingQueueCoordinator(
@@ -231,7 +249,12 @@ final class AppModel: ObservableObject {
     microphoneState = microphone.currentState()
     locationState = location.currentState()
     destination = await destinationService.activeDestination()
-    selectedTranscriptionMethodID = transcriptionSettings?.selectedTranscriptionMethodID()
+    if let repository = transcriptionSettings {
+      if case .value(let selection) = repository.loadTranscriptionModelSelection() {
+        selectedTranscriptionModel = selection
+        selectedTranscriptionMethodID = selection.methodID
+      }
+    }
     firstLaunchStep = firstLaunch.pendingExplanation
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
@@ -612,12 +635,54 @@ final class AppModel: ObservableObject {
 
   func chooseMethodForRecovery(_ language: CaptureLanguage) {
     recoveryMethodLanguage = language
-    showSettings = true
+    selectedRoot = .all
+    showTranscriptionSettings = true
     refreshAppleReadiness()
     refreshCohereReadiness()
   }
 
   func leftSettings() { recoveryMethodLanguage = nil }
+
+  var transcriptionSummary: String {
+    "\(selectedTranscriptionModel.label) · \(transcriptionReadinessSummary)"
+  }
+
+  var transcriptionReadinessSummary: String {
+    switch selectedTranscriptionModel {
+    case .none: "Waiting for choice"
+    case .appleLocal: appleReadyForCurrentContext ? "Ready" : "Not ready"
+    case .cohereQ4: cohereReadyForRecovery ? "Ready" : "Not installed"
+    case .cohereQ5: cohereQ5ReadyForRecovery ? "Ready" : "Not installed"
+    }
+  }
+
+  var appleReadyForCurrentContext: Bool {
+    if let language = recoveryMethodLanguage { return isAppleReady(for: language) }
+    return [CaptureLanguage.english, .korean].allSatisfy { isAppleReady(for: $0) }
+  }
+
+  func isTranscriptionSelectionReady(_ selection: TranscriptionModelSelection) -> Bool {
+    switch selection {
+    case .none: false
+    case .appleLocal: appleReadyForCurrentContext
+    case .cohereQ4: cohereReadyForRecovery
+    case .cohereQ5: cohereQ5ReadyForRecovery
+    }
+  }
+
+  func selectTranscriptionModel(_ selection: TranscriptionModelSelection) {
+    if recoveryMethodLanguage != nil && !isTranscriptionSelectionReady(selection) { return }
+    guard let transcriptionSettings else { return }
+    do {
+      try transcriptionSettings.selectTranscriptionModel(selection)
+      selectedTranscriptionModel = selection
+      selectedTranscriptionMethodID = selection.methodID
+      processingQueue?.prerequisiteChanged()
+      refreshCaptureLists()
+    } catch {
+      presentMessage("The transcription model choice could not be saved. Try again.")
+    }
+  }
 
   var appleReadyForRecovery: Bool {
     guard let language = recoveryMethodLanguage else { return true }
@@ -630,38 +695,41 @@ final class AppModel: ObservableObject {
     return false
   }
 
+  var cohereQ5ReadyForRecovery: Bool {
+    if case .ready = cohereQ5Readiness { return true }
+    return false
+  }
+
   var cohereDownloadSize: String {
     guard let cohereModels else { return "Unavailable" }
     return ByteCountFormatter.string(
       fromByteCount: cohereModels.downloadByteCount, countStyle: .file)
   }
 
+  var cohereQ5DownloadSize: String {
+    ByteCountFormatter.string(
+      fromByteCount: CohereTrustedModel.productionQ5.byteCount, countStyle: .file)
+  }
+
   func installCohereModel() { cohereModels?.install() }
+
+  func installCohereQ5Model() { cohereQ5Models?.install() }
 
   func cancelCohereInstallation() { cohereModels?.cancelInstallation() }
 
+  func cancelCohereQ5Installation() { cohereQ5Models?.cancelInstallation() }
+
   func selectCohereTranscription() {
-    guard cohereReadyForRecovery, let transcriptionSettings else { return }
-    do {
-      try transcriptionSettings.selectTranscriptionMethod(TranscriptionMethodIdentifiers.cohere)
-      selectedTranscriptionMethodID = TranscriptionMethodIdentifiers.cohere
-      processingQueue?.prerequisiteChanged()
-      refreshCaptureLists()
-    } catch {
-      presentMessage("The transcription method could not be saved. Try again.")
-    }
+    selectTranscriptionModel(.cohereQ4)
   }
 
   private func persistAppleSelection() {
-    guard let transcriptionSettings else { return }
-    do {
-      try transcriptionSettings.selectTranscriptionMethod(TranscriptionMethodIdentifiers.apple)
-      selectedTranscriptionMethodID = TranscriptionMethodIdentifiers.apple
-      processingQueue?.prerequisiteChanged()
-      refreshCaptureLists()
-    } catch {
-      presentMessage("The transcription method could not be saved. Try again.")
-    }
+    selectTranscriptionModel(.appleLocal)
+  }
+
+  private func isAppleReady(for language: CaptureLanguage) -> Bool {
+    if case .ready = appleReadinessStates[language] { return true }
+    return false
   }
 
   private func refreshAppleReadiness() {
@@ -683,6 +751,11 @@ final class AppModel: ObservableObject {
       self.processingQueue?.prerequisiteChanged()
       self.refreshCaptureLists()
     }
+    if let cohereQ5Models {
+      Task { [weak self] in
+        self?.cohereQ5Readiness = await cohereQ5Models.refresh()
+      }
+    }
   }
 
   private func observeCohereModel(_ models: CohereModelManager) {
@@ -701,6 +774,19 @@ final class AppModel: ObservableObject {
       .receive(on: DispatchQueue.main)
       .sink { [weak self] in self?.isInstallingCohere = $0 }
       .store(in: &cancellables)
+  }
+
+  private func observeCohereQ5Model(_ models: CohereModelManager) {
+    models.$readiness.receive(on: DispatchQueue.main).sink { [weak self] in
+      self?.cohereQ5Readiness = $0
+      if case .ready = $0 { self?.processingQueue?.prerequisiteChanged() }
+    }.store(in: &cancellables)
+    models.$progress.receive(on: DispatchQueue.main).sink { [weak self] in
+      self?.cohereQ5InstallProgress = $0
+    }.store(in: &cancellables)
+    models.$isInstalling.receive(on: DispatchQueue.main).sink { [weak self] in
+      self?.isInstallingCohereQ5 = $0
+    }.store(in: &cancellables)
   }
 
   func retryQueueJob(_ id: String) {

@@ -288,6 +288,9 @@ private struct AllView: View {
         recoveryDestination(destination)
       }
       .navigationDestination(isPresented: $model.showSettings) { SettingsView(model: model) }
+      .navigationDestination(isPresented: $model.showTranscriptionSettings) {
+        TranscriptionSettingsView(model: model)
+      }
       .navigationDestination(isPresented: $model.showPendingRecordings) {
         CaptureListView(
           title: "Pending Recordings", captures: model.pendingCaptures,
@@ -318,6 +321,14 @@ private struct AllView: View {
     }
   }
 
+  private var locationLabel: String {
+    switch model.locationState {
+    case .notDetermined: "Not Requested"
+    case .authorized: "Allowed"
+    case .denied: "Denied"
+    case .restricted: "Restricted"
+    }
+  }
 }
 
 private struct RecordingView: View {
@@ -361,8 +372,16 @@ private struct RecordingView: View {
   }
 }
 
-private struct CaptureListView: View {
+struct CaptureListView: View {
+  @Environment(\.scenePhase) private var scenePhase
   @State private var removalCandidate: String?
+  @AccessibilityFocusState private var removalFocus: RemovalFocus?
+
+  private enum RemovalFocus: Hashable {
+    case button(String)
+    case confirmation(String)
+  }
+
   let title: String
   let captures: [CaptureIdentity]
   var issues: [CaptureRecoveryIssue] = []
@@ -395,21 +414,9 @@ private struct CaptureListView: View {
           if let reason = entry.reason {
             Text(reason).foregroundStyle(.secondary)
           }
-          if entry.state == .reviewRequired {
-            Button("Resume") { onResume(entry.id) }
-          } else if entry.state == .failed {
-            Button("Retry") { onRetry(entry.id) }
-          } else if entry.state == .waiting {
-            Button("Choose Method") { onChooseMethod(entry.language) }
-          } else if entry.state == .readyToSave, entry.reason != nil {
-            Button("Retry Verification") { onRetry(entry.id) }
-          }
-          if entry.state != .cancelling {
-            Button("Remove", role: .destructive) { removalCandidate = entry.id }
-          } else {
-            Text("Cancelling").foregroundStyle(.secondary)
-          }
+          recordingActions(for: entry)
         }
+        .buttonStyle(.borderless)
         .accessibilityElement(children: .contain)
       }
     }
@@ -431,19 +438,110 @@ private struct CaptureListView: View {
       }
     }
     .navigationTitle(title)
-    .confirmationDialog(
-      "Remove this recording and its private audio?",
-      isPresented: Binding(
-        get: { removalCandidate != nil },
-        set: { if !$0 { removalCandidate = nil } })
-    ) {
-      Button("Remove Recording", role: .destructive) {
-        guard let removalCandidate else { return }
-        onRemove(removalCandidate)
+    .onChange(of: removalCandidate) { previous, current in
+      if scenePhase != .active {
+        removalFocus = nil
+      } else if let current {
+        removalFocus = .confirmation(current)
+      } else if let previous {
+        let isRemovable = queueEntries.contains {
+          $0.id == previous && $0.state != .cancelling
+        }
+        removalFocus = isRemovable ? .button(previous) : nil
+      }
+    }
+    .onChange(of: queueEntries) { _, entries in
+      guard let removalCandidate else { return }
+      let isRemovable = entries.contains {
+        $0.id == removalCandidate && $0.state != .cancelling
+      }
+      if !isRemovable {
         self.removalCandidate = nil
       }
-      Button("Cancel", role: .cancel) { removalCandidate = nil }
     }
+    .onChange(of: scenePhase) { _, phase in
+      if phase != .active { removalCandidate = nil }
+    }
+    .onDisappear {
+      removalCandidate = nil
+      removalFocus = nil
+    }
+  }
+
+  @ViewBuilder
+  private func recordingActions(for entry: QueueProjection) -> some View {
+    if entry.state == .cancelling {
+      Text("Cancelling").foregroundStyle(.secondary)
+    } else if removalCandidate == entry.id {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Remove this recording and its private audio?")
+          .font(.headline)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityAddTraits(.isHeader)
+          .accessibilityIdentifier("recording-remove-confirmation-\(entry.id)")
+          .accessibilityFocused($removalFocus, equals: .confirmation(entry.id))
+        Button(role: .destructive) {
+          confirmRemoval(of: entry.id)
+        } label: {
+          Text("Remove Recording").frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.red)
+        .accessibilityIdentifier("recording-remove-confirm-\(entry.id)")
+        Button(role: .cancel) {
+          removalCandidate = nil
+        } label: {
+          Text("Cancel").frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("recording-remove-cancel-\(entry.id)")
+      }
+      .padding(.vertical, 8)
+    } else {
+      VStack(spacing: 12) {
+        if entry.state == .reviewRequired {
+          recoveryButton("Resume") { onResume(entry.id) }
+        } else if entry.state == .failed {
+          recoveryButton("Retry") { onRetry(entry.id) }
+        } else if entry.state == .waiting {
+          recoveryButton("Choose Method") { onChooseMethod(entry.language) }
+        } else if entry.state == .readyToSave, entry.reason != nil {
+          recoveryButton("Retry Verification") { onRetry(entry.id) }
+        }
+        Button(role: .destructive) {
+          removalCandidate = entry.id
+        } label: {
+          recordingActionLabel("Remove")
+        }
+        .buttonStyle(.bordered)
+        .tint(.red)
+        .accessibilityIdentifier("recording-remove-\(entry.id)")
+        .accessibilityFocused($removalFocus, equals: .button(entry.id))
+      }
+      .padding(.top, 6)
+    }
+  }
+
+  private func recoveryButton(_ title: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      recordingActionLabel(title)
+    }
+    .buttonStyle(.borderedProminent)
+  }
+
+  private func recordingActionLabel(_ title: String) -> some View {
+    Text(title)
+      .font(.headline)
+      .multilineTextAlignment(.center)
+      .frame(maxWidth: .infinity, minHeight: 52)
+  }
+
+  private func confirmRemoval(of id: String) {
+    guard removalCandidate == id,
+      queueEntries.contains(where: { $0.id == id && $0.state != .cancelling })
+    else { return }
+    removalCandidate = nil
+    onRemove(id)
   }
 }
 
@@ -452,64 +550,13 @@ private struct SettingsView: View {
 
   var body: some View {
     Form {
-      Section("Apple Transcription") {
-        appleStatus(.english, label: "English")
-        appleStatus(.korean, label: "Korean")
-        Button(action: model.selectAppleTranscription) {
-          HStack {
-            Text("Use Apple Transcription")
-            Spacer()
-            if model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.apple {
-              Image(systemName: "checkmark")
-                .accessibilityHidden(true)
-            }
-          }
+      Section("Transcription") {
+        NavigationLink {
+          TranscriptionSettingsView(model: model)
+        } label: {
+          LabeledContent("Transcription", value: model.transcriptionSummary)
         }
-        .frame(minHeight: 44)
-        .disabled(!model.appleReadyForRecovery)
-        .accessibilityValue(
-          model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.apple
-            ? "Selected" : "Not selected")
-      }
-      Section("Cohere Transcription") {
-        LabeledContent("Model", value: cohereStatus)
-          .accessibilityLabel("Cohere transcription model")
-          .accessibilityValue(cohereStatus)
-        LabeledContent("Download size", value: model.cohereDownloadSize)
-        if model.isInstallingCohere {
-          if let fraction = model.cohereInstallProgress?.fraction {
-            ProgressView(value: fraction) {
-              Text("Installing Cohere model")
-            }
-            .accessibilityValue(fraction.formatted(.percent.precision(.fractionLength(0))))
-          } else {
-            ProgressView("Installing Cohere model")
-          }
-          Button("Cancel Installation", role: .cancel, action: model.cancelCohereInstallation)
-            .frame(minHeight: 44)
-        } else if !model.cohereReadyForRecovery {
-          Button("Install Model", action: model.installCohereModel)
-            .frame(minHeight: 44)
-        }
-        Button(action: model.selectCohereTranscription) {
-          HStack {
-            Text("Use Cohere Transcription")
-            Spacer()
-            if model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.cohere {
-              Image(systemName: "checkmark")
-                .accessibilityHidden(true)
-            }
-          }
-        }
-        .frame(minHeight: 44)
-        .disabled(!model.cohereReadyForRecovery)
-        .accessibilityValue(
-          model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.cohere
-            ? "Selected" : "Not selected")
-        if noReadyRecoveryMethod {
-          Text("No transcription method is ready for this recording.")
-            .foregroundStyle(.secondary)
-        }
+        .accessibilityHint("Opens transcription model settings")
       }
       Section("Active Folder") {
         Text(model.destination.summary?.displayName ?? "No folder selected")
@@ -534,10 +581,126 @@ private struct SettingsView: View {
       }
     }
     .navigationTitle("Settings")
+    .task {
+      await model.becameActive()
+      model.refreshTranscriptionReadiness()
+    }
+  }
+
+  private var locationLabel: String {
+    switch model.locationState {
+    case .notDetermined: "Not Requested"
+    case .authorized: "Allowed"
+    case .denied: "Denied"
+    case .restricted: "Restricted"
+    }
+  }
+}
+
+private struct TranscriptionSettingsView: View {
+  @ObservedObject var model: AppModel
+
+  private var selection: Binding<TranscriptionModelSelection> {
+    Binding(
+      get: { model.selectedTranscriptionModel },
+      set: { model.selectTranscriptionModel($0) })
+  }
+
+  var body: some View {
+    Form {
+      Section("AI Models") {
+        Picker("AI Models", selection: selection) {
+          ForEach(TranscriptionModelSelection.allCases) { model in
+            Text(model.label).tag(model)
+          }
+        }
+        .pickerStyle(.inline)
+        .accessibilityLabel("AI Models")
+
+        if let language = model.recoveryMethodLanguage {
+          let languageName = language == .english ? "English" : "Korean"
+          Text("Choose a model ready for \(languageName) recordings.")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+      }
+
+      modelDetails
+    }
+    .navigationTitle("Transcription")
     .onDisappear { model.leftSettings() }
     .task {
       await model.becameActive()
       model.refreshTranscriptionReadiness()
+    }
+  }
+
+  @ViewBuilder
+  private var modelDetails: some View {
+    switch model.selectedTranscriptionModel {
+    case .none:
+      Section("Model details") {
+        Text("Recordings remain queued until you choose an available transcription model.")
+          .foregroundStyle(.secondary)
+      }
+    case .appleLocal:
+      Section("Apple Local") {
+        appleStatus(.english, label: "English")
+        appleStatus(.korean, label: "Korean")
+        Text(
+          "Apple provides the system transcription assets. "
+            + "Download size is not reported by the system."
+        )
+        .font(.footnote).foregroundStyle(.secondary)
+      }
+    case .cohereQ4:
+      cohereSection(title: "Cohere Q4", quantization: "Q4_K_M")
+    case .cohereQ5:
+      Section("Cohere Q5") {
+        LabeledContent("Quantization", value: "Q5_K_M")
+        LabeledContent("Model", value: cohereQ5Status)
+        LabeledContent("Download size", value: model.cohereQ5DownloadSize)
+        if model.isInstallingCohereQ5 {
+          if let fraction = model.cohereQ5InstallProgress?.fraction {
+            ProgressView(value: fraction) { Text("Installing Cohere Q5") }
+              .accessibilityValue(fraction.formatted(.percent.precision(.fractionLength(0))))
+          } else {
+            ProgressView("Installing Cohere Q5")
+          }
+          Button("Cancel Installation", role: .cancel, action: model.cancelCohereQ5Installation)
+            .frame(minHeight: 44)
+        } else if !model.cohereQ5ReadyForRecovery {
+          Button("Install Model", action: model.installCohereQ5Model)
+            .frame(minHeight: 44)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func cohereSection(title: String, quantization: String) -> some View {
+    Section(title) {
+      LabeledContent("Quantization", value: quantization)
+      LabeledContent("Model", value: cohereStatus)
+        .accessibilityLabel("Cohere model readiness")
+      LabeledContent("Download size", value: model.cohereDownloadSize)
+      if model.isInstallingCohere {
+        if let fraction = model.cohereInstallProgress?.fraction {
+          ProgressView(value: fraction) { Text("Installing Cohere Q4") }
+            .accessibilityValue(fraction.formatted(.percent.precision(.fractionLength(0))))
+        } else {
+          ProgressView("Installing Cohere Q4")
+        }
+        Button("Cancel Installation", role: .cancel, action: model.cancelCohereInstallation)
+          .frame(minHeight: 44)
+      } else if !model.cohereReadyForRecovery {
+        Button("Install Model", action: model.installCohereModel)
+          .frame(minHeight: 44)
+      }
+      if noReadyRecoveryMethod {
+        Text("No transcription model is ready for this recording.")
+          .foregroundStyle(.secondary)
+      }
     }
   }
 
@@ -566,17 +729,17 @@ private struct SettingsView: View {
     }
   }
 
-  private var locationLabel: String {
-    switch model.locationState {
-    case .notDetermined: "Not Requested"
-    case .authorized: "Allowed"
-    case .denied: "Denied"
-    case .restricted: "Restricted"
+  private var cohereStatus: String {
+    switch model.cohereReadiness {
+    case .checking: "Checking"
+    case .notInstalled: "Not installed"
+    case .ready: "Ready"
+    case .failed(let failure): failure.userMessage
     }
   }
 
-  private var cohereStatus: String {
-    switch model.cohereReadiness {
+  private var cohereQ5Status: String {
+    switch model.cohereQ5Readiness {
     case .checking: "Checking"
     case .notInstalled: "Not installed"
     case .ready: "Ready"

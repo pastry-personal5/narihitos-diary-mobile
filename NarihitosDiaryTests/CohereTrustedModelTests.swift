@@ -20,6 +20,21 @@ final class CohereTrustedModelTests: XCTestCase {
     XCTAssertFalse(descriptor.installationIdentity.contains("unknown"))
   }
 
+  func testQ5ProductionDescriptorIsPinnedSeparatelyFromQ4() throws {
+    let q4Descriptor = CohereTrustedModel.productionQ4
+    let q5Descriptor = CohereTrustedModel.productionQ5
+
+    XCTAssertNoThrow(try q5Descriptor.validatedURL())
+    XCTAssertEqual(q5Descriptor.quantization, "Q5_K_M")
+    XCTAssertEqual(q5Descriptor.byteCount, 1_770_270_208)
+    XCTAssertEqual(
+      q5Descriptor.sha256,
+      "14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558")
+    XCTAssertNotEqual(q4Descriptor.installationIdentity, q5Descriptor.installationIdentity)
+    XCTAssertNotEqual(q4Descriptor.filename, q5Descriptor.filename)
+    XCTAssertFalse(q5Descriptor.downloadURL.contains("main"))
+  }
+
   func testDescriptorRejectsRevocationAndMutableURL() {
     let production = CohereTrustedModel.production
     let revoked = replacing(production, revoked: true)

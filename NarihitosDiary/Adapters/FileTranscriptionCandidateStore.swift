@@ -377,14 +377,18 @@ final class FileTranscriptionCandidateStore: TranscriptionCandidateStore {
         && settings["runtime"] == record.payload.runtime
         && settings["operatingSystemVersion"] == record.payload.operatingSystemVersion
     case TranscriptionMethodIdentifiers.cohere:
-      let descriptor = CohereTrustedModel.production
+      guard let quantization = settings["quantization"] else { return false }
+      let descriptor =
+        quantization == "Q5_K_M" ? CohereTrustedModel.productionQ5 : CohereTrustedModel.productionQ4
       let expectedHint = record.language == .english ? "en" : "ko"
+      let revision = settings["settingsRevision"]
+      guard revision == "1" || revision == "2" else { return false }
+      guard revision == "1" || descriptor.quantization == quantization else { return false }
       return record.modelIdentity == descriptor.installationIdentity
         && record.conversionIdentity == CohereAudioConversion.identity
         && record.payload.runtime == CohereRuntimeProvenance.identity
         && record.payload.resolvedLocale == record.language.rawValue
-        && settings.count == 13
-        && settings["settingsRevision"] == "1"
+        && (revision == "1" ? settings.count == 13 : settings.count == 12)
         && settings["requestedLocale"] == record.language.rawValue
         && settings["resolvedLocale"] == record.payload.resolvedLocale
         && settings["languageHint"] == expectedHint
@@ -392,7 +396,7 @@ final class FileTranscriptionCandidateStore: TranscriptionCandidateStore {
         && settings["runtime"] == record.payload.runtime
         && settings["runtimeCommit"] == CohereRuntimeProvenance.commit
         && settings["modelID"] == descriptor.modelID
-        && settings["modelRevision"] == descriptor.repositoryRevision
+        && (settings["modelRevision"] == descriptor.repositoryRevision)
         && settings["quantization"] == descriptor.quantization
         && settings["chunkingRevision"] == CohereChunkPlanner.identity
         && settings["installedIdentity"] == descriptor.installationIdentity

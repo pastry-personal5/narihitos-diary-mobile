@@ -123,16 +123,22 @@ final class CapturePrivateFiles {
     try setPrivateAttributes(url, open: true)
   }
 
-  // Full decode and format projection stay in one bounded inspection transaction.
-  // swiftlint:disable:next function_body_length
   func inspectAudio(id: WorkspaceID) throws -> CaptureInspection {
+    let url = audioURL(id)
+    try requirePlainFile(url)
+    // Only capture settlement changes open-file protection to closed-file protection.
+    // Receipt reads must not change ctime underneath an active transcription lease.
+    try setPrivateAttributes(url, open: false)
+    return try readAudioInspection(id: id)
+  }
+
+  // Full decode and format projection stay in one bounded, read-only transaction.
+  // swiftlint:disable:next function_body_length
+  private func readAudioInspection(id: WorkspaceID) throws -> CaptureInspection {
     let url = audioURL(id)
     try requirePlainFile(url)
     let attributes = try manager.attributesOfItem(atPath: url.path)
     let bytes = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-    // The recorder has closed by this point. Apply closed-file protection even
-    // when the bytes are empty or exceed the accepted capture limit.
-    try setPrivateAttributes(url, open: false)
     guard bytes > 0, bytes <= Self.maximumAudioBytes else {
       return CaptureInspection(byteCount: bytes, duration: 0, isMonoAAC: false, isPlayable: false)
     }
@@ -340,7 +346,7 @@ extension CapturePrivateFiles {
       guard UIApplication.shared.isProtectedDataAvailable,
         hasSnapshot(receipt.destinationReference),
         (try? verifyPrivateAttributes(audioURL(id), open: false)) != nil,
-        let observed = try? inspectAudio(id: id),
+        let observed = try? readAudioInspection(id: id),
         observed.isAccepted,
         observed.byteCount == measured.byteCount,
         abs(observed.duration - measured.duration) < 0.25

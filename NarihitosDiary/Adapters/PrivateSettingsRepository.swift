@@ -18,6 +18,7 @@ private struct StoredApplicationSettings: Codable {
   var firstLaunch = FirstLaunchProgress()
   var destination: StoredDestinationRecord?
   var selectedTranscriptionMethodID: String?
+  var selectedTranscriptionModel: String? = .none
 }
 
 @MainActor
@@ -56,7 +57,10 @@ final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettings
   }
 
   func selectedTranscriptionMethodID() -> String? {
-    (try? read())?.selectedTranscriptionMethodID
+    switch loadTranscriptionModelSelection() {
+    case .value(let selection): selection.methodID
+    case .unavailable: nil
+    }
   }
 
   func selectTranscriptionMethod(_ id: String) throws {
@@ -67,6 +71,33 @@ final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettings
     else { throw QueueStoreFailure.corrupt }
     var proposed = try read()
     proposed.selectedTranscriptionMethodID = id
+    try persist(proposed)
+  }
+
+  func loadTranscriptionModelSelection() -> StoredTranscriptionModelSelection {
+    do {
+      let settings = try read()
+      if let raw = settings.selectedTranscriptionModel {
+        guard let selection = TranscriptionModelSelection(rawValue: raw) else {
+          return .unavailable
+        }
+        return .value(selection)
+      }
+      switch settings.selectedTranscriptionMethodID {
+      case TranscriptionMethodIdentifiers.apple: return .value(.appleLocal)
+      case TranscriptionMethodIdentifiers.cohere: return .value(.cohereQ4)
+      case nil: return .value(.none)
+      default: return .unavailable
+      }
+    } catch {
+      return .unavailable
+    }
+  }
+
+  func selectTranscriptionModel(_ selection: TranscriptionModelSelection) throws {
+    var proposed = try read()
+    proposed.selectedTranscriptionModel = selection.rawValue
+    proposed.selectedTranscriptionMethodID = nil
     try persist(proposed)
   }
 

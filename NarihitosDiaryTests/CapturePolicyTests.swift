@@ -56,7 +56,7 @@ struct CapturePolicyTests {
     #expect(source.contains("Color(red: 0.39, green: 0.21, blue: 0.62)"))
     #expect(source.contains(".frame(width: 56, height: 56)"))
     let recordingStart = try #require(source.range(of: "private struct RecordingView:"))
-    let recordingEnd = try #require(source.range(of: "private struct CaptureListView:"))
+    let recordingEnd = try #require(source.range(of: "struct CaptureListView:"))
     let recording = String(source[recordingStart.lowerBound..<recordingEnd.lowerBound])
     let controls = try NSRegularExpression(pattern: #"\bButton(?:\s*\(|\s*\{)"#)
     #expect(

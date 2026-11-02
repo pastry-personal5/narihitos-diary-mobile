@@ -47,7 +47,7 @@ struct DiaryDraftFactory {
     method: String, settings: [String: String], candidate: TranscriptionPayload,
     job: QueueJob
   ) throws -> TranscriptionProvenance {
-    guard settings["settingsRevision"] == "1",
+    guard settings["settingsRevision"] == "1" || settings["settingsRevision"] == "2",
       settings["requestedLocale"] == job.language.rawValue,
       settings["resolvedLocale"] == candidate.resolvedLocale,
       settings["runtime"] == candidate.runtime,
@@ -68,10 +68,16 @@ struct DiaryDraftFactory {
         let modelID = settings["modelID"], !modelID.isEmpty,
         let version = settings["modelRevision"], !version.isEmpty
       else { throw DiaryDraftFactoryFailure.invalidProvenance }
+      let revision = settings["settingsRevision"] == "2" ? 2 : 1
+      let quantization = settings["quantization"]
+      let modelVersion =
+        revision == 2 && quantization != nil ? "\(version):\(quantization!)" : version
+      guard revision == 1 || (quantization == "Q4_K_M" || quantization == "Q5_K_M")
+      else { throw DiaryDraftFactoryFailure.invalidProvenance }
       return TranscriptionProvenance(
         methodID: try TranscriptionMethodID(method),
-        languageHint: job.language.rawValue, settingsRevision: 1,
-        modelID: modelID, modelVersion: version,
+        languageHint: job.language.rawValue, settingsRevision: Int64(revision),
+        modelID: modelID, modelVersion: modelVersion,
         runtimeID: candidate.runtime, conversionID: candidate.conversion)
     default:
       throw DiaryDraftFactoryFailure.invalidProvenance

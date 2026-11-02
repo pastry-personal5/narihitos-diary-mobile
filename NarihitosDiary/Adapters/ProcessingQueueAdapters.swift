@@ -211,7 +211,10 @@ final class ProductionTranscriptionSettings: TranscriptionSettingsPort {
   init(repository: PrivateSettingsRepository) { self.repository = repository }
 
   func selectedMethodID(for _: CaptureLanguage) -> String? {
-    repository.selectedTranscriptionMethodID()
+    guard case .value(let selection) = repository.loadTranscriptionModelSelection() else {
+      return nil
+    }
+    return selection.methodID
   }
 
   func effectiveSettings(
@@ -227,18 +230,22 @@ final class ProductionTranscriptionSettings: TranscriptionSettingsPort {
     }
     if methodID == TranscriptionMethodIdentifiers.cohere {
       let languageHint = language == .english ? "en" : "ko"
+      let descriptor =
+        repository.loadTranscriptionModelSelection() == .value(.cohereQ5)
+        ? CohereTrustedModel.productionQ5
+        : CohereTrustedModel.productionQ4
       return EffectiveTranscriptionSettings(
         values: [
-          "settingsRevision": "1", "requestedLocale": language.rawValue,
+          "settingsRevision": "2", "requestedLocale": language.rawValue,
           "languageHint": languageHint, "backend": "metal",
           "runtime": CohereRuntimeProvenance.identity,
           "runtimeCommit": CohereRuntimeProvenance.commit,
-          "modelID": CohereTrustedModel.production.modelID,
-          "modelRevision": CohereTrustedModel.production.repositoryRevision,
-          "quantization": CohereTrustedModel.production.quantization,
+          "modelID": descriptor.modelID,
+          "modelRevision": descriptor.repositoryRevision,
+          "quantization": descriptor.quantization,
           "chunkingRevision": CohereChunkPlanner.identity,
         ],
-        modelIdentity: CohereTrustedModel.production.installationIdentity,
+        modelIdentity: descriptor.installationIdentity,
         conversionIdentity: CohereAudioConversion.identity)
     }
     return EffectiveTranscriptionSettings(

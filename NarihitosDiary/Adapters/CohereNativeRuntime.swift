@@ -28,6 +28,18 @@ protocol CohereRuntimeRunning: Sendable {
   ) throws -> [String]
 }
 
+struct CohereRuntimeBackend {
+  let name: String
+  let deviceKind: String?
+  let matchesRequestedDevice: Bool
+
+  var isSelectedMetal: Bool {
+    // The runtime can name a Metal backend "MTL0". Authorize its inspected
+    // device kind and exact binding; a display name cannot prove Metal use.
+    deviceKind == "metal" && matchesRequestedDevice
+  }
+}
+
 struct NativeCohereRuntime: CohereRuntimeRunning, Sendable {
   private static let configureLogging: Void = { transcribe_log_set(nil, nil) }()
   private static let abortCallback: @convention(c) (UnsafeMutableRawPointer?) -> Bool = { pointer in
@@ -66,8 +78,7 @@ struct NativeCohereRuntime: CohereRuntimeRunning, Sendable {
     defer { transcribe_model_free(model) }
     guard !cancellation.isCancelled() else { throw CohereRuntimeFailure.cancelled }
     guard cString(transcribe_model_arch_string(model)) == "cohere_asr",
-      cString(transcribe_model_backend(model)).lowercased() == "metal",
-      transcribe_model_device(model) == metalDevice
+      backend(model: model, requestedDevice: metalDevice).isSelectedMetal
     else { throw CohereRuntimeFailure.incompatibleModel }
     var capabilities = transcribe_capabilities()
     transcribe_capabilities_init(&capabilities)
@@ -128,10 +139,24 @@ struct NativeCohereRuntime: CohereRuntimeRunning, Sendable {
       !transcribe_was_truncated(session)
     else { throw CohereRuntimeFailure.truncated }
     guard status == TRANSCRIBE_OK else { throw CohereRuntimeFailure.inference }
-    guard cString(transcribe_model_backend(model)).lowercased() == "metal",
-      transcribe_model_device(model) == metalDevice
+    guard backend(model: model, requestedDevice: metalDevice).isSelectedMetal
     else { throw CohereRuntimeFailure.backendMismatch }
     return cString(transcribe_full_text(session))
+  }
+
+  private func backend(
+    model: OpaquePointer, requestedDevice: OpaquePointer
+  ) -> CohereRuntimeBackend {
+    let name = cString(transcribe_model_backend(model))
+    guard let device = transcribe_model_device(model) else {
+      return CohereRuntimeBackend(name: name, deviceKind: nil, matchesRequestedDevice: false)
+    }
+    var info = transcribe_device_info()
+    transcribe_device_info_init(&info)
+    let kind =
+      transcribe_device_get_info(device, &info) == TRANSCRIBE_OK ? cString(info.kind) : nil
+    return CohereRuntimeBackend(
+      name: name, deviceKind: kind, matchesRequestedDevice: device == requestedDevice)
   }
 
   private func exactMetalDevice() -> OpaquePointer? {

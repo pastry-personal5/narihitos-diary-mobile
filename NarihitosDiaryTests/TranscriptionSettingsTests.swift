@@ -5,6 +5,50 @@ import Testing
 
 @MainActor
 struct TranscriptionSettingsTests {
+  @Test func explicitModelChoicesRoundTripIncludingNoneAndQ5() throws {
+    let root = FileManager.default.temporaryDirectory.appending(path: "settings-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let repository = PrivateSettingsRepository(root: root)
+
+    try repository.selectTranscriptionModel(.cohereQ5)
+    #expect(repository.loadTranscriptionModelSelection() == .value(.cohereQ5))
+    try repository.selectTranscriptionModel(.none)
+    let reopened = PrivateSettingsRepository(root: root)
+    #expect(reopened.loadTranscriptionModelSelection() == .value(.none))
+    #expect(reopened.selectedTranscriptionMethodID() == nil)
+  }
+
+  @Test func legacyProviderSelectionMigratesWithoutRewritingOnRead() throws {
+    let root = FileManager.default.temporaryDirectory.appending(path: "settings-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let repository = PrivateSettingsRepository(root: root)
+    try repository.selectTranscriptionMethod(TranscriptionMethodIdentifiers.cohere)
+    #expect(repository.loadTranscriptionModelSelection() == .value(.cohereQ4))
+    let settingsURL = root.appending(path: "private-settings.json")
+    let settingsData = try Data(contentsOf: settingsURL)
+    let object = try JSONSerialization.jsonObject(with: settingsData) as? [String: Any]
+    #expect(object?["selectedTranscriptionModel"] == nil)
+  }
+
+  @Test func unknownNewSelectionFailsClosedInsteadOfUsingLegacyValue() throws {
+    // swiftlint:disable trailing_comma
+    let root = FileManager.default.temporaryDirectory.appending(path: "settings-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let data = try JSONSerialization.data(withJSONObject: [
+      "firstLaunch": [
+        "step": "complete", "microphoneAttempted": true, "locationAttempted": true,
+      ],
+      "selectedTranscriptionMethodID": TranscriptionMethodIdentifiers.apple,
+      "selectedTranscriptionModel": "future-model",
+    ])
+    // swiftlint:enable trailing_comma
+    try data.write(to: root.appending(path: "private-settings.json"))
+    let repository = PrivateSettingsRepository(root: root)
+    #expect(repository.loadTranscriptionModelSelection() == .unavailable)
+    #expect(repository.selectedTranscriptionMethodID() == nil)
+  }
+
   @Test func selectionIsExplicitGlobalAndSurvivesRelaunch() throws {
     let root = FileManager.default.temporaryDirectory.appending(path: "settings-\(UUID())")
     defer { try? FileManager.default.removeItem(at: root) }

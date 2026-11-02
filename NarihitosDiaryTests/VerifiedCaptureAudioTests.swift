@@ -8,6 +8,20 @@ import Testing
 
 @MainActor
 struct VerifiedCaptureAudioTests {
+  @Test func receiptValidationDoesNotInvalidateAnActiveAudioLease() throws {
+    let fixture = try VerifiedAudioFixture()
+    defer { fixture.clean() }
+    let lease = try fixture.source.open(job: fixture.job)
+    defer { try? lease.close() }
+
+    for _ in 0..<3 {
+      #expect(fixture.files.queueReceipt(jobID: fixture.job.id) == fixture.receipt)
+      try lease.verifyUnchanged()
+      #expect(try fixture.source.fingerprint(for: fixture.job) == lease.digest)
+      try lease.verifyUnchanged()
+    }
+  }
+
   @Test func missingAndCorruptAudioFailWithoutDeletingOtherCaptureFiles() throws {
     for missing in [true, false] {
       let fixture = try VerifiedAudioFixture()

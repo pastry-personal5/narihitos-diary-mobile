@@ -22,25 +22,32 @@ final class CohereTranscriptionAdapter: AsynchronousTranscriptionReadiness {
     requiresMonoAAC: true)
   private let store: any QueueStorePort
   private let audio: any CohereAudioSource
-  private let models: CohereModelManager
+  private let q4Models: CohereModelManager
+  private let q5Models: CohereModelManager
+  private let selectedModel: @MainActor () -> TranscriptionModelSelection
   private let runtime: any CohereRuntimeRunning
 
   init(
     store: any QueueStorePort, audio: any CohereAudioSource, models: CohereModelManager,
+    q5Models: CohereModelManager? = nil,
+    selectedModel: @escaping @MainActor () -> TranscriptionModelSelection = { .cohereQ4 },
     runtime: any CohereRuntimeRunning = NativeCohereRuntime()
   ) {
     self.store = store
     self.audio = audio
-    self.models = models
+    self.q4Models = models
+    self.q5Models = q5Models ?? models
+    self.selectedModel = selectedModel
     self.runtime = runtime
   }
 
   func readiness(for _: CaptureLanguage) -> TranscriptionReadiness {
-    if case .ready = models.readiness { return .ready }
+    if case .ready = currentModels().readiness { return .ready }
     return .waiting(.cohereNotInstalled)
   }
 
   func preflight(for language: CaptureLanguage) async -> TranscriptionPreflight {
+    let models = currentModels()
     guard case .ready(let identity) = await models.refresh(),
       identity == models.descriptor.installationIdentity
     else {
@@ -63,16 +70,26 @@ final class CohereTranscriptionAdapter: AsynchronousTranscriptionReadiness {
     guard let job = try? store.jobs().first(where: { $0.id == request.jobID }),
       job.state == .transcribing, job.attemptID == request.attemptID,
       job.attemptGeneration == request.generation, job.selectedMethodID == descriptor.id,
-      request.settings.values["installedIdentity"] == models.descriptor.installationIdentity
+      request.settings.values["installedIdentity"] == q4Models.descriptor.installationIdentity
+        || request.settings.values["installedIdentity"] == q5Models.descriptor.installationIdentity
     else {
       completion(.failure(.inference))
       return FinishedCohereWork()
     }
     let attempt = CohereTranscriptionAttempt(
-      request: request, job: job, audio: audio, models: models, runtime: runtime,
+      request: request, job: job, audio: audio,
+      models: models(for: request.settings.values["installedIdentity"]), runtime: runtime,
       completion: completion)
     attempt.start()
     return attempt
+  }
+
+  private func currentModels() -> CohereModelManager {
+    selectedModel() == .cohereQ5 ? q5Models : q4Models
+  }
+
+  private func models(for identity: String?) -> CohereModelManager {
+    identity == q5Models.descriptor.installationIdentity ? q5Models : q4Models
   }
 }
 

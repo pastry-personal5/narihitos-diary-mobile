@@ -28,7 +28,7 @@ struct CohereTrustedModel: Codable, Equatable, Sendable {
   let chunkingIdentity: String
   let revoked: Bool
 
-  static let production = CohereTrustedModel(
+  static let productionQ4 = CohereTrustedModel(
     schema: schemaVersion,
     descriptorRevision: "ndm.cohere-model-approval-v1",
     modelID: "cohere-transcribe-03-2026",
@@ -49,6 +49,30 @@ struct CohereTrustedModel: Codable, Equatable, Sendable {
     chunkingIdentity: CohereChunkPlanner.identity,
     revoked: false)
 
+  static let productionQ5 = CohereTrustedModel(
+    schema: schemaVersion,
+    descriptorRevision: "ndm.cohere-model-approval-v1-q5",
+    modelID: "cohere-transcribe-03-2026",
+    quantization: "Q5_K_M",
+    repository: "handy-computer/cohere-transcribe-03-2026-gguf",
+    repositoryRevision: "7353b6040bdc1be9e5a3823d99d5fe12afe88264",
+    filename: "cohere-transcribe-03-2026-Q5_K_M.gguf",
+    downloadURL:
+      "https://huggingface.co/handy-computer/cohere-transcribe-03-2026-gguf/resolve/"
+      + "7353b6040bdc1be9e5a3823d99d5fe12afe88264/"
+      + "cohere-transcribe-03-2026-Q5_K_M.gguf",
+    byteCount: 1_770_270_208,
+    sha256: "14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558",
+    allowedRedirectHosts: ["huggingface.co", "us.aws.cdn.hf.co"],
+    approvedLanguages: ["en", "ko"],
+    runtimeIdentity: CohereRuntimeProvenance.identity,
+    conversionIdentity: CohereAudioConversion.identity,
+    chunkingIdentity: CohereChunkPlanner.identity,
+    revoked: false)
+
+  // Kept as the compatibility name for existing Q4 callers and historical tests.
+  static let production = productionQ4
+
   var installationIdentity: String {
     "\(descriptorRevision):\(repositoryRevision):\(quantization):\(sha256)"
   }
@@ -56,11 +80,11 @@ struct CohereTrustedModel: Codable, Equatable, Sendable {
   func validatedURL() throws -> URL {
     guard schema == Self.schemaVersion, !revoked,
       !descriptorRevision.isEmpty, modelID == "cohere-transcribe-03-2026",
-      quantization == "Q4_K_M",
+      quantization == "Q4_K_M" || quantization == "Q5_K_M",
       repository == "handy-computer/cohere-transcribe-03-2026-gguf",
       repositoryRevision.utf8.count == 40,
       repositoryRevision.utf8.allSatisfy(Self.isLowerHex),
-      filename == "cohere-transcribe-03-2026-Q4_K_M.gguf",
+      filename == "cohere-transcribe-03-2026-\(quantization).gguf",
       byteCount > 0, sha256.utf8.count == 64, sha256.utf8.allSatisfy(Self.isLowerHex),
       allowedRedirectHosts == ["huggingface.co", "us.aws.cdn.hf.co"],
       approvedLanguages == ["en", "ko"],
@@ -341,10 +365,18 @@ final class CohereModelManager: ObservableObject {
     self.downloader = downloader
     self.availableCapacity = availableCapacity
     self.protectedDataAvailable = protectedDataAvailable
-    self.root =
-      root
-      ?? manager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      .appending(path: "NarihitosDiary/CohereModel", directoryHint: .isDirectory)
+    if let root {
+      self.root = root
+    } else {
+      let base = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appending(path: "NarihitosDiary/CohereModel", directoryHint: .isDirectory)
+      // Keep the shipped Q4 location for upgrade compatibility; Q5 gets an
+      // isolated root so records, staging, and leases can never cross variants.
+      self.root =
+        descriptor.quantization == "Q4_K_M"
+        ? base
+        : base.appending(path: descriptor.quantization, directoryHint: .isDirectory)
+    }
   }
 
   var downloadByteCount: Int64 { descriptor.byteCount }
