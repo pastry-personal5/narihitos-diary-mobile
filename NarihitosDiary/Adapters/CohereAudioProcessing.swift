@@ -195,18 +195,28 @@ enum CohereChunkPlanner {
   ) -> (sample: Int, rms: Float)? {
     guard lowerBound < upperBound else { return nil }
     var best: (sample: Int, rms: Float)?
-    var center = lowerBound
-    while center < upperBound {
-      let start = max(0, center - energyWindowSamples / 2)
-      let end = min(samples.count, start + energyWindowSamples)
-      guard end > start else { break }
-      var sum: Double = 0
-      for sample in samples[start..<end] { sum += Double(sample * sample) }
-      let rms = Float(sqrt(sum / Double(end - start)))
+    var start = max(0, lowerBound - energyWindowSamples / 2)
+    var end = min(samples.count, start + energyWindowSamples)
+    var sum = samples[start..<end].reduce(0.0) { total, sample in
+      total + Double(sample) * Double(sample)
+    }
+    for center in lowerBound..<upperBound {
+      let nextStart = max(0, center - energyWindowSamples / 2)
+      let nextEnd = min(samples.count, nextStart + energyWindowSamples)
+      while start < nextStart {
+        let sample = Double(samples[start])
+        sum -= sample * sample
+        start += 1
+      }
+      while end < nextEnd {
+        let sample = Double(samples[end])
+        sum += sample * sample
+        end += 1
+      }
+      let rms = Float(sqrt(max(0, sum) / Double(end - start)))
       if best == nil || rms < best!.rms {
         best = (center, rms)
       }
-      center += energyWindowSamples
     }
     return best
   }

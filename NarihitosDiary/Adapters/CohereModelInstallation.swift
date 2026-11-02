@@ -183,25 +183,29 @@ private final class DownloadOperation: NSObject, URLSessionDownloadDelegate, @un
   func run() async throws {
     try Task.checkCancellation()
     try await withTaskCancellationHandler {
-      try await withCheckedThrowingContinuation { continuation in
-        guard !Task.isCancelled else {
-          continuation.resume(throwing: CohereModelFailure.cancelled)
-          return
-        }
-        lock.withLock { self.continuation = continuation }
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.httpCookieStorage = nil
-        configuration.urlCredentialStorage = nil
-        configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        configuration.timeoutIntervalForRequest = 60
-        configuration.timeoutIntervalForResource = 60 * 60 * 4
-        let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-        lock.withLock { self.session = session }
-        session.downloadTask(with: source).resume()
-        if lock.withLock({ failure != nil }) { session.invalidateAndCancel() }
-      }
+      try await startDownload()
     } onCancel: {
       self.fail(.cancelled)
+    }
+  }
+
+  private func startDownload() async throws {
+    let _: Void = try await withCheckedThrowingContinuation { continuation in
+      guard !Task<Never, Never>.isCancelled else {
+        continuation.resume(throwing: CohereModelFailure.cancelled)
+        return
+      }
+      lock.withLock { self.continuation = continuation }
+      let configuration = URLSessionConfiguration.ephemeral
+      configuration.httpCookieStorage = nil
+      configuration.urlCredentialStorage = nil
+      configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+      configuration.timeoutIntervalForRequest = 60
+      configuration.timeoutIntervalForResource = 60 * 60 * 4
+      let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+      lock.withLock { self.session = session }
+      session.downloadTask(with: source).resume()
+      if lock.withLock({ failure != nil }) { session.invalidateAndCancel() }
     }
   }
 

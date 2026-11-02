@@ -29,6 +29,8 @@ Hosted transcription, alternative model/runtime selection, automatic CPU fallbac
 
 ## Completion checklist
 
+- [x] The Cohere downloader compiles with Xcode 27.2 for the booted iOS 27.0 iPhone simulator after extracting its continuation into a separate helper.
+- [x] Simulator access and the repository validation commands run successfully with `platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082`: `make lint` and `scripts/validate.sh` passed. CoreSimulator commands required execution outside the filesystem sandbox; the initial sandboxed `simctl` connection failed.
 - [x] Owner approval for the production dependency/build integration is recorded. The runtime archive URL/byte count/digest and source version/commit, plus the model immutable URL/revision/file/byte count/digest, redirect hosts, compatibility policy, licenses, and notices, have been independently reverified and match the locked direction with no `main`, `latest`, `unknown`, or placeholder production provenance.
 - [ ] A versioned trusted-descriptor test rejects missing, duplicate, malformed, unknown, revoked, or mismatched fields. Runtime build provenance and the installed model identity are distinct, and only the signed app can add or revoke an approval.
 - [ ] Installer and upgrade tests cover exact size disclosure, peak-space preflight and the 1 GiB requirement, bounded streaming, redirect rejection, absent or dishonest lengths, digest mismatch, interruption, relaunch cleanup, disk exhaustion, atomic publication, concurrent taps/process callbacks, final backup exclusion, app-update revocation, and installation-versus-inference leases. A failed operation cannot become ready or displace a verified approved installation.

@@ -239,7 +239,8 @@ private final class CandidateFixture {
     }
     job = claim
     let settings = EffectiveTranscriptionSettings(
-      values: claim.effectiveSettings!, modelIdentity: nil, conversionIdentity: "file-v1")
+      values: claim.effectiveSettings!, modelIdentity: claim.modelIdentity,
+      conversionIdentity: claim.conversionIdentity ?? "file-v1")
     request = TranscriptionRequest(
       jobID: id.description, attemptID: claim.attemptID!, generation: 1, language: .english,
       settings: settings, destinationRevision: 0, bodyRevision: 0)
