@@ -382,4 +382,12 @@ Apple documents that [`prepareToRecord()`](https://developer.apple.com/documenta
 
 The owner-confirmed English and Korean diary/relaunch outcome closes the reported Task 16 failure. Record phone-file provenance and fresh-audio duration only after direct verification; the owner report alone does not establish those internal properties.
 
+## Task 18: Pending-recording responsiveness
+
+Source review traced each recovery-list refresh through three capture inventories into repeated full-file AAC decoding and `AVAudioPlayer.prepareToPlay()` on the main actor. Preparing a player here unnecessarily activates an audio session. Use the decoded frame count and processing sample rate for duration/playability, and reuse successful inspections while the audio's device, inode, byte count, and nanosecond modification/change timestamps remain identical. Check identity before and after decoding; continue checking receipt journals, destination snapshot, protection, and independent transcription leases. Removal drops the cached entry. Nothing is cached persistently or used as transcription authenticity evidence.
+
+The queue also started concurrent preflights for every ready job. Share one pending check per method/language, and apply an unavailable outcome only to the unchanged jobs that requested it. A ready outcome belongs to one claim; subsequent attempts revalidate readiness. The initial Task 18 fix cached ready results, permitting recursive scheduling to overwrite active work; review removed that cache. Existing generation, cancellation, job-equality, and selection guards still fence stale results. Other method/language readiness checks can progress while one is suspended.
+
+Synthetic regressions exercise six real AAC workspaces through repeated inventories without additional decodes, reject changed same-size audio, share a suspended readiness check across six jobs, prove six serial claims with fresh checks, and advance after removing the preflight owner. Existing capture, source-lease, settings-change, and lifecycle regressions are included in the simulator gate. Phone profiling and confirmation of the warning flood remain separate unchecked evidence in the [Task 18 overview](milestone-20-enhancements-fixes-refactoring-overview.md#task-18-app-becomes-slow-with-multiple-pending-recordings).
+
 Later owner reports extend this plan only when their concrete behavior is known.

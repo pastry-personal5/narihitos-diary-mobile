@@ -50,6 +50,9 @@ final class CapturePrivateFiles {
   private let manager: FileManager
   private let protection: any CaptureProtectionPolicy
   private let failureInjector: ((CaptureWriteFailurePoint, URL) throws -> Void)?
+  private var audioInspections: [WorkspaceID: (signature: [Int64], inspection: CaptureInspection)] =
+    [:]
+  private(set) var audioInspectionCount = 0
   let root: URL
 
   init(
@@ -149,10 +152,38 @@ final class CapturePrivateFiles {
   }
 
   // Full decode and format projection stay in one bounded, read-only transaction.
-  // swiftlint:disable:next function_body_length
   private func readAudioInspection(id: WorkspaceID) throws -> CaptureInspection {
     let url = audioURL(id)
     try requirePlainFile(url)
+    let signature = try audioSignature(url)
+    if let cached = audioInspections[id], cached.signature == signature {
+      return cached.inspection
+    }
+    audioInspections[id] = nil
+    let inspection = try decodeAudioInspection(id: id)
+    guard try audioSignature(url) == signature else { throw CaptureGateFailure.storage }
+    if inspection.isAccepted { audioInspections[id] = (signature, inspection) }
+    return inspection
+  }
+
+  private func audioSignature(_ url: URL) throws -> [Int64] {
+    var info = stat()
+    guard lstat(url.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
+      throw CaptureGateFailure.storage
+    }
+    return [
+      Int64(info.st_dev), Int64(info.st_ino), info.st_size,
+      Int64(info.st_mtimespec.tv_sec), Int64(info.st_mtimespec.tv_nsec),
+      Int64(info.st_ctimespec.tv_sec), Int64(info.st_ctimespec.tv_nsec),
+    ]
+  }
+
+  // Decoding proves playability without preparing an AVAudioPlayer, which
+  // activates an audio session even though a receipt reader never plays sound.
+  // swiftlint:disable:next function_body_length
+  private func decodeAudioInspection(id: WorkspaceID) throws -> CaptureInspection {
+    audioInspectionCount += 1
+    let url = audioURL(id)
     let attributes = try manager.attributesOfItem(atPath: url.path)
     let bytes = (attributes[.size] as? NSNumber)?.int64Value ?? 0
     guard bytes > 0, bytes <= Self.maximumAudioBytes else {
@@ -164,7 +195,6 @@ final class CapturePrivateFiles {
       let format = (settings[AVFormatIDKey] as? NSNumber)?.uint32Value
       let channels = (settings[AVNumberOfChannelsKey] as? NSNumber)?.intValue
       let sampleRate = file.fileFormat.sampleRate
-      let player = try AVAudioPlayer(contentsOf: url)
       guard (8_000...96_000).contains(sampleRate), file.length > 0,
         Double(file.length) <= 301 * sampleRate
       else {
@@ -196,13 +226,14 @@ final class CapturePrivateFiles {
         return CaptureInspection(
           byteCount: bytes, duration: 0, isMonoAAC: false, isPlayable: false)
       }
+      let duration = Double(decodedFrames) / file.processingFormat.sampleRate
       return CaptureInspection(
-        byteCount: bytes, duration: player.duration,
+        byteCount: bytes, duration: duration,
         isMonoAAC: format == kAudioFormatMPEG4AAC && channels == 1,
-        isPlayable: player.prepareToPlay(), sampleRate: sampleRate,
+        isPlayable: true, sampleRate: sampleRate,
         channelCount: channels, codecIdentifier: format,
-        approximateBitRate: player.duration > 0
-          ? Int(Double(bytes) * 8 / player.duration) : nil)
+        approximateBitRate: duration > 0
+          ? Int(Double(bytes) * 8 / duration) : nil)
     } catch {
       return CaptureInspection(
         byteCount: bytes, duration: 0, isMonoAAC: false, isPlayable: false)
@@ -325,6 +356,7 @@ final class CapturePrivateFiles {
       }
     }
     try manager.removeItem(at: directory)
+    audioInspections[id] = nil
   }
 
   private func isOwnedCaptureFile(_ name: String) -> Bool {

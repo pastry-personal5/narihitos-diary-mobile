@@ -10,6 +10,50 @@ import Testing
 @MainActor
 // swiftlint:disable:next type_body_length
 struct CapturePrivateFilesTests {
+  @Test func sixPendingRecordingsAreDecodedOnceUntilTheirAudioChanges() throws {
+    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]), disclosureAcknowledged: true))
+    var identities: [CaptureIdentity] = []
+    for index in 0..<6 {
+      let identity = CaptureIdentity(
+        id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: Double(index)),
+        language: .english, destinationReference: reference)
+      try files.createWorkspace(identity)
+      let url = try files.prepareAudio(id: identity.id)
+      try writeSyntheticAAC(to: url)
+      try files.protectOpenAudio(id: identity.id)
+      let inspection = try files.inspectAudio(id: identity.id)
+      #expect(try files.saveOutcome(identity, inspection: inspection))
+      identities.append(identity)
+    }
+    let before = files.audioInspectionCount
+    for _ in 0..<6 {
+      #expect(files.list(outcome: "pending") == identities)
+      #expect(files.list(outcome: "failed").isEmpty)
+      #expect(files.issues().isEmpty)
+      #expect(files.pendingQueueReceipts().count == 6)
+    }
+    #expect(files.audioInspectionCount == before)
+
+    let changed = try #require(identities.first)
+    let audio = root.appending(path: changed.id.description).appending(path: "pending-audio.m4a")
+    let original = try Data(contentsOf: audio)
+    // Same-size replacement with restored mtime still changes inode/ctime.
+    let attributes = try FileManager.default.attributesOfItem(atPath: audio.path)
+    try Data(repeating: 0, count: original.count).write(to: audio, options: .atomic)
+    try FileManager.default.setAttributes(
+      [.modificationDate: try #require(attributes[.modificationDate])], ofItemAtPath: audio.path)
+    #expect(try !files.inspectAudio(id: changed.id).isAccepted)
+    #expect(files.queueReceipt(jobID: changed.id.description) == nil)
+    #expect(files.audioInspectionCount > before)
+    #expect(files.list(outcome: "pending").count == 5)
+  }
+
   @Test func recorderOutputExistsBeforePreparationAndCannotReplaceAnExistingFile() throws {
     let root = FileManager.default.temporaryDirectory.appending(
       path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)

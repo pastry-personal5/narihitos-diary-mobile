@@ -649,14 +649,50 @@ final class ProcessingQueueCoordinator {
   private func beginPreflight(
     job: QueueJob, methodID: String, adapter: any AsynchronousTranscriptionReadiness
   ) {
-    guard readinessTasks[job.id] == nil else { return }
+    let key = preflightKey(methodID: methodID, language: job.language)
+    // Readiness is a property of the method/language, not of an individual
+    // recording. Six queued recordings must not start six model verifications.
+    guard readinessTasks[key] == nil else { return }
+    let waitingJobs: [QueueJob]
+    do {
+      waitingJobs = try store.jobs().filter {
+        $0.state == .ready && $0.language == job.language
+          && settings.selectedMethodID(for: $0.language) == methodID
+      }
+    } catch {
+      pauseQueue()
+      return
+    }
     let generation = readinessGeneration
-    readinessTasks[job.id] = Task { [weak self] in
+    readinessTasks[key] = Task { [weak self] in
       let result = await adapter.preflight(for: job.language)
       guard let self, !Task.isCancelled, self.readinessGeneration == generation else { return }
-      self.readinessTasks[job.id] = nil
+      self.readinessTasks[key] = nil
+      if case .waiting(let reason) = result.readiness {
+        // Fan out only a negative result to the unchanged jobs that requested it.
+        // A positive result is consumed by one claim and is never cached across attempts.
+        for original in waitingJobs {
+          guard self.isActive, self.pausedReason == nil,
+            self.readinessGeneration == generation
+          else { return }
+          guard let current = try? self.store.jobs().first(where: { $0.id == original.id }),
+            current == original,
+            self.settings.selectedMethodID(for: current.language) == methodID
+          else { continue }
+          var waiting = current
+          waiting.state = .waiting
+          waiting.reason = reason.message(for: waiting.language)
+          guard self.persist(waiting) else { return }
+        }
+        self.processNext()
+        return
+      }
       self.finishPreflight(job: job, methodID: methodID, adapter: adapter, result: result)
     }
+  }
+
+  private func preflightKey(methodID: String, language: CaptureLanguage) -> String {
+    "\(methodID)|\(language.rawValue)"
   }
 
   private func finishPreflight(

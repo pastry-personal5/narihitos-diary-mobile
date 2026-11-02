@@ -555,14 +555,24 @@ final class AppModel: ObservableObject {
   func refreshCaptureLists() {
     let queue = processingQueue?.projections() ?? []
     let adoptedIDs = Set(queue.map(\.id))
-    pendingCaptures = (captureEnvironment?.pending() ?? []).filter {
+    let nextPendingCaptures = (captureEnvironment?.pending() ?? []).filter {
       !adoptedIDs.contains($0.id.description)
     }
-    failedCaptures = captureEnvironment?.failed() ?? []
-    captureIssues = captureEnvironment?.issues() ?? []
-    queuePending = queue.filter { $0.state != .failed && $0.state != .saved }
-    queueFailed = queue.filter { $0.state == .failed }
-    queuePausedReason = processingQueue?.pausedReason ?? draftAdoption?.pausedReason
+    let nextFailedCaptures = captureEnvironment?.failed() ?? []
+    let nextCaptureIssues = captureEnvironment?.issues() ?? []
+    let nextQueuePending = queue.filter { $0.state != .failed && $0.state != .saved }
+    let nextQueueFailed = queue.filter { $0.state == .failed }
+    let nextPausedReason = processingQueue?.pausedReason ?? draftAdoption?.pausedReason
+
+    // Queue callbacks are emitted for every state transition. These sources are
+    // main-actor/file-backed, so republishing identical snapshots makes a burst
+    // of pending jobs needlessly redraw the recovery list.
+    if pendingCaptures != nextPendingCaptures { pendingCaptures = nextPendingCaptures }
+    if failedCaptures != nextFailedCaptures { failedCaptures = nextFailedCaptures }
+    if captureIssues != nextCaptureIssues { captureIssues = nextCaptureIssues }
+    if queuePending != nextQueuePending { queuePending = nextQueuePending }
+    if queueFailed != nextQueueFailed { queueFailed = nextQueueFailed }
+    if queuePausedReason != nextPausedReason { queuePausedReason = nextPausedReason }
     updateMainNotices()
   }
 

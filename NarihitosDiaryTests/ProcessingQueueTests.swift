@@ -367,6 +367,76 @@ extension ProcessingQueueTests {
     #expect(store.values[item.id.description]?.effectiveSettings?["resolvedLocale"] == "en-US")
   }
 
+  @Test func sixPendingJobsShareOneMethodPreflight() async throws {
+    let items = try (1...6).map { try receipt(start: Double($0)) }
+    let store = MemoryQueueStore()
+    let source = MemoryReceiptSource(items)
+    let registry = TranscriptionMethodRegistry()
+    let adapter = SuspendedPreflightTranscriber()
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = adapter.descriptor.id
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry)
+
+    coordinator.activate()
+    while adapter.pending == nil { await Task.yield() }
+    await Task.yield()
+
+    #expect(adapter.preflightCalls == 1)
+    adapter.resolve(.waiting(.appleNotReady))
+    for item in items {
+      while store.values[item.id.description]?.state == .ready { await Task.yield() }
+    }
+    #expect(store.values.values.filter { $0.state == .waiting }.count == 6)
+  }
+
+  @Test func sixReadyJobsClaimSeriallyAndRecheckReadinessForEveryAttempt() async throws {
+    let items = try (1...6).map { try receipt(start: Double($0)) }
+    let store = MemoryQueueStore()
+    let registry = TranscriptionMethodRegistry()
+    let adapter = SuspendedPreflightTranscriber()
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = adapter.descriptor.id
+    let coordinator = makeCoordinator(
+      store: store, source: MemoryReceiptSource(items), settings: settings, registry: registry)
+    coordinator.activate()
+    for (index, item) in items.enumerated() {
+      for _ in 0..<100 where adapter.pending == nil { await Task.yield() }
+      #expect(adapter.preflightCalls == index + 1)
+      adapter.resolve(.ready)
+      for _ in 0..<100 where adapter.requests.count <= index { await Task.yield() }
+      #expect(adapter.requests.map(\.jobID) == items.prefix(index + 1).map { $0.id.description })
+      #expect(store.values.values.filter { $0.state == .transcribing }.count == 1)
+      #expect(store.values[item.id.description]?.state == .transcribing)
+      adapter.finish(.failure(.inference))
+    }
+    #expect(store.values.values.filter { $0.state == .failed }.count == 6)
+  }
+
+  @Test func removedPreflightOwnerCannotBlockTheNextRecording() async throws {
+    let items = try (1...2).map { try receipt(start: Double($0)) }
+    let store = MemoryQueueStore()
+    let registry = TranscriptionMethodRegistry()
+    let adapter = SuspendedPreflightTranscriber()
+    registry.register(adapter)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = adapter.descriptor.id
+    let coordinator = makeCoordinator(
+      store: store, source: MemoryReceiptSource(items), settings: settings, registry: registry)
+    coordinator.activate()
+    for _ in 0..<100 where adapter.pending == nil { await Task.yield() }
+    coordinator.remove(jobID: items[0].id.description)
+    adapter.resolve(.ready)
+    for _ in 0..<100 where adapter.pending == nil { await Task.yield() }
+    #expect(adapter.preflightCalls == 2)
+    adapter.resolve(.ready)
+    for _ in 0..<100 where adapter.requests.isEmpty { await Task.yield() }
+    #expect(adapter.requests.map(\.jobID) == [items[1].id.description])
+    adapter.finish(.failure(.inference))
+  }
+
   @Test func candidateFailurePausesWithoutClaimingSuccess() throws {
     let item = try receipt(start: 1)
     let store = MemoryQueueStore()

@@ -7,12 +7,15 @@ final class SuspendedPreflightTranscriber: AsynchronousTranscriptionReadiness {
   let descriptor = TranscriptionDescriptor(
     id: "slow", supportedLanguages: [.english], requiresMonoAAC: true)
   var pending: CheckedContinuation<TranscriptionPreflight, Never>?
+  var preflightCalls = 0
   var requests: [TranscriptionRequest] = []
+  private var completion: (@MainActor (TranscriptionResult) -> Void)?
 
   func readiness(for _: CaptureLanguage) -> TranscriptionReadiness { .waiting(.appleNotReady) }
 
   func preflight(for _: CaptureLanguage) async -> TranscriptionPreflight {
-    await withCheckedContinuation { pending = $0 }
+    preflightCalls += 1
+    return await withCheckedContinuation { pending = $0 }
   }
 
   func resolve(_ result: TranscriptionReadiness, values: [String: String] = [:]) {
@@ -24,10 +27,17 @@ final class SuspendedPreflightTranscriber: AsynchronousTranscriptionReadiness {
 
   func start(
     _ request: TranscriptionRequest,
-    completion _: @escaping @MainActor (TranscriptionResult) -> Void
+    completion: @escaping @MainActor (TranscriptionResult) -> Void
   ) -> any TranscriptionWork {
     requests.append(request)
+    self.completion = completion
     return FakeWork(onCancel: {})
+  }
+
+  func finish(_ result: TranscriptionResult) {
+    let callback = completion
+    completion = nil
+    callback?(result)
   }
 }
 

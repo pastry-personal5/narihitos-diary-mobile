@@ -30,6 +30,7 @@ Correct app behavior reported by the owner, with related enhancements and target
 - Task 15 verifies that the exact approved Cohere Q4_K_M and Q5_K_M artifacts retain Korean transcription capability and makes both explicit choices available to a retained `ko-KR` recording after a fresh app launch. Capability metadata alone is not completion: each variant must safely pass the production recovery, queue, Metal, and provenance path without automatic model substitution. Q5 remains fail-closed until its exact production device/runtime path satisfies the existing memory-safety certification gate.
 - Task 16 addresses the owner's current-code report that Apple Local transcription does not work. Cohere Q4 and Q5 are explicitly outside this task. Treat selection as only the first state boundary: establish per-language Apple asset readiness, queue/retry state, claim, verified-audio access, SpeechAnalyzer work, candidate publication, and draft/save outcomes before assigning a cause.
 - Task 17 addresses the owner's 2026-11-03 Apple Local `Record (en)` start failure. Keep the capture-file lifecycle private and verify on the target phone before claiming recovery.
+- Task 18 addresses the owner's report that the app becomes very slow with about six pending recordings. Trace queue callbacks, file-backed projection reads, and SwiftUI publication/redraws; prove the first responsible boundary with a focused regression before making a bounded repair.
 
 ## Out of scope
 
@@ -44,6 +45,27 @@ No change to accepted folder providers, iCloud identity requirements, readable-f
 - [x] Pass `make lint` and the full simulator validation gate; build, install, and launch the fixed app on the target iPhone.
 - [x] Confirm a fresh Apple Local `Record (en)` starts on the target iPhone after the update.
 - [ ] Confirm fresh phone audio decodes more than one second and Apple Local creates a diary that remains visible after relaunch.
+
+
+### Task 18: App becomes slow with multiple pending recordings
+
+Review follow-up checklist (2026-11-03):
+
+- [x] Remove repeated full AAC decoding and playback preparation from unchanged receipt reads, with file-change invalidation coverage.
+- [x] Remove positive readiness caching; prove only one active attempt, fresh preflight for each claim, and progress after waiting/removal/settings changes.
+- [x] Run focused regressions and the complete simulator gate with service access; document phone evidence separately.
+
+Status: Implemented and simulator validated; target-phone confirmation remains open. Review corrected the earlier diagnosis: every `refreshCaptureLists()` calls pending/failed/issues inventories, and each inventory called `validatedReceipt()` for every pending file. That performed a complete synchronous AAC decode plus `AVAudioPlayer.prepareToPlay()` on the main actor, repeatedly preparing audio sessions without requested playback. This is a direct source path for the reported slowdown and warning amplification. Concurrent per-job model preflights were an additional source of resource contention. No phone trace has yet quantified their relative cost.
+
+- [x] Trace the pending-recording lifecycle and identify the responsible source paths: repeated full AAC decode/playback preparation during receipt reads, concurrent per-job model verification, and redundant projection publication.
+- [x] Successful audio inspections are reused only while device/inode/size and nanosecond mtime/ctime match, with identity checked before and after decoding. Receipt, snapshot, protection, and lease checks remain live. Full decode determines duration/playability without creating or preparing a player. Share one in-flight method/language preflight and fan out unavailable results only to unchanged requesting jobs. Consume ready results for one claim, with a fresh preflight for the next attempt; no settled readiness cache remains. Equality-gate unchanged presentation projections.
+- [ ] Trace the repeated AVAudioSession warning on the target device and decide, with a focused capture regression, whether its synchronous activation/deactivation contributes to the reported pending-work slowdown; preserve capture settlement and interruption behavior when moving any session operation off the main actor.
+- [x] Add a focused regression with six synthetic pending jobs proving they share one method/language preflight and all settle consistently; preserve updates when any job changes.
+- [x] Review caught and removed the initial fix's unsafe positive-result cache, which could synchronously reenter scheduling and overwrite the active attempt. Regression coverage proves serial claims across six ready jobs, new preflight per attempt, and progress after removing the preflight owner. Corrected test compile errors that the previous lint-only runs had missed.
+- [ ] Measure the repaired app with about six pending recordings on the target iPhone, including launch, Main, All → Pending Recordings, background/foreground, and one job progressing. Record redacted timing/responsiveness observations and confirm no pending job is skipped or reordered.
+- [x] Run affected tests, `make lint`, and `TEST_DESTINATION=… scripts/validate.sh`; record the destination and leave any unavailable required gate unchecked.
+
+Validation on 2026-11-03: the focused queue tests pass, including shared waiting preflight, six serial ready claims, and removed-owner progress. The six-AAC regression proves six repeated pending/failed/issues/receipt inventories add zero full decodes for unchanged audio and rejects a same-size corrupted replacement. `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` pass (generation, lint, build, all tests). CoreSimulator worked with escalated service access; the earlier restricted-shell failure was an environment restriction. The SwiftUI performance audit guided tracing expensive work behind repeated publication. No new phone responsiveness measurements or warning traces were collected; explicit capture start/stop still use their existing session API and may emit a separate warning.
 
 
 ### Task 1: Folder selection and persistent Settings
