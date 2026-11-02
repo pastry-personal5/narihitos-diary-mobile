@@ -179,6 +179,8 @@ final class CohereTranscriptionAttempt: TranscriptionWork {
         url: audioURL, cancelled: cancellation.isCancelled)
       let plan = try CohereChunkPlanner.plan(samples: samples)
       guard let languageHint = request.settings.values["languageHint"],
+        languageHint == (request.language == .english ? "en" : "ko"),
+        request.settings.values["resolvedLocale"] == request.language.rawValue,
         request.settings.values["backend"] == "metal",
         request.settings.values["runtime"] == CohereRuntimeProvenance.identity,
         request.settings.values["installedIdentity"] == modelLease.identity
@@ -187,6 +189,7 @@ final class CohereTranscriptionAttempt: TranscriptionWork {
         modelURL: modelLease.url, samples: samples, plan: plan, languageHint: languageHint,
         cancellation: cancellation)
       let text = try CohereSeamAssembler.assemble(plan: plan, transcripts: chunks)
+      guard !cancellation.isCancelled() else { return .failure(.cancelled) }
       guard let locale = request.settings.values["resolvedLocale"],
         let operatingSystem = request.settings.values["operatingSystemVersion"]
       else { return .failure(.inference) }

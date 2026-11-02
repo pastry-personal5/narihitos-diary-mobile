@@ -106,6 +106,27 @@ final class CohereModelManagerTests: XCTestCase {
     XCTAssertFalse(refreshed == .ready(descriptor.installationIdentity))
   }
 
+  func testLinkedInstallationRecordIsNeverReadAsReady() async throws {
+    let root = temporaryDirectory()
+    let artifact = modelArtifact()
+    let descriptor = descriptor(for: artifact)
+    let manager = CohereModelManager(
+      descriptor: descriptor, root: root,
+      downloader: StubCohereDownloader(data: artifact),
+      availableCapacity: { _ in Int64.max }, protectedDataAvailable: { true })
+    manager.install()
+    await waitForInstall(manager)
+    XCTAssertEqual(manager.readiness, .ready(descriptor.installationIdentity))
+
+    let record = root.appending(path: "active-installation-v1.json")
+    let target = root.appending(path: "record-target.json")
+    try FileManager.default.moveItem(at: record, to: target)
+    try FileManager.default.createSymbolicLink(at: record, withDestinationURL: target)
+
+    let refreshed = await manager.refresh()
+    XCTAssertFalse(refreshed == .ready(descriptor.installationIdentity))
+  }
+
   private func waitForInstall(_ manager: CohereModelManager) async {
     var remaining = 200
     while manager.isInstalling, remaining > 0 {

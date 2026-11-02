@@ -306,6 +306,7 @@ private struct CohereInstallationRecord: Codable, Equatable {
 // The manager keeps installation and lease mutation on the main actor. Network and hashing work
 // stream through bounded adapter operations rather than retaining model bytes here.
 @MainActor
+// swiftlint:disable:next type_body_length
 final class CohereModelManager: ObservableObject {
   static let reserveBytes: Int64 = 1_073_741_824
   static let metadataAllowanceBytes: Int64 = 1_048_576
@@ -418,6 +419,7 @@ final class CohereModelManager: ObservableObject {
     root.appending(path: "active-installation-v1.json", directoryHint: .notDirectory)
   }
 
+  // swiftlint:disable:next function_body_length
   private func performInstallation() async throws {
     guard protectedDataAvailable() else { throw CohereModelFailure.protectedDataUnavailable }
     let source = try descriptor.validatedURL()
@@ -447,10 +449,12 @@ final class CohereModelManager: ObservableObject {
     }
     try Task.checkCancellation()
     try Self.verifyArtifact(staging, descriptor: descriptor)
+    try Task.checkCancellation()
     try applyBackupExclusion(staging)
     try manager.setAttributes(
       [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
       ofItemAtPath: staging.path)
+    try Task.checkCancellation()
     if manager.fileExists(atPath: modelURL.path) {
       _ = try manager.replaceItemAt(modelURL, withItemAt: staging)
     } else {
@@ -505,8 +509,17 @@ final class CohereModelManager: ObservableObject {
   private func verifyPublishedInstallation() throws -> Bool {
     guard manager.fileExists(atPath: modelURL.path), manager.fileExists(atPath: recordURL.path)
     else { return false }
-    let recordData = try Data(contentsOf: recordURL, options: [.mappedIfSafe])
-    guard recordData.count <= 16 * 1_024,
+    let recordDescriptor = Darwin.open(recordURL.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+    guard recordDescriptor >= 0 else { throw CohereModelFailure.unsafeResource }
+    let recordHandle = FileHandle(fileDescriptor: recordDescriptor, closeOnDealloc: true)
+    var recordStatus = stat()
+    guard fstat(recordDescriptor, &recordStatus) == 0,
+      (recordStatus.st_mode & S_IFMT) == S_IFREG, recordStatus.st_nlink == 1,
+      recordStatus.st_size > 0, recordStatus.st_size <= 16 * 1_024,
+      try recordURL.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup
+        == true,
+      let recordData = try recordHandle.read(upToCount: 16 * 1_024 + 1),
+      Int64(recordData.count) == recordStatus.st_size,
       let record = try? JSONDecoder().decode(CohereInstallationRecord.self, from: recordData),
       record.schema == 1, record.descriptorRevision == descriptor.descriptorRevision,
       record.installationIdentity == descriptor.installationIdentity,

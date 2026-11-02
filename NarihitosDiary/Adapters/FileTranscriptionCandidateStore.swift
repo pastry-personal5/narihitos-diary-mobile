@@ -2,6 +2,8 @@ import Darwin
 import Foundation
 import UIKit
 
+// swiftlint:disable file_length
+
 enum AudioFingerprintFailure: Error, Equatable {
   case protectedDataUnavailable
   case invalidAudio
@@ -378,6 +380,10 @@ final class FileTranscriptionCandidateStore: TranscriptionCandidateStore {
       let descriptor = CohereTrustedModel.production
       let expectedHint = record.language == .english ? "en" : "ko"
       return record.modelIdentity == descriptor.installationIdentity
+        && record.conversionIdentity == CohereAudioConversion.identity
+        && record.payload.runtime == CohereRuntimeProvenance.identity
+        && record.payload.resolvedLocale == record.language.rawValue
+        && settings.count == 13
         && settings["settingsRevision"] == "1"
         && settings["requestedLocale"] == record.language.rawValue
         && settings["resolvedLocale"] == record.payload.resolvedLocale

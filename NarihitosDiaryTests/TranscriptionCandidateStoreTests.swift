@@ -109,6 +109,32 @@ struct TranscriptionCandidateStoreTests {
     var mismatched = fixture.job
     mismatched.effectiveSettings?["backend"] = "cpu"
     #expect(try fixture.store.inspect(job: mismatched) == .invalid)
+    var extended = fixture.job
+    extended.effectiveSettings?["unapprovedField"] = "value"
+    #expect(try fixture.store.inspect(job: extended) == .invalid)
+  }
+
+  @Test func cohereCandidateRejectsSelfConsistentUnpinnedRuntime() throws {
+    let fixture = try CandidateFixture(method: .cohere)
+    defer { fixture.clean() }
+    var job = fixture.job
+    job.effectiveSettings?["runtime"] = "different-runtime"
+    let settings = EffectiveTranscriptionSettings(
+      values: job.effectiveSettings!, modelIdentity: job.modelIdentity,
+      conversionIdentity: job.conversionIdentity!)
+    let request = TranscriptionRequest(
+      jobID: fixture.request.jobID, attemptID: fixture.request.attemptID,
+      generation: fixture.request.generation, language: fixture.request.language,
+      settings: settings, destinationRevision: fixture.request.destinationRevision,
+      bodyRevision: fixture.request.bodyRevision)
+    let payload = TranscriptionPayload(
+      text: fixture.payload.text, sourceDigest: fixture.payload.sourceDigest,
+      resolvedLocale: fixture.payload.resolvedLocale, runtime: "different-runtime",
+      conversion: fixture.payload.conversion,
+      operatingSystemVersion: fixture.payload.operatingSystemVersion)
+    #expect(throws: QueueStoreFailure.corrupt) {
+      try fixture.store.publish(payload, request: request, job: job)
+    }
   }
 
   @Test func unknownMethodCandidateFailsClosed() throws {
