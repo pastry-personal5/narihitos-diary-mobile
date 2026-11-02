@@ -124,6 +124,8 @@ Notes: Tasks 1, 3, and 4 have implemented Settings persistence, post-recording c
 
 Task 5 repairs Settings still showing `Active Folder` / `No folder selected` after Select Folder → Open. Physical-device debugging proved that dismissal cleared the request before the selected-folder callback; the repair handles either event order. Its [checklist](milestone-20-enhancements-fixes-refactoring-overview.md#task-5-settings-still-shows-no-folder-selected-after-open) records passing focused regressions and the full gate; updated-app iPhone verification remains blocked by the device connection.
 
+[Task 7 is planned](milestone-20-enhancements-fixes-refactoring-overview.md#task-7-cohere-recording-reported-unreadable-on-iphone-17-pro-max) for the owner's iPhone 17 Pro Max report: downloaded Cohere model, `Record (en)`, then Failed Recordings → `This recording can’t be read.` Establish the installed revision and first failing stage before a targeted repair, regression, and exact phone verification; Task 4's earlier simulator evidence does not establish this report's cause. This addition changes plans only.
+
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 
 Status: Planned

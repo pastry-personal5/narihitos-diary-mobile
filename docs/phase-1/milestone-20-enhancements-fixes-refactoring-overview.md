@@ -2,7 +2,7 @@
 
 Status: Active
 
-Correct app behavior reported by the owner, with related enhancements and targeted refactoring. Current tasks cover the first reported iCloud folder-selection failure, the requested dedicated Transcription Settings screen with explicit AI model selection, Main incorrectly reporting an accepted folder as unavailable after a recording, a Cohere-selected English recording that also appears unreadable in Failed Recordings, and the continued Settings selection failure after tapping Open in the picker.
+Correct app behavior reported by the owner, with related enhancements and targeted refactoring. Current tasks cover the first reported iCloud folder-selection failure, the requested dedicated Transcription Settings screen with explicit AI model selection, the All Screen Settings control relocation, Main incorrectly reporting an accepted folder as unavailable after a recording, a Cohere-selected English recording that also appears unreadable in Failed Recordings, and the continued Settings selection failure after tapping Open in the picker.
 
 ## Entry and scope
 
@@ -18,6 +18,8 @@ Correct app behavior reported by the owner, with related enhancements and target
 - Future owner reports will receive their own scope and checklist before implementation. Tasks 1, 3, and 4 have implemented repairs with target-iPhone evidence still open; the requested Transcription changes remain planned.
 
 - Task 5 follows up Settings → Select Folder → iCloud folder → Open still leaving `Active Folder` / `No folder selected`, without assuming Task 1's earlier simulator-proven repairs resolved the phone behavior. The owner authorized Task 5 implementation on 2026-11-02 after confirming that no disclosure appears after relaunch; its checklist below governs the repair.
+- Task 6 plans the All Screen Settings control relocation: an icon-only bitmap button in the top-right replaces the bottom Settings menu item while preserving the existing Settings destination and accessibility name.
+- Task 7 adds the owner's real-iPhone 17 Pro Max report: Settings → Use Cohere Transcription, model downloaded, `Record (en)`, then Main → Recordings need attention → Failed Recordings → `This recording can’t be read.` This addition is planning only. Establish the installed revision and first failing boundary before attributing the report to Task 4's earlier AAC defects; no new folder-access symptom is reported.
 
 ## Out of scope
 
@@ -84,7 +86,31 @@ Status: Planned. This review changes the plan only. The [Task 2 approach](milest
 - [x] Update affected milestone, architecture, and user-facing documentation with the demonstrated cause and repair. The delegated runner reports `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` passing on 2026-11-02, including generation, lint, build, and all simulator tests.
 - [ ] On the real iPhone, repeat the exact Select Folder → Open sequence with a synthetic iCloud folder, accept any required disclosure, verify the selected name in Active Folder immediately and after Settings reentry and app relaunch, and verify canceled replacement keeps it. Record redacted results before completing this task.
 
+### Task 6: Move Settings to the All Screen top-right
+
+Status: Planned. This task changes the All Screen entry point only; it does not change Settings content, destination behavior, or the approved Settings navigation hierarchy.
+
+- [ ] Replace the bottom Settings menu item in All with a top-right, icon-only Settings button using the app's custom bitmap/template artwork at the existing supported scales. The button has no visible text label and uses a native-quality 44-point-or-larger hit target.
+- [ ] Preserve the existing Settings destination and navigation behavior when the top-right button is tapped. Do not add a duplicate Settings entry elsewhere in All.
+- [ ] Give the icon-only control the canonical accessibility name `Settings`, expose button semantics, and verify usable focus/order, contrast, Dynamic Type independence, light/dark appearance, VoiceOver, Reduce Motion, and 44-point target behavior.
+- [ ] Add focused UI coverage proving the top-right control opens Settings and the former bottom Settings row is absent, including accessibility-tree assertions where supported.
+- [ ] Update the affected UX GUI, information-architecture, and architecture documentation to describe the new All Screen containment and icon-only control. Keep this task planned until implementation, delegated validation, and any required device evidence are complete.
+
+### Task 7: Cohere recording reported unreadable on iPhone 17 Pro Max
+
+Status: Planned. Find the root cause and repair it during implementation under the [Task 7 approach](milestone-20-enhancements-fixes-refactoring-architecture.md#task-7-cohere-recording-reported-unreadable-on-iphone-17-pro-max). The owner requested only a plan addition on 2026-11-02; no investigation result, code fix, or new validation pass is claimed here.
+
+- [ ] Reproduce the exact reported flow on the real iPhone 17 Pro Max with a bounded synthetic English recording. Record app/build revision, iOS version, selected Cohere identity/readiness, and the stage sequence; establish whether Task 4's repair is in the installed app and whether the failed entry predates it. A downloaded model alone does not prove verified readiness or that inference started.
+- [ ] Inspect relevant device logs and app-private recording/receipt/job files as needed, preserving the existing failed recording and installation. Identify whether the row is capture-owned, queue-owned, or failed during candidate/draft adoption, then document the first rejected operation and typed error with redacted evidence. The shared failure sentence is not a root cause.
+- [ ] Establish the cause with a focused regression that fails before the repair. Distinguish finalized AAC/decode and receipt validation from audio leasing/conversion, source revalidation, model/runtime inference, and result adoption. If an older installed build alone explains the report, demonstrate the same scenario on the current build rather than inventing a new defect.
+- [ ] Repair only the demonstrated boundary while preserving playable audio, full-source verification, protected-data waiting, explicit English hint, approved model/runtime/Metal safeguards, bounded chunks, cancellation settlement, and retry-current-Settings behavior. Do not bypass validation, redownload the model, reset app data, switch methods, or change the destination as a speculative fix.
+- [ ] Focused regressions cover the demonstrated failure and relevant valid/short AAC, malformed/truncated or changed source, protection/lifecycle, and failure-owner projection cases. Confirm newer ready jobs remain processable and that manual retry of a queue-owned failure uses current Settings without discarding its audio; do not invent capture-recovery actions outside the approved scope.
+- [ ] The delegated runner reports affected checks, `make lint`, and `TEST_DESTINATION=… scripts/validate.sh` passing for the repair, recording revision and destination. Update affected docs with the proved cause and limits; earlier M20 passes do not complete this item.
+- [ ] On the real iPhone 17 Pro Max, repeat Settings → Use Cohere Transcription → `Record (en)` → Stop & Transcribe using the repaired/current build and verified installed model. Confirm the recording completes transcription and creates a readable Diary Snippet with playable saved audio, remains accessible after relaunch, and no longer produces the unreadable failure. Verify audio playability without requiring M16's planned replay UI. Record redacted evidence and the disposition of the original entry without removing it. Missing phone access, a different failure, or simulator-only success leaves this task open.
+
 ## Evidence
+
+**Task 7 report (2026-11-02):** the owner reports Settings → Use Cohere Transcription with the model downloaded on a real iPhone 17 Pro Max, followed by `Record (en)` and Main → Recordings need attention → Failed Recordings → `This recording can’t be read.` The installed app revision, iOS version, failed-entry age/owner, and first failing stage are not yet established for this report. Task 4's source/regression evidence remains valid but does not establish this report's cause or a phone pass. This change adds the investigation/fix plan only; no Task 7 device logs or private files have been inspected and all completion items remain open.
 
 **Task 5 report:** the owner reports that Settings still displays `Active Folder` / `No folder selected` after Select Folder → choosing an iCloud folder → Open, and confirms after relaunch that no `Readable Files` dialog appears. The initial addition was planning only; the owner subsequently authorized Task 5 implementation on 2026-11-02. Task 1's earlier evidence is retained, with the remaining ordering defect established below.
 
