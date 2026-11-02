@@ -103,4 +103,18 @@ struct TranscriptionSettingsTests {
     #expect(snapshot.modelIdentity == nil)
     #expect(snapshot.conversionIdentity == "ndm.apple-speech.av-audio-file-v1")
   }
+
+  @Test func q5AttemptSettingsUseRevisionTwoAndItsOwnIdentity() throws {
+    let root = FileManager.default.temporaryDirectory.appending(path: "settings-\\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let repository = PrivateSettingsRepository(root: root)
+    try repository.selectTranscriptionModel(.cohereQ5)
+
+    let snapshot = ProductionTranscriptionSettings(repository: repository).effectiveSettings(
+      methodID: TranscriptionMethodIdentifiers.cohere, language: .english)
+
+    #expect(snapshot.values["settingsRevision"] == "2")
+    #expect(snapshot.values["quantization"] == "Q5_K_M")
+    #expect(snapshot.modelIdentity == CohereTrustedModel.productionQ5.installationIdentity)
+  }
 }

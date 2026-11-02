@@ -602,7 +602,7 @@ private struct TranscriptionSettingsView: View {
 
   private var selection: Binding<TranscriptionModelSelection> {
     Binding(
-      get: { model.selectedTranscriptionModel },
+      get: { model.transcriptionModelFocus },
       set: { model.selectTranscriptionModel($0) })
   }
 
@@ -622,6 +622,14 @@ private struct TranscriptionSettingsView: View {
           Text("Choose a model ready for \(languageName) recordings.")
             .font(.footnote)
             .foregroundStyle(.secondary)
+          LabeledContent("Saved choice", value: model.selectedTranscriptionModel.label)
+          if model.transcriptionModelFocus != model.selectedTranscriptionModel {
+            Button("Use \(model.transcriptionModelFocus.label) for Retry") {
+              model.useFocusedTranscriptionModel()
+            }
+            .disabled(!model.isTranscriptionSelectionReady(model.transcriptionModelFocus))
+            .frame(minHeight: 44)
+          }
         }
       }
 
@@ -637,7 +645,7 @@ private struct TranscriptionSettingsView: View {
 
   @ViewBuilder
   private var modelDetails: some View {
-    switch model.selectedTranscriptionModel {
+    switch model.transcriptionModelFocus {
     case .none:
       Section("Model details") {
         Text("Recordings remain queued until you choose an available transcription model.")

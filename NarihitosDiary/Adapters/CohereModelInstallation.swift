@@ -334,6 +334,7 @@ private struct CohereInstallationRecord: Codable, Equatable {
 final class CohereModelManager: ObservableObject {
   static let reserveBytes: Int64 = 1_073_741_824
   static let metadataAllowanceBytes: Int64 = 1_048_576
+  private static var activeInstallationIdentity: String?
 
   @Published private(set) var readiness: CohereModelReadiness = .checking
   @Published private(set) var progress: CohereInstallProgress?
@@ -407,6 +408,11 @@ final class CohereModelManager: ObservableObject {
 
   func install() {
     guard installationTask == nil else { return }
+    guard Self.activeInstallationIdentity == nil else {
+      readiness = .failed(.contended)
+      return
+    }
+    Self.activeInstallationIdentity = descriptor.installationIdentity
     isInstalling = true
     progress = CohereInstallProgress(receivedBytes: 0, expectedBytes: descriptor.byteCount)
     installationTask = Task { [weak self] in
@@ -425,6 +431,9 @@ final class CohereModelManager: ObservableObject {
       self.isInstalling = false
       self.progress = nil
       self.installationTask = nil
+      if Self.activeInstallationIdentity == self.descriptor.installationIdentity {
+        Self.activeInstallationIdentity = nil
+      }
     }
   }
 

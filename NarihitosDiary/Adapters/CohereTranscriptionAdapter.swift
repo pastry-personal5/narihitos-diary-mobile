@@ -197,10 +197,16 @@ final class CohereTranscriptionAttempt: TranscriptionWork {
       let plan = try CohereChunkPlanner.plan(samples: samples)
       guard let languageHint = request.settings.values["languageHint"],
         languageHint == (request.language == .english ? "en" : "ko"),
+        request.settings.values["settingsRevision"] == "2",
         request.settings.values["resolvedLocale"] == request.language.rawValue,
         request.settings.values["backend"] == "metal",
         request.settings.values["runtime"] == CohereRuntimeProvenance.identity,
-        request.settings.values["installedIdentity"] == modelLease.identity
+        request.settings.values["installedIdentity"] == modelLease.identity,
+        let quantization = request.settings.values["quantization"],
+        modelLease.identity
+          == (quantization == "Q5_K_M"
+            ? CohereTrustedModel.productionQ5.installationIdentity
+            : CohereTrustedModel.productionQ4.installationIdentity)
       else { return .failure(.inference) }
       let chunks = try runtime.transcribe(
         modelURL: modelLease.url, samples: samples, plan: plan, languageHint: languageHint,

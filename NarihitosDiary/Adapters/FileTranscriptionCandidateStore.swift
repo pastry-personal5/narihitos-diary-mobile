@@ -383,7 +383,7 @@ final class FileTranscriptionCandidateStore: TranscriptionCandidateStore {
       let expectedHint = record.language == .english ? "en" : "ko"
       let revision = settings["settingsRevision"]
       guard revision == "1" || revision == "2" else { return false }
-      guard revision == "1" || descriptor.quantization == quantization else { return false }
+      guard revision == "2" || quantization == "Q4_K_M" else { return false }
       return record.modelIdentity == descriptor.installationIdentity
         && record.conversionIdentity == CohereAudioConversion.identity
         && record.payload.runtime == CohereRuntimeProvenance.identity

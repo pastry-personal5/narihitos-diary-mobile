@@ -66,13 +66,27 @@ struct DiaryDraftFactory {
     case TranscriptionMethodIdentifiers.cohere:
       guard job.modelIdentity != nil, settings["backend"] == "metal",
         let modelID = settings["modelID"], !modelID.isEmpty,
-        let version = settings["modelRevision"], !version.isEmpty
+        let version = settings["modelRevision"], !version.isEmpty,
+        settings["runtime"] == CohereRuntimeProvenance.identity,
+        settings["runtimeCommit"] == CohereRuntimeProvenance.commit,
+        settings["chunkingRevision"] == CohereChunkPlanner.identity,
+        settings["installedIdentity"] == job.modelIdentity
       else { throw DiaryDraftFactoryFailure.invalidProvenance }
       let revision = settings["settingsRevision"] == "2" ? 2 : 1
       let quantization = settings["quantization"]
       let modelVersion =
         revision == 2 && quantization != nil ? "\(version):\(quantization!)" : version
       guard revision == 1 || (quantization == "Q4_K_M" || quantization == "Q5_K_M")
+      else { throw DiaryDraftFactoryFailure.invalidProvenance }
+      let descriptor =
+        quantization == "Q5_K_M"
+        ? CohereTrustedModel.productionQ5
+        : CohereTrustedModel.productionQ4
+      guard revision == 2 || quantization == "Q4_K_M",
+        modelID == descriptor.modelID,
+        version == descriptor.repositoryRevision,
+        job.modelIdentity == descriptor.installationIdentity,
+        settings["installedIdentity"] == descriptor.installationIdentity
       else { throw DiaryDraftFactoryFailure.invalidProvenance }
       return TranscriptionProvenance(
         methodID: try TranscriptionMethodID(method),

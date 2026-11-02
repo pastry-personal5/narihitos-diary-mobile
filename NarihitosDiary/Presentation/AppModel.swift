@@ -50,6 +50,8 @@ final class AppModel: ObservableObject {
   @Published private(set) var appleInstalling: Set<CaptureLanguage> = []
   @Published private(set) var selectedTranscriptionMethodID: String?
   @Published private(set) var selectedTranscriptionModel: TranscriptionModelSelection = .none
+  @Published private(set) var transcriptionModelFocus: TranscriptionModelSelection = .none
+  @Published private(set) var transcriptionSettingsUnavailable = false
   @Published private(set) var cohereReadiness: CohereModelReadiness = .checking
   @Published private(set) var cohereInstallProgress: CohereInstallProgress?
   @Published private(set) var isInstallingCohere = false
@@ -142,10 +144,7 @@ final class AppModel: ObservableObject {
       microphone: microphone, destination: destination, files: files,
       installationIdentity: installationIdentity)
     transcriptionSettings = repository
-    if case .value(let selection) = repository.loadTranscriptionModelSelection() {
-      selectedTranscriptionModel = selection
-      selectedTranscriptionMethodID = selection.methodID
-    }
+    reloadTranscriptionSelection(from: repository)
     appleReadiness = AppleTranscriptionReadiness(source: readinessSource)
     let installer = AppleAssetInstaller(backend: SystemAppleAssetInstallationBackend())
     installer.onChange = { [weak self, weak installer] in
@@ -249,12 +248,7 @@ final class AppModel: ObservableObject {
     microphoneState = microphone.currentState()
     locationState = location.currentState()
     destination = await destinationService.activeDestination()
-    if let repository = transcriptionSettings {
-      if case .value(let selection) = repository.loadTranscriptionModelSelection() {
-        selectedTranscriptionModel = selection
-        selectedTranscriptionMethodID = selection.methodID
-      }
-    }
+    if let repository = transcriptionSettings { reloadTranscriptionSelection(from: repository) }
     firstLaunchStep = firstLaunch.pendingExplanation
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
@@ -635,16 +629,36 @@ final class AppModel: ObservableObject {
 
   func chooseMethodForRecovery(_ language: CaptureLanguage) {
     recoveryMethodLanguage = language
+    transcriptionModelFocus = selectedTranscriptionModel
     selectedRoot = .all
     showTranscriptionSettings = true
     refreshAppleReadiness()
     refreshCohereReadiness()
   }
 
-  func leftSettings() { recoveryMethodLanguage = nil }
+  func leftSettings() {
+    recoveryMethodLanguage = nil
+    transcriptionModelFocus = selectedTranscriptionModel
+  }
 
   var transcriptionSummary: String {
-    "\(selectedTranscriptionModel.label) · \(transcriptionReadinessSummary)"
+    if transcriptionSettingsUnavailable { return "Unavailable" }
+    return "\(selectedTranscriptionModel.label) · \(transcriptionReadinessSummary)"
+  }
+
+  private func reloadTranscriptionSelection(from repository: PrivateSettingsRepository) {
+    switch repository.loadTranscriptionModelSelection() {
+    case .value(let selection):
+      transcriptionSettingsUnavailable = false
+      selectedTranscriptionModel = selection
+      selectedTranscriptionMethodID = selection.methodID
+      transcriptionModelFocus = selection
+    case .unavailable:
+      transcriptionSettingsUnavailable = true
+      selectedTranscriptionModel = .none
+      selectedTranscriptionMethodID = nil
+      transcriptionModelFocus = .none
+    }
   }
 
   var transcriptionReadinessSummary: String {
@@ -671,12 +685,27 @@ final class AppModel: ObservableObject {
   }
 
   func selectTranscriptionModel(_ selection: TranscriptionModelSelection) {
-    if recoveryMethodLanguage != nil && !isTranscriptionSelectionReady(selection) { return }
+    if recoveryMethodLanguage != nil {
+      transcriptionModelFocus = selection
+      return
+    }
+    persistTranscriptionModel(selection)
+  }
+
+  func useFocusedTranscriptionModel() {
+    guard recoveryMethodLanguage != nil,
+      isTranscriptionSelectionReady(transcriptionModelFocus)
+    else { return }
+    persistTranscriptionModel(transcriptionModelFocus)
+  }
+
+  private func persistTranscriptionModel(_ selection: TranscriptionModelSelection) {
     guard let transcriptionSettings else { return }
     do {
       try transcriptionSettings.selectTranscriptionModel(selection)
       selectedTranscriptionModel = selection
       selectedTranscriptionMethodID = selection.methodID
+      transcriptionModelFocus = selection
       processingQueue?.prerequisiteChanged()
       refreshCaptureLists()
     } catch {
