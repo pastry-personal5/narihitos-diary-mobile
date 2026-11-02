@@ -37,6 +37,8 @@ final class AppModel: ObservableObject {
   @Published private(set) var queuePausedReason: String?
   @Published private(set) var appleReadinessStates:
     [CaptureLanguage: AppleTranscriptionAssetState] = [:]
+  @Published private(set) var appleInstallProgress: [CaptureLanguage: Double] = [:]
+  @Published private(set) var appleInstalling: Set<CaptureLanguage> = []
   @Published private(set) var selectedTranscriptionMethodID: String?
   @Published var selectedRoot: RootTab = .main
   @Published var showPendingRecordings = false
@@ -53,7 +55,9 @@ final class AppModel: ObservableObject {
   private var processingQueue: ProcessingQueueCoordinator?
   private var transcriptionSettings: PrivateSettingsRepository?
   private var appleReadiness: AppleTranscriptionReadiness?
+  private var appleInstaller: AppleAssetInstaller?
   private var captureEntryInProgress = false
+  private var isAppActive = false
   private var captureTimer: Task<Void, Never>?
   private var interruptionObserver: NSObjectProtocol?
   private let folderSelectionLogger = Logger(
@@ -96,6 +100,11 @@ final class AppModel: ObservableObject {
     transcriptionSettings = repository
     selectedTranscriptionMethodID = repository.selectedTranscriptionMethodID()
     appleReadiness = AppleTranscriptionReadiness(source: readinessSource)
+    let installer = AppleAssetInstaller(backend: SystemAppleAssetInstallationBackend())
+    installer.onChange = { [weak self, weak installer] in
+      self?.appleInstallProgress = installer?.progress ?? [:]
+    }
+    appleInstaller = installer
     processingQueue = ProcessingQueueCoordinator(
       store: queueStore, receipts: CaptureQueueReceiptSource(files: files),
       identity: installationIdentity,
@@ -124,6 +133,7 @@ final class AppModel: ObservableObject {
   }
 
   func becameActive() async {
+    isAppActive = true
     firstLaunch.refresh()
     microphoneState = microphone.currentState()
     locationState = location.currentState()
@@ -136,6 +146,7 @@ final class AppModel: ObservableObject {
   }
 
   func becameInactive() {
+    isAppActive = false
     processingQueue?.deactivate()
     appleReadiness?.invalidate()
     appleReadinessStates = [:]
@@ -378,6 +389,34 @@ final class AppModel: ObservableObject {
     }
   }
 
+  func installAppleModel(_ language: CaptureLanguage) {
+    guard let appleInstaller, !appleInstalling.contains(language) else { return }
+    appleInstalling.insert(language)
+    Task { [weak self] in
+      let preparation = await appleInstaller.prepare(language)
+      if case .downloadable(let plan) = preparation {
+        let outcome = await appleInstaller.install(plan)
+        switch outcome {
+        case .reservationCapacity:
+          self?.presentMessage("This device cannot reserve another Apple language model.")
+        case .failed:
+          self?.presentMessage("The Apple model could not be installed. Try again.")
+        case .ready, .downloading, .unsupported, .cancelled:
+          break
+        }
+      }
+      self?.appleInstalling.remove(language)
+      if self?.isAppActive == true {
+        self?.refreshAppleReadiness()
+        self?.processingQueue?.prerequisiteChanged()
+      }
+    }
+  }
+
+  func cancelAppleInstallation(_ language: CaptureLanguage) {
+    appleInstaller?.cancel(language)
+  }
+
   func chooseMethodForRecovery(_ language: CaptureLanguage) {
     recoveryMethodLanguage = language
     showSettings = true
@@ -405,7 +444,7 @@ final class AppModel: ObservableObject {
   }
 
   private func refreshAppleReadiness() {
-    guard let appleReadiness else { return }
+    guard isAppActive, let appleReadiness else { return }
     for language in [CaptureLanguage.english, .korean] {
       Task { [weak self] in
         guard let state = await appleReadiness.refresh(language) else { return }

@@ -6,6 +6,7 @@ This log records owner decisions and significant plan changes for Phase 1. P1-M5
 
 ## Entries
 
+- 2026-11-02 — P1-M11 owner decision — Apple system-model installation shows progress only; no pre-download byte size or storage preflight is required because the public Speech API exposes neither. Cohere retains its pinned-size and storage-preflight requirements.
 - 2026-11-02 — P1-M12 plan review — pinned the selected runtime and Q4_K_M model baselines to independently checked immutable revisions, exact bytes, and digests; separated bundled-runtime provenance from downloaded-model trust; and tightened installer rollback, upgrade/revocation, lease, backup, redirect, and diagnostic requirements. Replaced the unsafe assumption that all chunk windows must be disjoint with gap-free primary coverage plus explicit bounded hard-boundary overlap and ambiguity-rejecting seam assembly. Added method-specific candidate validation, silence/noise and resource checks, cancellation/lifecycle fault cases, and a redacted M12-D01–M12-D08 target-phone evidence record. The review preserves the P1-M6 direction and does not approve the dependency or reorder the milestone.
 
 - 2026-11-02 — P1-M10 status — the owner marked implementation done except human device tests. The physical restore scenarios remain in the human test tracker; unchecked checklist evidence and the post-review simulator gate remain unverified.

@@ -1,24 +1,15 @@
 import Foundation
 import Speech
 
-struct AppleAssetSpaceEstimate: Equatable {
-  let downloadBytes: Int64
-  let requiredFreeBytes: Int64
-  let availableBytes: Int64
-}
-
 struct AppleAssetInstallPlan: Equatable {
   let language: CaptureLanguage
   let resolvedLocale: String
-  let estimate: AppleAssetSpaceEstimate
 }
 
 enum AppleAssetPreparation: Equatable {
   case ready
   case downloading
   case unsupported
-  case preflightUnavailable
-  case insufficientSpace
   case failed
   case downloadable(AppleAssetInstallPlan)
 }
@@ -27,8 +18,6 @@ enum AppleAssetInstallationOutcome: Equatable {
   case ready
   case downloading
   case unsupported
-  case preflightUnavailable
-  case insufficientSpace
   case reservationCapacity
   case cancelled
   case failed
@@ -49,12 +38,10 @@ protocol AppleAssetInstallationRequest {
 protocol AppleAssetInstallationBackend {
   func status(for language: CaptureLanguage) async -> AppleTranscriptionAssetState
   func resolvedLocale(for language: CaptureLanguage) async -> String?
-  func spaceEstimate(for locale: String) async -> AppleAssetSpaceEstimate?
   func reserve(locale: String) async throws
   func request(locale: String) async throws -> (any AppleAssetInstallationRequest)?
 }
 
-/// The app may not initiate a system download until the approved preflight is available.
 @MainActor
 final class AppleAssetInstaller {
   private struct InstallationTask {
@@ -70,7 +57,6 @@ final class AppleAssetInstaller {
 
   init(backend: any AppleAssetInstallationBackend) { self.backend = backend }
 
-  /// Obtain and display the plan's size before offering the download action.
   func prepare(_ language: CaptureLanguage) async -> AppleAssetPreparation {
     switch await backend.status(for: language) {
     case .ready: return .ready
@@ -80,18 +66,13 @@ final class AppleAssetInstaller {
     case .downloadable: break
     }
     guard let locale = await backend.resolvedLocale(for: language) else { return .unsupported }
-    guard let estimate = await backend.spaceEstimate(for: locale), estimate.downloadBytes > 0,
-      estimate.requiredFreeBytes > 0, estimate.availableBytes >= 0
-    else { return .preflightUnavailable }
-    guard estimate.availableBytes >= estimate.requiredFreeBytes else { return .insufficientSpace }
-    return .downloadable(
-      AppleAssetInstallPlan(language: language, resolvedLocale: locale, estimate: estimate))
+    return .downloadable(AppleAssetInstallPlan(language: language, resolvedLocale: locale))
   }
 
   func install(_ plan: AppleAssetInstallPlan) async -> AppleAssetInstallationOutcome {
     let language = plan.language
     if let existing = tasks[language] {
-      guard existing.plan == plan else { return .preflightUnavailable }
+      guard existing.plan == plan else { return .failed }
       return await existing.task.value
     }
     let id = UUID()
@@ -113,14 +94,9 @@ final class AppleAssetInstaller {
     case .ready: return .ready
     case .downloading: return .downloading
     case .unsupported: return .unsupported
-    case .preflightUnavailable: return .preflightUnavailable
-    case .insufficientSpace: return .insufficientSpace
     case .failed: return .failed
     case .downloadable(let current):
-      guard current.resolvedLocale == plan.resolvedLocale,
-        current.estimate.downloadBytes == plan.estimate.downloadBytes,
-        current.estimate.requiredFreeBytes == plan.estimate.requiredFreeBytes
-      else { return .preflightUnavailable }
+      guard current == plan else { return .failed }
     }
     do {
       try Task.checkCancellation()
@@ -177,11 +153,6 @@ struct SystemAppleAssetInstallationBackend: AppleAssetInstallationBackend {
   func resolvedLocale(for language: CaptureLanguage) async -> String? {
     await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language.rawValue))?
       .identifier(.bcp47)
-  }
-
-  func spaceEstimate(for _: String) async -> AppleAssetSpaceEstimate? {
-    // The public Speech API does not document a pre-download byte count or required space.
-    nil
   }
 
   func reserve(locale: String) async throws {

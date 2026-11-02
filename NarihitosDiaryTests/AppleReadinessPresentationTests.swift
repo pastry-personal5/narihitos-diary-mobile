@@ -7,7 +7,7 @@ struct AppleReadinessPresentationTests {
     #expect(AppleReadinessPresentation.label(nil) == "Checking")
     #expect(AppleReadinessPresentation.label(.ready(resolvedLocale: "en-US")) == "Ready")
     #expect(
-      AppleReadinessPresentation.label(.downloadable) == "Model not installed; download unavailable"
+      AppleReadinessPresentation.label(.downloadable) == "Model not installed"
     )
     #expect(AppleReadinessPresentation.label(.downloading) == "Downloading")
     #expect(AppleReadinessPresentation.label(.unsupported) == "Language not supported")

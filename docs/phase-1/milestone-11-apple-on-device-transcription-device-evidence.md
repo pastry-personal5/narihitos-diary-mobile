@@ -25,7 +25,7 @@ This record captures redacted target-iPhone evidence for Apple Speech readiness,
 | English fixture durations | Not recorded |
 | Korean fixture durations | Not recorded |
 | Network observation method | Not recorded |
-| Download-size source and units / storage preflight method | Not recorded |
+| Apple installation progress observation | Not recorded |
 
 ## Scenario results
 
@@ -33,7 +33,7 @@ This record captures redacted target-iPhone evidence for Apple Speech readiness,
 |---|---|---|---|
 | M11-D01 | Fresh launch reports live `SpeechTranscriber` device support and resolves the approved English and Korean hints independently. Unsupported or transient states remain not ready and no legacy speech authorization prompt appears. | Not run | — |
 | M11-D02 | Record reservation capacity, reserve both resolved locales without releasing another locale, and relaunch. Both reservations/readiness states are truthful; capacity below two is reported as a blocker. | Not run | — |
-| M11-D03 | From an absent/not-installed English asset, Download Model shows a documented size and passes the approved free-space preflight before installation, shows bounded progress, settles, and a fresh status becomes ready. Airplane mode before completion cannot fabricate readiness. | Not run | — |
+| M11-D03 | From an absent/not-installed English asset, Download Model starts on user intent, shows bounded progress, settles, and a fresh status becomes ready. Airplane mode before completion cannot fabricate readiness. | Not run | — |
 | M11-D04 | Repeat installation/readiness for Korean. Switching Settings/lifecycle during installation cannot let a stale callback overwrite the final state. | Not run | — |
 | M11-D05 | With assets installed and airplane mode enabled, a short production-shape English `.m4a` yields bounded usable final text, stages one candidate, and reaches `resultReady` with the expected method/locale/runtime/conversion provenance. | Not run | — |
 | M11-D06 | Repeat offline short transcription for Korean, including Hangul acceptance and no volatile-result duplication. | Not run | — |
@@ -55,6 +55,6 @@ This record captures redacted target-iPhone evidence for Apple Speech readiness,
 ## Current blockers
 
 - The M11 implementation is in progress; no M11 target-phone run has been recorded.
-- The installed iOS 27.2 Speech interface exposes progress but no explicit pre-download byte count or required-space estimate. Verify any public documented alternative on device; if unavailable, the approved size disclosure and storage preflight remain blocked pending owner direction.
+- The owner approved progress-only Apple installation. The target phone must still establish actual installation and progress behavior.
 - System asset removal may not be controllable on the target device. If a clean English or Korean download cannot be induced safely, record M11-D03 or M11-D04 as blocked rather than treating an already-installed asset as download-flow proof.
 - The reservation capacity and actual English/Korean support remain runtime facts until measured on the target iPhone/OS revision.

@@ -5,30 +5,28 @@ import Testing
 
 @MainActor
 struct AppleAssetInstallationTests {
-  @Test func unknownSizeNeverReservesOrStartsDownload() async {
-    let backend = FakeAppleInstallationBackend()
-    let installer = AppleAssetInstaller(backend: backend)
-    #expect(await installer.prepare(.english) == .preflightUnavailable)
-    #expect(backend.reservations.isEmpty)
-    #expect(backend.requestCount == 0)
+  @Test func downloadableAssetCanBePreparedWithoutByteEstimate() async {
+    let installer = AppleAssetInstaller(backend: FakeAppleInstallationBackend())
+    #expect(
+      await installer.prepare(.english)
+        == .downloadable(AppleAssetInstallPlan(language: .english, resolvedLocale: "en-US")))
   }
 
-  @Test func installedAndInsufficientSpaceDoNotReserve() async {
+  @Test func onlyDownloadableAssetsOfferAnInstallPlan() async {
     let backend = FakeAppleInstallationBackend()
     let installer = AppleAssetInstaller(backend: backend)
     backend.state = .ready(resolvedLocale: "en-US")
     #expect(await installer.prepare(.english) == .ready)
-    backend.state = .downloadable
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 100, requiredFreeBytes: 200, availableBytes: 199)
-    #expect(await installer.prepare(.english) == .insufficientSpace)
+    backend.state = .downloading
+    #expect(await installer.prepare(.english) == .downloading)
+    backend.state = .unsupported
+    #expect(await installer.prepare(.english) == .unsupported)
     #expect(backend.reservations.isEmpty)
+    #expect(backend.requestCount == 0)
   }
 
   @Test func nilRequestRequiresActualInstalledStatus() async throws {
     let backend = FakeAppleInstallationBackend()
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 100, requiredFreeBytes: 200, availableBytes: 200)
     backend.requestValue = nil
     let installer = AppleAssetInstaller(backend: backend)
     let plan = try await preparedPlan(installer, language: .korean)
@@ -40,8 +38,6 @@ struct AppleAssetInstallationTests {
 
   @Test func sameLanguageInstallsCoalesceAndRecheckStatus() async throws {
     let backend = FakeAppleInstallationBackend()
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 100, requiredFreeBytes: 200, availableBytes: 300)
     let installer = AppleAssetInstaller(backend: backend)
     let plan = try await preparedPlan(installer, language: .english)
     let first = Task { await installer.install(plan) }
@@ -59,8 +55,6 @@ struct AppleAssetInstallationTests {
 
   @Test func capacityFailureDoesNotRequestOrReleaseAnotherLocale() async throws {
     let backend = FakeAppleInstallationBackend()
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 100, requiredFreeBytes: 200, availableBytes: 300)
     backend.reservationFailure = .reservationCapacity
     let installer = AppleAssetInstaller(backend: backend)
     let plan = try await preparedPlan(installer, language: .english)
@@ -71,8 +65,6 @@ struct AppleAssetInstallationTests {
 
   @Test func cancellationDoesNotPretendSystemDownloadStopped() async throws {
     let backend = FakeAppleInstallationBackend()
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 100, requiredFreeBytes: 200, availableBytes: 300)
     backend.requestValue?.fractionCompleted = 2
     let installer = AppleAssetInstaller(backend: backend)
     let plan = try await preparedPlan(installer, language: .english)
@@ -90,27 +82,8 @@ struct AppleAssetInstallationTests {
     #expect(installer.progress[.english] == nil)
   }
 
-  @Test func changedEstimateIsRecheckedAfterDisclosure() async throws {
-    let backend = FakeAppleInstallationBackend()
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 100, requiredFreeBytes: 200, availableBytes: 300)
-    let installer = AppleAssetInstaller(backend: backend)
-    let plan = try await preparedPlan(installer, language: .english)
-    #expect(plan.estimate.downloadBytes == 100)
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 101, requiredFreeBytes: 200, availableBytes: 300)
-    #expect(await installer.install(plan) == .preflightUnavailable)
-    #expect(backend.reservations.isEmpty)
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 100, requiredFreeBytes: 200, availableBytes: 199)
-    #expect(await installer.install(plan) == .insufficientSpace)
-    #expect(backend.reservations.isEmpty)
-  }
-
   @Test func cancellationAfterReservationDoesNotStartADownload() async throws {
     let backend = FakeAppleInstallationBackend()
-    backend.estimate = AppleAssetSpaceEstimate(
-      downloadBytes: 100, requiredFreeBytes: 200, availableBytes: 300)
     backend.suspendReservation = true
     let installer = AppleAssetInstaller(backend: backend)
     let plan = try await preparedPlan(installer, language: .english)
@@ -137,7 +110,6 @@ struct AppleAssetInstallationTests {
 @MainActor
 private final class FakeAppleInstallationBackend: AppleAssetInstallationBackend {
   var state: AppleTranscriptionAssetState = .downloadable
-  var estimate: AppleAssetSpaceEstimate?
   var reservations: [String] = []
   var requestCount = 0
   var reservationFailure: AppleAssetInstallationFailure?
@@ -148,7 +120,6 @@ private final class FakeAppleInstallationBackend: AppleAssetInstallationBackend 
 
   func status(for _: CaptureLanguage) async -> AppleTranscriptionAssetState { state }
   func resolvedLocale(for language: CaptureLanguage) async -> String? { language.rawValue }
-  func spaceEstimate(for _: String) async -> AppleAssetSpaceEstimate? { estimate }
   func reserve(locale: String) async throws {
     reservations.append(locale)
     if let reservationFailure { throw reservationFailure }

@@ -394,11 +394,28 @@ private struct SettingsView: View {
   }
 
   private func appleStatus(_ language: CaptureLanguage, label: String) -> some View {
-    LabeledContent(
-      label, value: AppleReadinessPresentation.label(model.appleReadinessStates[language])
-    )
-    .accessibilityLabel("\(label) Apple transcription")
-    .accessibilityValue(AppleReadinessPresentation.label(model.appleReadinessStates[language]))
+    VStack(alignment: .leading) {
+      LabeledContent(
+        label, value: AppleReadinessPresentation.label(model.appleReadinessStates[language])
+      )
+      .accessibilityLabel("\(label) Apple transcription")
+      .accessibilityValue(AppleReadinessPresentation.label(model.appleReadinessStates[language]))
+      if model.appleInstalling.contains(language) {
+        if let fraction = model.appleInstallProgress[language] {
+          ProgressView(value: fraction) { Text("Installing \(label) model") }
+            .accessibilityValue(fraction.formatted(.percent.precision(.fractionLength(0))))
+        } else {
+          ProgressView("Installing \(label) model")
+        }
+        Button("Cancel Installation", role: .cancel) {
+          model.cancelAppleInstallation(language)
+        }
+        .frame(minHeight: 44)
+      } else if model.appleReadinessStates[language] == .downloadable {
+        Button("Download \(label) Model") { model.installAppleModel(language) }
+          .frame(minHeight: 44)
+      }
+    }
   }
 
   private var locationLabel: String {
