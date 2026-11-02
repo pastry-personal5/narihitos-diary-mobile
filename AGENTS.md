@@ -79,6 +79,10 @@ make open                                     # generate and open the project in
 TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh  # quiet full gate; may omit if exactly one iPhone is booted
 ```
 
+### CoreSimulator access in restricted shells
+
+If `xcrun simctl list devices available` or `scripts/validate.sh` reports `CoreSimulatorService connection became invalid`, `Connection refused`, or a permission error for CoreSimulator logs, first suspect restricted-shell access to the simulator service. Retry `xcrun simctl list devices available` with simulator service access (request command escalation in an agent sandbox), then run the validation gate with an explicit available iPhone simulator ID under the same access. A successful retry identifies an environment restriction; do not change app code or reset simulators to address it. If access cannot be granted or the retry still fails, leave the validation checklist item unchecked and report the observed blocker. A generic build or lint pass alone does not satisfy the simulator test gate.
+
 ## Code conventions
 
 - Use Swift and SwiftUI for the iOS app.
