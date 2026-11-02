@@ -511,7 +511,7 @@ final class AppModel: ObservableObject {
     refreshCaptureLists()
     switch phase {
     case .pending:
-      presentMessage("Recording saved in Pending Recordings.")
+      break
     case .failed:
       presentMessage("This recording can’t be read.")
     case .paused:

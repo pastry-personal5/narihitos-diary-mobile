@@ -28,7 +28,7 @@ Task 1's implemented handoff and Settings storage repair are described in the [a
 
 ## Task 2: Dedicated Transcription Settings and model choices
 
-Status: In progress. The owner requested optional Q5 on 2026-11-02; it uses the existing approved runtime and model host, with no new dependency or build-tool work. M6's Q4 selection and [limited comparison evidence](milestone-06-cohere-runtime-trial-results.md) remain intact. The [overview checklist](milestone-20-enhancements-fixes-refactoring-overview.md#task-2-dedicated-transcription-settings-and-model-choices) governs completion.
+Status: Done for the requested implementation and confirmed Cohere phone outcome. The owner requested optional Q5 on 2026-11-02; it uses the existing approved runtime and model host, with no new dependency or build-tool work. M6's Q4 selection and [limited comparison evidence](milestone-06-cohere-runtime-trial-results.md) remain intact. Broader M12 device-matrix evidence remains separate.
 
 ### Task 2 implementation evidence
 
