@@ -400,7 +400,8 @@ final class CohereModelManager: ObservableObject {
     if isInstalling { return .checking }
     readinessGeneration &+= 1
     let generation = readinessGeneration
-    readiness = .checking
+    // Keep the last settled result visible during revalidation. Settings and queue
+    // preflight may refresh together; republishing Checking here made the Model row flicker.
     guard protectedDataAvailable() else {
       return settleReadiness(.failed(.protectedDataUnavailable), generation: generation)
     }
@@ -637,7 +638,7 @@ final class CohereModelManager: ObservableObject {
     _ outcome: CohereModelReadiness, generation: UInt64
   ) -> CohereModelReadiness {
     guard generation == readinessGeneration else { return readiness }
-    readiness = outcome
+    if readiness != outcome { readiness = outcome }
     return outcome
   }
 

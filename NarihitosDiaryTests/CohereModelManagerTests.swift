@@ -1,3 +1,4 @@
+import Combine
 import CryptoKit
 import Foundation
 import XCTest
@@ -246,6 +247,28 @@ final class CohereModelManagerTests: XCTestCase {
     let oldOutcome = await oldRefresh.value
     XCTAssertEqual(oldOutcome, .notInstalled)
     XCTAssertEqual(manager.readiness, .notInstalled)
+  }
+
+  func testRepeatedMissingQ5RefreshKeepsStableNotInstalledState() async {
+    let root = temporaryDirectory()
+    let artifact = modelArtifact()
+    let descriptor = descriptor(for: artifact, base: .productionQ5)
+    let manager = CohereModelManager(
+      descriptor: descriptor, root: root,
+      downloader: StubCohereDownloader(data: artifact),
+      availableCapacity: { _ in Int64.max }, protectedDataAvailable: { true })
+    var published: [CohereModelReadiness] = []
+    let observation = manager.$readiness.dropFirst().sink { published.append($0) }
+    defer { observation.cancel() }
+
+    let initial = await manager.refresh()
+    XCTAssertEqual(initial, .notInstalled)
+    XCTAssertEqual(published, [.notInstalled])
+
+    published.removeAll()
+    let repeated = await manager.refresh()
+    XCTAssertEqual(repeated, .notInstalled)
+    XCTAssertTrue(published.isEmpty)
   }
 
   private func waitForInstall(_ manager: CohereModelManager) async {
