@@ -137,7 +137,7 @@ Task 5 repairs Settings still showing `Active Folder` / `No folder selected` aft
 Status: Planned
 Goal: Save version-checked body and Favorite edits durably and replay verified audio without compromising capture or legacy read-only behavior.
 Plan: [overview](milestone-16-diary-editing-favorite-audio-replay-overview.md), [approach](milestone-16-diary-editing-favorite-audio-replay-architecture.md), [device evidence](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md)
-Notes: Planning only; implementation follows M15 and completion of M20. Submitted edits need an independent committed-asset journal and destination capability, and replay needs shared audio-session ownership with capture. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence remains open.
+Notes: Planning only; implementation follows M15 and completion of M20. The reviewed plan forbids persisting M15's session-local catalog UUIDs as restart authority, isolates edit journals, defines distinct retry-stable edit timestamps, and adds capacity-aware replay-cache evidence. Submitted edits need an independent committed-asset journal and destination capability, and replay needs shared audio-session ownership with capture. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence remains open.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 
