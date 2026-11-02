@@ -4,6 +4,8 @@ Status: Active
 
 This log records owner decisions and significant plan changes for Phase 1. P1-M5 closed the product decisions and P1-M6 selected the Cohere implementation direction; remaining entries are implementation evidence or future work.
 
+- 2026-11-02 — P1-M12 implementation — added the pinned Cohere runtime framework, trusted GGUF installer, explicit Settings method flow, bounded audio conversion/chunking and seam assembly, Metal transcription adapter, and method-specific candidate provenance. Initial lint and project generation passed. Simulator build and tests remain unverified because CoreSimulatorService could not discover devices and Xcode's SwiftUI macro plugin returned a malformed response; all target-iPhone scenarios remain open.
+
 ## Entries
 
 - 2026-11-02 — P1-M11 owner decision — Apple system-model installation shows progress only; no pre-download byte size or storage preflight is required because the public Speech API exposes neither. Cohere retains its pinned-size and storage-preflight requirements.

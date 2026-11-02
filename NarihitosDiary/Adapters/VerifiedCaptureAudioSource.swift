@@ -4,9 +4,11 @@ import Darwin
 import Foundation
 import UIKit
 
+// swiftlint:disable opening_brace
+
 /// Adapter-private lease for the positively identified M9 audio file.
 @MainActor
-final class VerifiedCaptureAudio: AppleSpeechAudioLease {
+final class VerifiedCaptureAudio: AppleSpeechAudioLease, CohereAudioLease {
   let url: URL
   let digest: String
   private let handle: FileHandle
@@ -46,7 +48,9 @@ final class VerifiedCaptureAudio: AppleSpeechAudioLease {
 }
 
 @MainActor
-final class VerifiedCaptureAudioSource: CaptureAudioFingerprintSource, AppleSpeechAudioSource {
+final class VerifiedCaptureAudioSource:
+  CaptureAudioFingerprintSource, AppleSpeechAudioSource, CohereAudioSource
+{
   private let files: CapturePrivateFiles
   private let protectedDataAvailable: () -> Bool
 
@@ -65,6 +69,10 @@ final class VerifiedCaptureAudioSource: CaptureAudioFingerprintSource, AppleSpee
   }
 
   func openForSpeech(job: QueueJob) throws -> any AppleSpeechAudioLease {
+    try open(job: job)
+  }
+
+  func openForCohere(job: QueueJob) throws -> any CohereAudioLease {
     try open(job: job)
   }
 
@@ -122,3 +130,5 @@ final class VerifiedCaptureAudioSource: CaptureAudioFingerprintSource, AppleSpee
     }
   }
 }
+
+// swiftlint:enable opening_brace

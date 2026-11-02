@@ -204,6 +204,22 @@ final class ProductionTranscriptionSettings: TranscriptionSettingsPort {
           "runtime": "apple-speech-analyzer",
         ], modelIdentity: nil, conversionIdentity: "ndm.apple-speech.av-audio-file-v1")
     }
+    if methodID == TranscriptionMethodIdentifiers.cohere {
+      let languageHint = language == .english ? "en" : "ko"
+      return EffectiveTranscriptionSettings(
+        values: [
+          "settingsRevision": "1", "requestedLocale": language.rawValue,
+          "languageHint": languageHint, "backend": "metal",
+          "runtime": CohereRuntimeProvenance.identity,
+          "runtimeCommit": CohereRuntimeProvenance.commit,
+          "modelID": CohereTrustedModel.production.modelID,
+          "modelRevision": CohereTrustedModel.production.repositoryRevision,
+          "quantization": CohereTrustedModel.production.quantization,
+          "chunkingRevision": CohereChunkPlanner.identity,
+        ],
+        modelIdentity: CohereTrustedModel.production.installationIdentity,
+        conversionIdentity: CohereAudioConversion.identity)
+    }
     return EffectiveTranscriptionSettings(
       values: [:], modelIdentity: nil, conversionIdentity: "unavailable")
   }

@@ -1,4 +1,5 @@
 import AVFAudio
+import Combine
 import Foundation
 import OSLog
 import SwiftUI
@@ -40,6 +41,9 @@ final class AppModel: ObservableObject {
   @Published private(set) var appleInstallProgress: [CaptureLanguage: Double] = [:]
   @Published private(set) var appleInstalling: Set<CaptureLanguage> = []
   @Published private(set) var selectedTranscriptionMethodID: String?
+  @Published private(set) var cohereReadiness: CohereModelReadiness = .checking
+  @Published private(set) var cohereInstallProgress: CohereInstallProgress?
+  @Published private(set) var isInstallingCohere = false
   @Published var selectedRoot: RootTab = .main
   @Published var showPendingRecordings = false
   @Published var showSettings = false
@@ -56,6 +60,8 @@ final class AppModel: ObservableObject {
   private var transcriptionSettings: PrivateSettingsRepository?
   private var appleReadiness: AppleTranscriptionReadiness?
   private var appleInstaller: AppleAssetInstaller?
+  private var cohereModels: CohereModelManager?
+  private var cancellables: Set<AnyCancellable> = []
   private var captureEntryInProgress = false
   private var isAppActive = false
   private var captureTimer: Task<Void, Never>?
@@ -84,9 +90,13 @@ final class AppModel: ObservableObject {
     let readinessSource = AppleSpeechReadinessSource()
     let queueStore = FileQueueStore()
     let registry = TranscriptionMethodRegistry()
+    let cohereModels = CohereModelManager()
     registry.register(
       AppleTranscriptionAdapter(
         store: queueStore, audio: audioSource, readinessSource: readinessSource))
+    registry.register(
+      CohereTranscriptionAdapter(
+        store: queueStore, audio: audioSource, models: cohereModels))
     let installationIdentity = KeychainInstallationIdentity()
     self.init(
       microphone: AppleMicrophoneAuthorization(),
@@ -105,6 +115,8 @@ final class AppModel: ObservableObject {
       self?.appleInstallProgress = installer?.progress ?? [:]
     }
     appleInstaller = installer
+    self.cohereModels = cohereModels
+    observeCohereModel(cohereModels)
     processingQueue = ProcessingQueueCoordinator(
       store: queueStore, receipts: CaptureQueueReceiptSource(files: files),
       identity: installationIdentity,
@@ -142,6 +154,7 @@ final class AppModel: ObservableObject {
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
     refreshAppleReadiness()
+    refreshCohereReadiness()
     refreshCaptureLists()
   }
 
@@ -372,6 +385,7 @@ final class AppModel: ObservableObject {
   func refreshTranscriptionReadiness() {
     processingQueue?.settingsEntered()
     refreshAppleReadiness()
+    refreshCohereReadiness()
     refreshCaptureLists()
   }
 
@@ -421,6 +435,7 @@ final class AppModel: ObservableObject {
     recoveryMethodLanguage = language
     showSettings = true
     refreshAppleReadiness()
+    refreshCohereReadiness()
   }
 
   func leftSettings() { recoveryMethodLanguage = nil }
@@ -429,6 +444,33 @@ final class AppModel: ObservableObject {
     guard let language = recoveryMethodLanguage else { return true }
     guard case .ready = appleReadinessStates[language] else { return false }
     return true
+  }
+
+  var cohereReadyForRecovery: Bool {
+    if case .ready = cohereReadiness { return true }
+    return false
+  }
+
+  var cohereDownloadSize: String {
+    guard let cohereModels else { return "Unavailable" }
+    return ByteCountFormatter.string(
+      fromByteCount: cohereModels.downloadByteCount, countStyle: .file)
+  }
+
+  func installCohereModel() { cohereModels?.install() }
+
+  func cancelCohereInstallation() { cohereModels?.cancelInstallation() }
+
+  func selectCohereTranscription() {
+    guard cohereReadyForRecovery, let transcriptionSettings else { return }
+    do {
+      try transcriptionSettings.selectTranscriptionMethod(TranscriptionMethodIdentifiers.cohere)
+      selectedTranscriptionMethodID = TranscriptionMethodIdentifiers.cohere
+      processingQueue?.prerequisiteChanged()
+      refreshCaptureLists()
+    } catch {
+      presentMessage("The transcription method could not be saved. Try again.")
+    }
   }
 
   private func persistAppleSelection() {
@@ -451,6 +493,35 @@ final class AppModel: ObservableObject {
         self?.appleReadinessStates[language] = state
       }
     }
+  }
+
+  private func refreshCohereReadiness() {
+    guard let cohereModels else { return }
+    Task { [weak self] in
+      let state = await cohereModels.refresh()
+      guard let self else { return }
+      self.cohereReadiness = state
+      self.processingQueue?.prerequisiteChanged()
+      self.refreshCaptureLists()
+    }
+  }
+
+  private func observeCohereModel(_ models: CohereModelManager) {
+    models.$readiness
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] state in
+        self?.cohereReadiness = state
+        if case .ready = state { self?.processingQueue?.prerequisiteChanged() }
+      }
+      .store(in: &cancellables)
+    models.$progress
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] in self?.cohereInstallProgress = $0 }
+      .store(in: &cancellables)
+    models.$isInstalling
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] in self?.isInstallingCohere = $0 }
+      .store(in: &cancellables)
   }
 
   func retryQueueJob(_ id: String) {

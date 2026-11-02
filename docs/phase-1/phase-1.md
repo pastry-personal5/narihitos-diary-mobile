@@ -87,10 +87,10 @@ Notes: Implementation started by owner request after the P1-M10 owner decision. 
 
 ### P1-M12: Add Cohere Model Installation and On-Device Transcription
 
-Status: Planned
+Status: Active
 Goal: Install the verified approved Cohere model and integrate local Metal transcription with bounded chunking, durable handoff, and target-phone evidence.
 Plan: [overview](milestone-12-cohere-transcription-overview.md), [approach](milestone-12-cohere-transcription-architecture.md), [device evidence](milestone-12-cohere-transcription-device-evidence.md)
-Notes: Implementation follows P1-M11 unless the owner authorizes a reorder; production dependency changes require separate owner approval.
+Notes: The owner authorized implementation ahead of M11 completion and approved the pinned production `transcribe.cpp` dependency/build integration on 2026-11-02. Open M8–M11 device evidence and the M11 Apple-installation blocker remain open and are not waived.
 
 ### P1-M13: Create Diary Drafts and Generate Titles
 

@@ -13,6 +13,9 @@ targets:
     type: application
     platform: iOS
     sources: [NarihitosDiary]
+    dependencies:
+      - framework: Vendor/TranscribeCpp.xcframework
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.narihitosdiary.mobile

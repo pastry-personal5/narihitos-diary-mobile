@@ -358,7 +358,43 @@ private struct SettingsView: View {
         .accessibilityValue(
           model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.apple
             ? "Selected" : "Not selected")
-        if model.recoveryMethodLanguage != nil && !model.appleReadyForRecovery {
+      }
+      Section("Cohere Transcription") {
+        LabeledContent("Model", value: cohereStatus)
+          .accessibilityLabel("Cohere transcription model")
+          .accessibilityValue(cohereStatus)
+        LabeledContent("Download size", value: model.cohereDownloadSize)
+        if model.isInstallingCohere {
+          if let fraction = model.cohereInstallProgress?.fraction {
+            ProgressView(value: fraction) {
+              Text("Installing Cohere model")
+            }
+            .accessibilityValue(fraction.formatted(.percent.precision(.fractionLength(0))))
+          } else {
+            ProgressView("Installing Cohere model")
+          }
+          Button("Cancel Installation", role: .cancel, action: model.cancelCohereInstallation)
+            .frame(minHeight: 44)
+        } else if !model.cohereReadyForRecovery {
+          Button("Install Model", action: model.installCohereModel)
+            .frame(minHeight: 44)
+        }
+        Button(action: model.selectCohereTranscription) {
+          HStack {
+            Text("Use Cohere Transcription")
+            Spacer()
+            if model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.cohere {
+              Image(systemName: "checkmark")
+                .accessibilityHidden(true)
+            }
+          }
+        }
+        .frame(minHeight: 44)
+        .disabled(!model.cohereReadyForRecovery)
+        .accessibilityValue(
+          model.selectedTranscriptionMethodID == TranscriptionMethodIdentifiers.cohere
+            ? "Selected" : "Not selected")
+        if noReadyRecoveryMethod {
           Text("No transcription method is ready for this recording.")
             .foregroundStyle(.secondary)
         }
@@ -425,6 +461,20 @@ private struct SettingsView: View {
     case .denied: "Denied"
     case .restricted: "Restricted"
     }
+  }
+
+  private var cohereStatus: String {
+    switch model.cohereReadiness {
+    case .checking: "Checking"
+    case .notInstalled: "Not installed"
+    case .ready: "Ready"
+    case .failed(let failure): failure.userMessage
+    }
+  }
+
+  private var noReadyRecoveryMethod: Bool {
+    model.recoveryMethodLanguage != nil && !model.appleReadyForRecovery
+      && !model.cohereReadyForRecovery
   }
 }
 

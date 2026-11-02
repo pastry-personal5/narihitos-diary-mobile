@@ -144,6 +144,7 @@ struct TranscriptionDescriptor: Equatable, Sendable {
 
 enum TranscriptionMethodIdentifiers {
   static let apple = "ndm.transcription.apple"
+  static let cohere = "ndm.transcription.cohere"
 }
 
 struct EffectiveTranscriptionSettings: Equatable, Sendable {

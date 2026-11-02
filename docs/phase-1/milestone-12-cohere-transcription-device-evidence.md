@@ -1,6 +1,6 @@
 # P1-M12: Cohere transcription device evidence
 
-Status: Planned
+Status: Active
 
 This record will capture redacted target-iPhone evidence for trusted Cohere model installation, local Metal transcription, bounded long-audio seams, cancellation, recovery, resource viability, and network/privacy behavior. It must contain no recording, transcript, path, request URL, digest, raw native log, account data, or stable device identifier.
 
@@ -56,6 +56,7 @@ This record will capture redacted target-iPhone evidence for trusted Cohere mode
 
 ## Current blockers
 
-- M12 implementation has not started and the production runtime dependency/build integration still requires owner approval.
-- P1-M11 is not Done, so its final method-selection, candidate, audio-source, and reconciliation interfaces are not yet a stable implementation entry.
-- The exact production redirect chain/host allowlist and runtime iOS/Metal binary compatibility must be reverified during approved integration; planning metadata is not shipped evidence.
+- M12 integration is in progress under the owner-approved dependency and milestone reorder. The implementation and target-phone matrix have not passed their gates.
+- P1-M11 is not Done, so its open device evidence and final interface verification remain prerequisites for M12 closure.
+- The exact production redirect chain/host allowlist and runtime iOS/Metal binary compatibility require target-phone verification.
+- On 2026-11-02, `make lint`, project generation, and `git diff --check` passed. CoreSimulatorService was disconnected, Xcode's SwiftUI macro plugin returned a malformed response during generic simulator build, and Xcode showed no attached physical iPhone destination. The full simulator gate and M12-D01–D08 therefore remain unverified.

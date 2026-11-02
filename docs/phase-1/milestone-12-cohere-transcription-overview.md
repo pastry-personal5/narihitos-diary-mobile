@@ -1,8 +1,8 @@
 # P1-M12: Cohere model installation and transcription overview
 
-Status: Planned
+Status: Active
 
-Integrate the approved local Cohere model and Metal runtime with authenticated installation, bounded long-audio transcription, durable result handoff, and target-iPhone evidence. This plan preserves the P1-M6 direction, identifies the exact production inputs to reverify, and does not authorize implementation ahead of P1-M11 or approve a dependency change.
+Integrate the approved local Cohere model and Metal runtime with authenticated installation, bounded long-audio transcription, durable result handoff, and target-iPhone evidence. The owner authorized the production dependency and implementation ahead of P1-M11 completion; the remaining M11 and target-phone evidence is still required.
 
 ## Entry and locked inputs
 
@@ -29,7 +29,7 @@ Hosted transcription, alternative model/runtime selection, automatic CPU fallbac
 
 ## Completion checklist
 
-- [ ] Owner approval for the production dependency/build integration is recorded. The runtime archive URL/byte count/digest and source version/commit, plus the model immutable URL/revision/file/byte count/digest, redirect hosts, compatibility policy, licenses, and notices, have been independently reverified and match the locked direction with no `main`, `latest`, `unknown`, or placeholder production provenance.
+- [x] Owner approval for the production dependency/build integration is recorded. The runtime archive URL/byte count/digest and source version/commit, plus the model immutable URL/revision/file/byte count/digest, redirect hosts, compatibility policy, licenses, and notices, have been independently reverified and match the locked direction with no `main`, `latest`, `unknown`, or placeholder production provenance.
 - [ ] A versioned trusted-descriptor test rejects missing, duplicate, malformed, unknown, revoked, or mismatched fields. Runtime build provenance and the installed model identity are distinct, and only the signed app can add or revoke an approval.
 - [ ] Installer and upgrade tests cover exact size disclosure, peak-space preflight and the 1 GiB requirement, bounded streaming, redirect rejection, absent or dishonest lengths, digest mismatch, interruption, relaunch cleanup, disk exhaustion, atomic publication, concurrent taps/process callbacks, final backup exclusion, app-update revocation, and installation-versus-inference leases. A failed operation cannot become ready or displace a verified approved installation.
 - [ ] Settings and queue tests show accessible indeterminate/determinate progress and sanitized actionable state; readiness refreshes on Settings entry, activation, installation settlement, app manifest change, and preclaim. Missing, corrupt, incompatible, or revoked models wait with `Cohere model isn’t installed.` and Install Model/Choose Method. Installation never changes the selected method, and no readiness change switches methods automatically.

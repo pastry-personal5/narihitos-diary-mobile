@@ -363,15 +363,36 @@ final class FileTranscriptionCandidateStore: TranscriptionCandidateStore {
 
   private func validProvenance(_ record: StoredTranscriptionCandidate) -> Bool {
     guard record.conversionIdentity == record.payload.conversion else { return false }
-    guard record.method == TranscriptionMethodIdentifiers.apple else { return true }
     let settings = record.settings
-    return record.modelIdentity == nil
-      && settings["settingsRevision"] == "1"
-      && settings["requestedLocale"] == record.language.rawValue
-      && settings["resolvedLocale"] == record.payload.resolvedLocale
-      && settings["preset"] == "transcription"
-      && settings["resultPolicy"] == "final-only"
-      && settings["runtime"] == record.payload.runtime
-      && settings["operatingSystemVersion"] == record.payload.operatingSystemVersion
+    switch record.method {
+    case TranscriptionMethodIdentifiers.apple:
+      return record.modelIdentity == nil
+        && settings["settingsRevision"] == "1"
+        && settings["requestedLocale"] == record.language.rawValue
+        && settings["resolvedLocale"] == record.payload.resolvedLocale
+        && settings["preset"] == "transcription"
+        && settings["resultPolicy"] == "final-only"
+        && settings["runtime"] == record.payload.runtime
+        && settings["operatingSystemVersion"] == record.payload.operatingSystemVersion
+    case TranscriptionMethodIdentifiers.cohere:
+      let descriptor = CohereTrustedModel.production
+      let expectedHint = record.language == .english ? "en" : "ko"
+      return record.modelIdentity == descriptor.installationIdentity
+        && settings["settingsRevision"] == "1"
+        && settings["requestedLocale"] == record.language.rawValue
+        && settings["resolvedLocale"] == record.payload.resolvedLocale
+        && settings["languageHint"] == expectedHint
+        && settings["backend"] == "metal"
+        && settings["runtime"] == record.payload.runtime
+        && settings["runtimeCommit"] == CohereRuntimeProvenance.commit
+        && settings["modelID"] == descriptor.modelID
+        && settings["modelRevision"] == descriptor.repositoryRevision
+        && settings["quantization"] == descriptor.quantization
+        && settings["chunkingRevision"] == CohereChunkPlanner.identity
+        && settings["installedIdentity"] == descriptor.installationIdentity
+        && settings["operatingSystemVersion"] == record.payload.operatingSystemVersion
+    default:
+      return false
+    }
   }
 }

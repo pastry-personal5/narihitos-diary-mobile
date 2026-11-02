@@ -99,6 +99,27 @@ struct TranscriptionCandidateStoreTests {
     #expect(try fixture.store.inspect(job: fixture.job) == .missing)
   }
 
+  @Test func cohereCandidateRequiresClosedPinnedProvenance() throws {
+    let fixture = try CandidateFixture(method: .cohere)
+    defer { fixture.clean() }
+
+    try fixture.store.publish(fixture.payload, request: fixture.request, job: fixture.job)
+
+    #expect(try fixture.store.inspect(job: fixture.job) == .verified)
+    var mismatched = fixture.job
+    mismatched.effectiveSettings?["backend"] = "cpu"
+    #expect(try fixture.store.inspect(job: mismatched) == .invalid)
+  }
+
+  @Test func unknownMethodCandidateFailsClosed() throws {
+    let fixture = try CandidateFixture(method: .unknown)
+    defer { fixture.clean() }
+
+    #expect(throws: QueueStoreFailure.corrupt) {
+      try fixture.store.publish(fixture.payload, request: fixture.request, job: fixture.job)
+    }
+  }
+
   @Test func sourceChangedDuringPublicationCannotBeAccepted() throws {
     let fixture = try CandidateFixture()
     defer { fixture.clean() }
@@ -153,6 +174,12 @@ struct TranscriptionCandidateStoreTests {
 
 @MainActor
 private final class CandidateFixture {
+  enum Method: Equatable {
+    case apple
+    case cohere
+    case unknown
+  }
+
   let root: URL
   let candidate: URL
   let job: QueueJob
@@ -162,7 +189,8 @@ private final class CandidateFixture {
   let protectedData = MutableAvailability()
   let store: FileTranscriptionCandidateStore
 
-  init() throws {
+  // swiftlint:disable:next function_body_length
+  init(method: Method = .apple) throws {
     let id = try WorkspaceID("00000000-0000-4000-8000-000000000001")
     root = FileManager.default.temporaryDirectory.appending(path: "candidate-\(UUID())")
     let workspace = root.appending(path: id.description, directoryHint: .isDirectory)
@@ -177,23 +205,50 @@ private final class CandidateFixture {
     var claim = QueueJob(receipt: receipt, state: .transcribing)
     claim.attemptGeneration = 1
     claim.attemptID = UUID()
-    claim.selectedMethodID = "ndm.transcription.apple"
-    claim.effectiveSettings = [
-      "settingsRevision": "1", "requestedLocale": "en-US", "resolvedLocale": "en-US",
-      "preset": "transcription", "resultPolicy": "final-only",
-      "runtime": "apple-speech-analyzer", "operatingSystemVersion": "27.0",
-    ]
-    claim.modelIdentity = nil
-    claim.conversionIdentity = "file-v1"
+    switch method {
+    case .apple:
+      claim.selectedMethodID = TranscriptionMethodIdentifiers.apple
+      claim.effectiveSettings = [
+        "settingsRevision": "1", "requestedLocale": "en-US", "resolvedLocale": "en-US",
+        "preset": "transcription", "resultPolicy": "final-only",
+        "runtime": "apple-speech-analyzer", "operatingSystemVersion": "27.0",
+      ]
+      claim.modelIdentity = nil
+      claim.conversionIdentity = "file-v1"
+    case .cohere:
+      let descriptor = CohereTrustedModel.production
+      claim.selectedMethodID = TranscriptionMethodIdentifiers.cohere
+      claim.effectiveSettings = [
+        "settingsRevision": "1", "requestedLocale": "en-US", "resolvedLocale": "en-US",
+        "languageHint": "en", "backend": "metal",
+        "runtime": CohereRuntimeProvenance.identity,
+        "runtimeCommit": CohereRuntimeProvenance.commit,
+        "modelID": descriptor.modelID, "modelRevision": descriptor.repositoryRevision,
+        "quantization": descriptor.quantization,
+        "chunkingRevision": CohereChunkPlanner.identity,
+        "installedIdentity": descriptor.installationIdentity,
+        "operatingSystemVersion": "27.0",
+      ]
+      claim.modelIdentity = descriptor.installationIdentity
+      claim.conversionIdentity = CohereAudioConversion.identity
+    case .unknown:
+      claim.selectedMethodID = "ndm.transcription.unknown"
+      claim.effectiveSettings = ["settingsRevision": "1"]
+      claim.modelIdentity = nil
+      claim.conversionIdentity = "file-v1"
+    }
     job = claim
     let settings = EffectiveTranscriptionSettings(
       values: claim.effectiveSettings!, modelIdentity: nil, conversionIdentity: "file-v1")
     request = TranscriptionRequest(
       jobID: id.description, attemptID: claim.attemptID!, generation: 1, language: .english,
       settings: settings, destinationRevision: 0, bodyRevision: 0)
+    let payloadRuntime =
+      method == .cohere ? CohereRuntimeProvenance.identity : "apple-speech-analyzer"
     payload = TranscriptionPayload(
       text: "A test diary.", sourceDigest: String(repeating: "a", count: 64),
-      resolvedLocale: "en-US", runtime: "apple-speech-analyzer", conversion: "file-v1",
+      resolvedLocale: "en-US", runtime: payloadRuntime,
+      conversion: claim.conversionIdentity ?? "file-v1",
       operatingSystemVersion: "27.0")
     let availability = protectedData
     store = FileTranscriptionCandidateStore(
