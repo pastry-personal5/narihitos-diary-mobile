@@ -9,6 +9,7 @@ How to set up `Narihito's Diary Mobile`, validate a change, write commit message
 - macOS with Xcode 27.2 or later and the iOS SDK.
 - SwiftLint installed and available on PATH.
 - XcodeGen installed and available on PATH.
+- Python 3 available on PATH for simulator destination selection.
 - An iPhone simulator suitable for the target device.
 
 ```sh
@@ -16,7 +17,7 @@ make lint                                     # check Swift formatting and lint
 make generate                                 # generate the Xcode project
 make build                                    # generate and build for the iOS Simulator
 make open                                     # generate and open the project in Xcode
-TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh
+TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh
 ```
 
 The root Makefile is a convenience wrapper around XcodeGen and `xcodebuild`;
@@ -30,14 +31,14 @@ available team; no machine-specific Team ID is committed to the repository.
 
 ## Required validation
 
-For milestones other than P1-M1, P1-M2, and P1-M4, run the full checks from the repository root before opening a pull request. The owner exempted P1-M1 and P1-M2 from all build, lint, and test gates, and P1-M4 from its build, lint, and test exit gate; see the [Phase 1 changelog](phase-1/changelog.md).
+For milestones other than P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6, run the full checks from the repository root before opening a pull request. The owner exempted those milestones from build, lint, and test gates; see the [Phase 1 changelog](phase-1/changelog.md).
 
 ```sh
 make lint
-TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh
+TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh
 ```
 
-The lint script checks tracked and unignored new Swift files, including trial sources, while excluding ignored build and dependency output. It requires Git, swift-format, and SwiftLint; run it independently with `make lint`. The validation script keeps successful command output silent and prints a short log tail on failure. Set `TEST_DESTINATION` to a working iPhone simulator; without it, the script exits before running checks because the full gate requires tests. Simulator destination resolution fails after 60 seconds, and each test receives at most 120 seconds, so unavailable simulators and nonsettling tests do not stall the gate. Positive-integer `SIMULATOR_DESTINATION_TIMEOUT_SECONDS` and `TEST_EXECUTION_TIMEOUT_SECONDS` overrides are available for slower machines or explicitly long-running tests.
+The lint script checks tracked and unignored new Swift files, including trial sources, while excluding ignored build and dependency output. It requires Git, swift-format, and SwiftLint; run it independently with `make lint`. The validation script selects a booted iPhone when exactly one is available. Otherwise, set `TEST_DESTINATION` to an available iPhone simulator ID; the script lists candidates when selection is ambiguous. It checks CoreSimulator access before generation, then builds and tests on the same destination. Successful command output stays quiet; failures print a short log tail and retain the full logs at the reported temporary path. Simulator destination resolution fails after 60 seconds, and each test receives at most 120 seconds. Positive-integer `SIMULATOR_DESTINATION_TIMEOUT_SECONDS` and `TEST_EXECUTION_TIMEOUT_SECONDS` overrides are available for slower machines or explicitly long-running tests. If CoreSimulator reports a connection or permission error under a restricted shell, run the gate in a shell with simulator service access.
 
 ## Commit messages
 

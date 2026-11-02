@@ -66,6 +66,7 @@ P1-M5 and P1-M6 resolved the current v1 product and Cohere-direction choices. As
 
 - macOS with Xcode 27.2 or later and the iOS SDK.
 - SwiftLint installed and available on PATH.
+- Python 3 available on PATH for simulator destination selection in the validation gate.
 - An iPhone simulator suitable for the target device.
 
 ## Commands
@@ -75,7 +76,7 @@ make lint                                     # check Swift formatting and lint
 make generate                                 # generate with the first available Xcode team
 make build                                    # generate and build for the iOS Simulator
 make open                                     # generate and open the project in Xcode
-TEST_DESTINATION='platform=iOS Simulator,name=<available iPhone>' scripts/validate.sh  # quiet full gate
+TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh  # quiet full gate; may omit if exactly one iPhone is booted
 ```
 
 ## Code conventions

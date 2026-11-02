@@ -97,7 +97,7 @@ Notes: The owner marked implementation done on 2026-11-02, except for the by-hum
 Status: Done (owner decision; target-iPhone evidence pending)
 Goal: Adopt a verified transcription candidate as one protected managed Diary draft and generate a bounded read-only title with an on-device AI or first-sentence fallback.
 Plan: [overview](milestone-13-diary-drafts-titles-overview.md), [approach](milestone-13-diary-drafts-titles-architecture.md), [device evidence](milestone-13-diary-drafts-titles-device-evidence.md)
-Notes: The owner requested M13 implementation on 2026-11-02, authorizing work ahead of M12 completion. The implementation and simulator test suite are complete; M13 retains the draft and audio for M14's iCloud pair publication. Target-iPhone evidence remains open, and the current validation attempt is blocked by the local CoreSimulator/Swift macro service.
+Notes: The owner requested M13 implementation on 2026-11-02, authorizing work ahead of M12 completion. The implementation and simulator test suite are complete; M13 retains the draft and audio for M14's iCloud pair publication. The full simulator gate passed on 2026-11-02 with CoreSimulator access; target-iPhone evidence remains open.
 
 ### P1-M14: Commit and Reconcile iCloud Diary Assets
 

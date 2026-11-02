@@ -26,6 +26,7 @@ Recording, transcription, model installation, iCloud mutation and upload proof, 
 
 ## Completion checklist
 
+- [x] The validation gate diagnoses unavailable CoreSimulator access before building, selects a unique booted iPhone when no destination is supplied, rejects missing or ambiguous destinations, and preserves failure logs. Its build and test steps use the same selected simulator.
 - [x] The queue has a durable, generation-fenced draft transition and stable asset-ID mapping with compatible migration of existing jobs. A `resultReady` job can be adopted once; removal, restore quarantine, stale attempts/revisions, and duplicate callbacks cannot create a draft. Reconciliation checks a verified draft before requiring its discarded candidate.
 - [x] Apple and Cohere candidates produce the exact same managed-body path. The builder validates source binding and method-specific provenance, derives codec/rate/channels/bitrate from verified audio evidence, writes the verified recording hint to both approved language fields, emits a codec-valid Markdown draft, and retains no permanent separate transcript.
 - [x] Title policy tests cover available/unavailable models, English and Korean current-body language, confidence below 0.8, wrong-language and unsafe output, long-body full coverage, all work limits, 30-grapheme Unicode boundaries, native sentence fallback, and `Untitled` for an empty edited body. AI provenance records `title-v1`, iOS version, and model ID only when exposed.
