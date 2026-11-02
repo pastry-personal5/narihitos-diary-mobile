@@ -54,7 +54,9 @@ final class DiaryDraftAdoptionCoordinator {
   private func cleanupAdoptedCandidates() {
     guard let jobs = try? queue.jobs() else { return }
     for job in jobs where job.state == .readyToSave {
-      // Discard checks the exact closed attempt, even after the queue transition.
+      // A candidate is the recovery copy if the draft was lost after transition.
+      // Discard checks the exact closed attempt once the draft is verified.
+      guard (try? drafts.inspect(job: job)) == .verified else { continue }
       try? candidates.discard(job: job)
     }
   }

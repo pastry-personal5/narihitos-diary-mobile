@@ -29,7 +29,9 @@ private final class MemoryDiaryDraftStore: DiaryDraftStore {
 
   func readVerified(job _: QueueJob) throws -> VerifiedDiaryDraft {
     guard let snippet else { throw QueueStoreFailure.corrupt }
-    return VerifiedDiaryDraft(snippet: snippet, sourceDigest: "digest", markdownDigest: "markdown")
+    return VerifiedDiaryDraft(
+      snippet: snippet, sourceDigest: "digest", markdownDigest: "markdown",
+      markdownByteCount: 1)
   }
 }
 
@@ -265,6 +267,39 @@ struct DiaryDraftAdoptionTests {
     #expect(fixture.drafts.publicationCount == 1)
   }
 
+  @Test func cleanupPreservesCandidateUntilDraftIsVerified() async throws {
+    let fixture = try makeFixture()
+    var job = fixture.job
+    job.draftAssetID = try AssetID.random().description
+    let snippet = try sampleSnippet(job: job, receipt: fixture.receipt)
+    job.state = .readyToSave
+    fixture.queue.values[job.id] = job
+
+    fixture.adopter.activate()
+    #expect(fixture.candidates.published[job.id] != nil)
+
+    fixture.drafts.snippet = snippet
+    fixture.drafts.inspectionOverride = .invalid
+    fixture.adopter.prerequisiteChanged()
+    #expect(fixture.candidates.published[job.id] != nil)
+
+    fixture.drafts.inspectionOverride = .protectedDataUnavailable
+    fixture.adopter.prerequisiteChanged()
+    #expect(fixture.candidates.published[job.id] != nil)
+
+    fixture.drafts.inspectionOverride = nil
+    fixture.drafts.snippet = nil
+    fixture.processing.reconcile()
+    #expect(fixture.queue.values[job.id]?.state == .resultReady)
+    fixture.adopter.prerequisiteChanged()
+    for _ in 0..<100 where fixture.queue.values[job.id]?.state != .readyToSave {
+      await Task.yield()
+    }
+    #expect(fixture.queue.values[job.id]?.state == .readyToSave)
+    #expect(fixture.drafts.snippet?.id == snippet.id)
+    #expect(fixture.candidates.published[job.id] == nil)
+  }
+
   @Test func removalTombstoneFencesLateTitleResult() async throws {
     let fixture = try makeFixture()
     let model = SuspendedAdoptionTitleModel()
@@ -380,7 +415,9 @@ extension DiaryDraftAdoptionTests {
       protectedDataAvailable: { true })
     try store.publish(snippet, candidate: candidate, job: job)
     #expect(try store.inspect(job: job) == .verified)
-    #expect(try store.readVerified(job: job).snippet == snippet)
+    var boundSnippet = snippet
+    boundSnippet.audioSHA256 = digest
+    #expect(try store.readVerified(job: job).snippet == boundSnippet)
     source.value = String(repeating: "c", count: 64)
     #expect(try store.inspect(job: job) == .invalid)
     #expect(throws: TranscriptionCandidateFailure.invalidSource) {
@@ -533,10 +570,12 @@ extension DiaryDraftAdoptionTests {
       text: "I wrote a diary entry. Another sentence.", sourceDigest: "digest",
       resolvedLocale: "en-US", runtime: "apple-speech-analyzer",
       conversion: "ndm.apple-speech.av-audio-file-v1", operatingSystemVersion: "27.0")
-    return try DiaryDraftFactory().make(
+    var snippet = try DiaryDraftFactory().make(
       job: job, receipt: receipt, candidate: candidate,
       assetID: AssetID(rawID), updatedAt: Date(),
       title: DiaryTitlePolicy.fallback(candidate.text))
+    snippet.audioSHA256 = nil
+    return snippet
   }
 }
 

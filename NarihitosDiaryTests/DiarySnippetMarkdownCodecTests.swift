@@ -52,6 +52,27 @@ struct DiarySnippetMarkdownCodecTests {
     #expect(try codec.encode(decoded) == encoded)
   }
 
+  @Test func audioDigestBindsNewPairAndLegacyDocumentStaysReadable() throws {
+    let legacy = try Self.snippet(body: "A day")
+    let legacyBytes = try codec.encode(legacy)
+    guard case .supported(let older) = codec.decode(legacyBytes) else {
+      Issue.record("Legacy document should stay readable")
+      return
+    }
+    #expect(older.audioSHA256 == nil)
+
+    var bound = legacy
+    let digest = String(repeating: "a", count: 64)
+    bound.audioSHA256 = digest
+    let encoded = try codec.encode(bound)
+    let encodedText = try #require(String(bytes: encoded, encoding: .utf8))
+    #expect(encodedText.contains("audio_sha256: \"\(digest)\""))
+    #expect(codec.decode(encoded) == .supported(bound))
+    let invalid = encodedText.replacingOccurrences(
+      of: String(repeating: "a", count: 64), with: String(repeating: "A", count: 64))
+    #expect(codec.decode(Data(invalid.utf8)) == .malformed(.invalidField))
+  }
+
   @Test func allFieldsAndUnknownScalarsSurviveAnUnrelatedChange() throws {
     var snippet = try Self.snippet(body: "한글 🌙\n---\nbody delimiter stays body")
     snippet = DiarySnippetV1(

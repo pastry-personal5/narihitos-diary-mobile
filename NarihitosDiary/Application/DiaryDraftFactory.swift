@@ -35,6 +35,7 @@ struct DiaryDraftFactory {
       id: assetID, createdAt: created, updatedAt: updated, title: title.text,
       titleProvenance: title.provenance, favorite: false,
       language: job.language.rawValue, audioFilename: layout.audioFilename,
+      audioSHA256: candidate.sourceDigest,
       recordingDurationMilliseconds: Int64((inspection.duration * 1_000).rounded()),
       audioCodec: "aac", audioSampleRateHertz: Int64(sampleRate.rounded()),
       audioChannels: Int64(channels), audioBitrateBPS: Int64(bitRate),

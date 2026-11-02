@@ -3,6 +3,7 @@ import Combine
 import Foundation
 import OSLog
 import SwiftUI
+import UIKit
 
 // Capture presentation adds the M9 lifecycle to the M8 root model.
 // swiftlint:disable type_body_length file_length
@@ -25,6 +26,7 @@ final class AppModel: ObservableObject {
   @Published var isFolderPickerPresented = false
   @Published var preparedDestination: PreparedDestination?
   @Published var message: String?
+  @Published private(set) var savedFolderBanner: String?
   @Published private(set) var offersSettingsRecovery = false
   @Published private(set) var offersPendingReview = false
   @Published var isCapturePresented = false
@@ -58,6 +60,10 @@ final class AppModel: ObservableObject {
   private var captureCoordinator: CaptureCoordinator?
   private var processingQueue: ProcessingQueueCoordinator?
   private var draftAdoption: DiaryDraftAdoptionCoordinator?
+  private var commitCoordinator: DiaryCommitCoordinator?
+  private var saveTasks: [String: Task<Void, Never>] = [:]
+  private var saveAttempted: Set<String> = []
+  private var savedFolderBannerTask: Task<Void, Never>?
   private var transcriptionSettings: PrivateSettingsRepository?
   private var appleReadiness: AppleTranscriptionReadiness?
   private var appleInstaller: AppleAssetInstaller?
@@ -121,21 +127,58 @@ final class AppModel: ObservableObject {
     appleInstaller = installer
     self.cohereModels = cohereModels
     observeCohereModel(cohereModels)
+    let conflictSnapshots = try? FileDiaryConflictSnapshotStore()
+    let receipts = CaptureQueueReceiptSource(files: files, snapshots: conflictSnapshots)
     processingQueue = ProcessingQueueCoordinator(
-      store: queueStore, receipts: CaptureQueueReceiptSource(files: files),
+      store: queueStore, receipts: receipts,
       identity: installationIdentity,
       settings: ProductionTranscriptionSettings(repository: repository),
       registry: registry,
       candidates: candidateStore, drafts: draftStore)
     draftAdoption = DiaryDraftAdoptionCoordinator(
-      queue: queueStore, receipts: CaptureQueueReceiptSource(files: files),
+      queue: queueStore, receipts: receipts,
       candidates: candidateStore, drafts: draftStore,
       titles: DiaryTitlePolicy(
         model: AppleDiaryTitleModel(), languageDetector: NaturalLanguageTitleDetector()))
-    draftAdoption?.onChange = { [weak self] in self?.refreshCaptureLists() }
+    let payload = RetryingDiaryCommitPayload(
+      root: files.root, drafts: draftStore, audio: audioSource)
+    let conflictInspector = conflictSnapshots.map {
+      AppleDiaryConflictInspector(
+        destination: destination, captures: files, snapshots: $0)
+    }
+    let conflictPairs = conflictSnapshots.map {
+      AppleDiaryConflictPairStore(
+        destination: destination, captures: files, snapshots: $0)
+    }
+    let commit = DiaryCommitCoordinator(
+      queue: queueStore, drafts: draftStore,
+      pairs: AppleDiaryPairStore(
+        destination: destination, captures: files, payload: payload),
+      cleanup: CaptureCommitCleanup(files: files, snapshots: conflictSnapshots),
+      conflicts: conflictInspector,
+      conflictPairs: conflictPairs)
+    commitCoordinator = commit
+    processingQueue?.saveWork = commit
+    commit.onChange = { [weak self] in self?.refreshCaptureLists() }
+    commit.onSettled = { [weak self] jobID in
+      self?.processingQueue?.saveAttemptSettled(jobID: jobID)
+      self?.refreshCaptureLists()
+    }
+    commit.onSaved = { [weak self] job in
+      guard let self,
+        let snapshot = try? files.readSnapshot(job.destinationReference),
+        self.destination.summary?.id.rawValue != snapshot.id
+      else { return }
+      showSavedFolderBanner(snapshot.displayName)
+    }
+    draftAdoption?.onChange = { [weak self] in
+      self?.refreshCaptureLists()
+      self?.pumpSaves()
+    }
     processingQueue?.onChange = { [weak self] in
       self?.refreshCaptureLists()
       self?.draftAdoption?.prerequisiteChanged()
+      self?.pumpSaves()
     }
   }
 
@@ -159,6 +202,7 @@ final class AppModel: ObservableObject {
 
   func becameActive() async {
     isAppActive = true
+    saveAttempted.removeAll()
     firstLaunch.refresh()
     microphoneState = microphone.currentState()
     locationState = location.currentState()
@@ -167,6 +211,8 @@ final class AppModel: ObservableObject {
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
     draftAdoption?.activate()
+    commitCoordinator?.resumeCleanup()
+    pumpSaves()
     refreshAppleReadiness()
     refreshCohereReadiness()
     refreshCaptureLists()
@@ -186,6 +232,8 @@ final class AppModel: ObservableObject {
   func identityChanged() async {
     destinationService.invalidateAccess()
     destination = await destinationService.activeDestination()
+    saveAttempted.removeAll()
+    pumpSaves()
   }
 
   func continueFirstLaunch() async {
@@ -392,7 +440,7 @@ final class AppModel: ObservableObject {
     }
     failedCaptures = captureEnvironment?.failed() ?? []
     captureIssues = captureEnvironment?.issues() ?? []
-    queuePending = queue.filter { $0.state != .failed }
+    queuePending = queue.filter { $0.state != .failed && $0.state != .saved }
     queueFailed = queue.filter { $0.state == .failed }
     queuePausedReason = processingQueue?.pausedReason ?? draftAdoption?.pausedReason
   }
@@ -540,8 +588,30 @@ final class AppModel: ObservableObject {
   }
 
   func retryQueueJob(_ id: String) {
+    if processingQueue?.projections().first(where: { $0.id == id })?.state == .readyToSave {
+      saveAttempted.remove(id)
+      pumpSaves()
+      return
+    }
     processingQueue?.manualRetry(jobID: id)
     refreshCaptureLists()
+  }
+
+  private func pumpSaves() {
+    guard isAppActive, let commitCoordinator else { return }
+    let ready =
+      processingQueue?.projections().filter {
+        $0.state == .readyToSave && !saveAttempted.contains($0.id)
+      } ?? []
+    for job in ready {
+      saveAttempted.insert(job.id)
+      saveTasks[job.id] = Task { [weak self] in
+        await commitCoordinator.attempt(jobID: job.id)
+        self?.saveTasks.removeValue(forKey: job.id)
+        self?.refreshCaptureLists()
+        self?.pumpSaves()
+      }
+    }
   }
 
   func resumeQueueJob(_ id: String) {
@@ -551,7 +621,28 @@ final class AppModel: ObservableObject {
 
   func removeQueueJob(_ id: String) {
     processingQueue?.remove(jobID: id)
+    saveTasks[id]?.cancel()
     refreshCaptureLists()
+  }
+
+  func dismissSavedFolderBanner() {
+    savedFolderBannerTask?.cancel()
+    savedFolderBannerTask = nil
+    savedFolderBanner = nil
+  }
+
+  private func showSavedFolderBanner(_ folder: String) {
+    dismissSavedFolderBanner()
+    let message = "Diary saved to \(SafeFolderDisplayName.project(folder))."
+    savedFolderBanner = message
+    if UIAccessibility.isVoiceOverRunning {
+      UIAccessibility.post(notification: .announcement, argument: message)
+    }
+    savedFolderBannerTask = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(6))
+      guard !Task.isCancelled else { return }
+      self?.dismissSavedFolderBanner()
+    }
   }
 
   private func presentMicrophoneRecovery() {

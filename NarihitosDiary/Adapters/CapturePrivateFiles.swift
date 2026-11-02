@@ -65,6 +65,24 @@ final class CapturePrivateFiles {
     return id
   }
 
+  func readSnapshot(_ id: UUID) throws -> StoredDestinationRecord {
+    guard hasSnapshot(id) else { throw CaptureGateFailure.destination }
+    let data = try Data(contentsOf: snapshotURL(id))
+    return try JSONDecoder().decode(StoredDestinationRecord.self, from: data)
+  }
+
+  func removeUnreferencedSnapshot(_ id: UUID) throws {
+    try requirePlainDirectory(root)
+    for workspace in workspaceIDs() {
+      guard readJournal(id: workspace, name: "capture.json")?.destinationReference != id
+      else { throw CaptureGateFailure.storage }
+    }
+    let url = snapshotURL(id)
+    guard manager.fileExists(atPath: url.path) else { return }
+    guard hasSnapshot(id) else { throw CaptureGateFailure.destination }
+    try manager.removeItem(at: url)
+  }
+
   func createWorkspace(_ identity: CaptureIdentity) throws {
     guard hasSnapshot(identity.destinationReference) else {
       throw CaptureGateFailure.destination

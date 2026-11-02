@@ -11,6 +11,7 @@ struct VerifiedDiaryDraft: Equatable, Sendable {
   let snippet: DiarySnippetV1
   let sourceDigest: String
   let markdownDigest: String
+  let markdownByteCount: Int64
 }
 
 @MainActor

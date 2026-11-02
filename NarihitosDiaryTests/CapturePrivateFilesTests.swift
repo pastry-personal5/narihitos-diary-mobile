@@ -10,6 +10,32 @@ import Testing
 @MainActor
 // swiftlint:disable:next type_body_length
 struct CapturePrivateFilesTests {
+  @Test func pendingRemovalReleasesCaptureDestinationSnapshot() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]), disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 5),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let receipt = QueueReceipt(
+      id: identity.id, startedAt: identity.startedAt, language: identity.language,
+      destinationReference: reference, installationBinding: "installation",
+      inspection: CaptureInspection(
+        byteCount: 512, duration: 1, isMonoAAC: true, isPlayable: true))
+    let job = QueueJob(receipt: receipt, state: .removing)
+
+    try CaptureQueueReceiptSource(files: files).removePrivateCapture(job: job)
+    let snapshot = root.appending(path: "snapshot-\(reference.uuidString.lowercased()).json")
+    #expect(!FileManager.default.fileExists(atPath: snapshot.path))
+    #expect(!FileManager.default.fileExists(atPath: root.appending(path: job.id).path))
+  }
+
   @Test func removalPreservesWorkspaceContainingUnknownFiles() throws {
     let root = FileManager.default.temporaryDirectory.appending(
       path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)

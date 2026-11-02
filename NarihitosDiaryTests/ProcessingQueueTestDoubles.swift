@@ -81,6 +81,7 @@ final class MemoryQueueStore: QueueStorePort {
   var createCalls = 0
   var failReplace = false
   var failReplaceState: QueueJobState?
+  var shouldFailReplace: ((QueueJob) -> Bool)?
 
   func jobs() throws -> [QueueJob] { Array(values.values) }
 
@@ -92,7 +93,9 @@ final class MemoryQueueStore: QueueStorePort {
   }
 
   func replace(_ job: QueueJob) throws {
-    if failReplace || job.state == failReplaceState { throw QueueStoreFailure.unavailable }
+    if failReplace || job.state == failReplaceState || shouldFailReplace?(job) == true {
+      throw QueueStoreFailure.unavailable
+    }
     values[job.id] = job
   }
 
@@ -111,7 +114,8 @@ final class MemoryReceiptSource: QueueReceiptSourcePort {
   func pendingReceipts() -> [QueueReceipt] { Array(values.values) }
   func receipt(jobID: String) -> QueueReceipt? { values[jobID] }
 
-  func removePrivateCapture(jobID: String) throws {
+  func removePrivateCapture(job: QueueJob) throws {
+    let jobID = job.id
     guard values.removeValue(forKey: jobID) != nil else { throw QueueStoreFailure.corrupt }
     removed.append(jobID)
   }

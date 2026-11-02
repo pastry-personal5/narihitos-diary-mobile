@@ -101,10 +101,10 @@ Notes: The owner requested M13 implementation on 2026-11-02, authorizing work ah
 
 ### P1-M14: Commit and Reconcile iCloud Diary Assets
 
-Status: Planned
+Status: Implementation complete (target-iPhone evidence pending)
 Goal: Publish the verified diary/audio pair to its capture-time iCloud folder, prove both uploads, and reconcile partial writes and conflicts safely.
 Plan: [overview](milestone-14-icloud-commit-reconciliation-overview.md), [approach](milestone-14-icloud-commit-reconciliation-architecture.md), [device evidence](milestone-14-icloud-commit-reconciliation-device-evidence.md)
-Notes: Implementation follows M13 completion unless the owner authorizes a reorder. M15–M17 own collection, edit, and full recovery interfaces; open earlier device evidence and gates are unchanged.
+Notes: M14 has a live audio-first coordinated pair writer, per-file upload observations, durable file-version checkpoints, save retry and cleanup, original-destination loans, guarded partial repair, typed active-folder and capture-folder inspection, and protected conflict snapshots. The conflict path inspects provider versions, pairs them by explicit audio digest without sharing an audio version, durably claims the selected snapshot, replaces audio then Markdown against expected current versions, waits for separate upload reports, and checks the selected pair again before removing only recognized obsolete provider versions. Unknown historical versions block cleanup. Automatic later-pair cleanup follows proof; ambiguous choice needs M17 confirmation. After provider cleanup, the job is saved and protected snapshots and capture staging are removed. Random inode-bound markers support guarded adoption after interrupted version checkpoints where the provider retains them; otherwise collisions remain for read-only recovery. The full simulator gate passed on 2026-11-02 with `platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082`; target-iPhone provider and adversarial evidence remains open. An isolated synthetic-test build was installed on a paired iPhone running iOS 27.0.1, but launch was denied while the device was locked, so no M14 device scenario has passed.
 
 ### P1-M15: Build the Main Collection and Diary Detail
 

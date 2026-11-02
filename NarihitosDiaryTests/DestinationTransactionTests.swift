@@ -33,6 +33,39 @@ struct DestinationTransactionTests {
     #expect(platform.stopCount == 3)
   }
 
+  @Test func captureSnapshotLoanSurvivesActiveFolderReplacement() throws {
+    let original = storedDestination(displayName: "Original")
+    let store = FakeDestinationStore(destination: original)
+    let platform = FakeDestinationPlatform()
+    let service = AppleDestinationService(repository: store, platform: platform)
+    store.destination = storedDestination(displayName: "New active folder")
+    service.invalidateAccess()
+
+    let accessed = try service.withCaptureSnapshot(original) { url in
+      #expect(platform.startCount == 1)
+      #expect(platform.stopCount == 0)
+      return url
+    }
+
+    #expect(accessed == platform.url)
+    #expect(platform.startCount == 1)
+    #expect(platform.stopCount == 1)
+    #expect(store.destination?.displayName == "New active folder")
+  }
+
+  @Test func captureSnapshotLoanRejectsIdentityChange() {
+    let original = storedDestination()
+    let platform = FakeDestinationPlatform()
+    platform.identitiesAreEqual = false
+    let service = AppleDestinationService(
+      repository: FakeDestinationStore(destination: original), platform: platform)
+
+    #expect(throws: DestinationValidationError.self) {
+      _ = try service.withCaptureSnapshot(original) { _ in true }
+    }
+    #expect(platform.startCount == 0)
+  }
+
   @Test func rejectedCandidateAndFailedCommitRetainPreviousDestination() {
     let previous = storedDestination(displayName: "Previous")
     let store = FakeDestinationStore(destination: previous)

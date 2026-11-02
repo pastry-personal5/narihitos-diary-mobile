@@ -1,5 +1,8 @@
 import Foundation
 
+// The selection transaction and capture-snapshot loan share one identity predicate.
+// swiftlint:disable file_length
+
 @MainActor
 protocol DestinationSelectionPort: DestinationPort {
   func prepareSelection(of url: URL) -> DestinationSelectionOutcome
@@ -36,6 +39,7 @@ protocol DestinationPlatform: AnyObject {
 }
 
 @MainActor
+// swiftlint:disable:next type_body_length
 final class AppleDestinationService: DestinationSelectionPort {
   static let maximumBookmarkSize = 64 * 1_024
   static let maximumIdentityArchiveSize = 16 * 1_024
@@ -108,6 +112,58 @@ final class AppleDestinationService: DestinationSelectionPort {
       try identitiesMatch(effective.identityArchive, finalIdentity)
     else { throw CaptureGateFailure.destination }
     return (effective, eligibility)
+  }
+
+  /// A capture's private snapshot is independent of Settings' later selection.
+  /// The caller must keep all coordinated provider work inside this loan.
+  func withCaptureSnapshot<Value>(
+    _ stored: StoredDestinationRecord, operation: (URL) throws -> Value
+  ) throws -> Value {
+    let url = try beginCaptureLoan(stored)
+    defer { platform.stopAccessing(url) }
+    let value = try operation(url)
+    try verifyCaptureIdentity(stored)
+    return value
+  }
+
+  func withCaptureSnapshotAsync<Value: Sendable>(
+    _ stored: StoredDestinationRecord,
+    operation: (URL) async throws -> Value
+  ) async throws -> Value {
+    let url = try beginCaptureLoan(stored)
+    defer { platform.stopAccessing(url) }
+    let value = try await operation(url)
+    try verifyCaptureIdentity(stored)
+    return value
+  }
+
+  private func beginCaptureLoan(_ stored: StoredDestinationRecord) throws -> URL {
+    guard validateStoredRecord(stored) != nil, stored.disclosureAcknowledged else {
+      throw DestinationValidationError.invalidReference
+    }
+    let initialIdentity = try currentIdentityArchive()
+    guard try identitiesMatch(stored.identityArchive, initialIdentity) else {
+      throw DestinationValidationError.identityUnavailable
+    }
+    let resolved = try platform.resolveBookmark(stored.bookmark)
+    guard platform.startAccessing(resolved.url) else {
+      throw DestinationValidationError.providerUnavailable
+    }
+    do {
+      _ = try validateAndProject(resolved.url)
+      try verifyCaptureIdentity(stored)
+      return resolved.url
+    } catch {
+      platform.stopAccessing(resolved.url)
+      throw error
+    }
+  }
+
+  private func verifyCaptureIdentity(_ stored: StoredDestinationRecord) throws {
+    let identity = try currentIdentityArchive()
+    guard try identitiesMatch(stored.identityArchive, identity) else {
+      throw DestinationValidationError.identityUnavailable
+    }
   }
 
   private func resolveStoredDestination(

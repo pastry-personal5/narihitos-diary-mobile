@@ -30,6 +30,7 @@ enum QueueJobState: String, Codable, Sendable {
   case transcribing
   case resultReady
   case readyToSave
+  case saved
   case failed
   case reviewRequired
   case cancelling
@@ -62,6 +63,11 @@ struct QueueJob: Codable, Equatable, Sendable {
   var bodyRevision: Int
   /// Assigned once before the first draft write; nil in queue records made before M13.
   var draftAssetID: String?
+  /// Absent in records written before M14. An intent never implies upload success.
+  var commit: DiaryCommitRecord?
+  var commitCleanupDone: Bool?
+  var commitNoticeDelivered: Bool?
+  var conflictResolution: DiaryConflictResolutionClaim?
 
   init(receipt: QueueReceipt, state: QueueJobState, reason: String? = nil) {
     schema = Self.schemaVersion
@@ -81,6 +87,10 @@ struct QueueJob: Codable, Equatable, Sendable {
     destinationRevision = 0
     bodyRevision = 0
     draftAssetID = nil
+    commit = nil
+    commitCleanupDone = nil
+    commitNoticeDelivered = nil
+    conflictResolution = nil
   }
 
   func matches(_ receipt: QueueReceipt) -> Bool {
@@ -110,7 +120,12 @@ protocol QueueStorePort: AnyObject {
 protocol QueueReceiptSourcePort: AnyObject {
   func pendingReceipts() -> [QueueReceipt]
   func receipt(jobID: String) -> QueueReceipt?
-  func removePrivateCapture(jobID: String) throws
+  func removePrivateCapture(job: QueueJob) throws
+}
+
+@MainActor
+protocol QueueSaveWork: AnyObject {
+  func isWorking(jobID: String) -> Bool
 }
 
 enum TranscriptionWaitReason: Equatable, Sendable {
@@ -264,6 +279,7 @@ final class ProcessingQueueCoordinator {
   private let registry: TranscriptionMethodRegistry
   private let candidates: any TranscriptionCandidateStore
   private let drafts: (any DiaryDraftStore)?
+  var saveWork: (any QueueSaveWork)?
   private let timeout: Duration
   private struct ActiveAttempt {
     let jobID: String
@@ -425,8 +441,10 @@ final class ProcessingQueueCoordinator {
       for job in try store.jobs() where job.state == .removing {
         guard finishRemoval(jobID: job.id) else { return }
       }
-      for var job in try store.jobs()
-      where job.state == .cancelling && activeWork?.jobID != job.id {
+      for var job in try store.jobs() {
+        guard job.state == .cancelling, activeWork?.jobID != job.id,
+          saveWork?.isWorking(jobID: job.id) != true
+        else { continue }
         job.state = .removing
         try store.replace(job)
         guard finishRemoval(jobID: job.id) else { return }
@@ -488,6 +506,17 @@ final class ProcessingQueueCoordinator {
   }
 
   func remove(jobID: String) {
+    guard (try? store.jobs().first(where: { $0.id == jobID }))?.state != .saved else {
+      return
+    }
+    if saveWork?.isWorking(jobID: jobID) == true {
+      _ = mutate(jobID: jobID) { job in
+        job.attemptGeneration += 1
+        job.state = .cancelling
+        job.reason = nil
+      }
+      return
+    }
     if let activeWork, activeWork.jobID == jobID {
       self.activeWork?.invalidated = true
       guard
@@ -515,6 +544,18 @@ final class ProcessingQueueCoordinator {
         })
     else { return }
     finishRemoval(jobID: jobID)
+  }
+
+  func saveAttemptSettled(jobID: String) {
+    guard saveWork?.isWorking(jobID: jobID) != true else { return }
+    do {
+      guard var job = try store.jobs().first(where: { $0.id == jobID }),
+        job.state == .cancelling
+      else { return }
+      job.state = .removing
+      try store.replace(job)
+      _ = finishRemoval(jobID: jobID)
+    } catch { pauseQueue() }
   }
 
   func projections() -> [QueueProjection] {
@@ -793,7 +834,10 @@ final class ProcessingQueueCoordinator {
   @discardableResult
   private func finishRemoval(jobID: String) -> Bool {
     do {
-      try receipts.removePrivateCapture(jobID: jobID)
+      guard let job = try store.jobs().first(where: { $0.id == jobID }),
+        job.state == .removing || job.state == .cancelling
+      else { return false }
+      try receipts.removePrivateCapture(job: job)
       try store.remove(jobID: jobID)
       onChange?()
       return true

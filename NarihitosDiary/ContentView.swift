@@ -28,6 +28,24 @@ struct ContentView: View {
       .disabled(scenePhase != .active)
       .accessibilityHidden(scenePhase != .active)
 
+      if scenePhase == .active, let banner = model.savedFolderBanner {
+        VStack {
+          HStack(spacing: 12) {
+            Text(banner)
+              .font(.subheadline)
+              .accessibilityAddTraits(.updatesFrequently)
+            Spacer()
+            Button("Dismiss", action: model.dismissSavedFolderBanner)
+          }
+          .padding()
+          .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+          .padding(.horizontal, 16)
+          Spacer()
+        }
+        .padding(.top, 8)
+        .zIndex(1)
+      }
+
       if scenePhase != .active {
         PrivacyCover()
           .transition(.identity)
@@ -291,6 +309,8 @@ private struct CaptureListView: View {
             Button("Retry") { onRetry(entry.id) }
           } else if entry.state == .waiting {
             Button("Choose Method") { onChooseMethod(entry.language) }
+          } else if entry.state == .readyToSave, entry.reason != nil {
+            Button("Retry Verification") { onRetry(entry.id) }
           }
           if entry.state != .cancelling {
             Button("Remove", role: .destructive) { removalCandidate = entry.id }

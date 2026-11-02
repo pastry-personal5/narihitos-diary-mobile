@@ -124,12 +124,15 @@ final class FileDiaryDraftStore: DiaryDraftStore {
       snippet.language == job.language.rawValue,
       snippet.transcription.languageHint == job.language.rawValue,
       snippet.createdAt == (try SchemaInstant.from(date: job.startedAt)),
+      snippet.audioSHA256 == nil || snippet.audioSHA256 == candidate.sourceDigest,
       Self.validDigest(candidate.sourceDigest)
     else { throw QueueStoreFailure.corrupt }
     guard candidate.sourceDigest == (try audio.fingerprint(for: job)) else {
       throw TranscriptionCandidateFailure.invalidSource
     }
-    let markdown = try codec.encode(snippet)
+    var boundSnippet = snippet
+    boundSnippet.audioSHA256 = candidate.sourceDigest
+    let markdown = try codec.encode(boundSnippet)
     let record = try DraftBindingRecord(
       job: job, sourceDigest: candidate.sourceDigest,
       markdownDigest: Self.digest(markdown))
@@ -141,7 +144,7 @@ final class FileDiaryDraftStore: DiaryDraftStore {
     let identity = try workspace.artifact(.draftBinding, in: handle)
     try workspace.replace(draft, with: markdown)
     try workspace.replace(identity, with: binding)
-    guard try readVerified(job: job).snippet == snippet else {
+    guard try readVerified(job: job).snippet == boundSnippet else {
       throw PrivateWorkspaceFailureCode.verificationFailed
     }
   }
@@ -189,11 +192,12 @@ final class FileDiaryDraftStore: DiaryDraftStore {
       snippet.transcription.methodID.description == record.methodID,
       snippet.createdAt == (try SchemaInstant.from(date: job.startedAt)),
       snippet.language == job.language.rawValue,
-      snippet.transcription.languageHint == job.language.rawValue
+      snippet.transcription.languageHint == job.language.rawValue,
+      snippet.audioSHA256 == nil || snippet.audioSHA256 == record.sourceDigest
     else { throw QueueStoreFailure.corrupt }
     return VerifiedDiaryDraft(
       snippet: snippet, sourceDigest: record.sourceDigest,
-      markdownDigest: record.markdownDigest)
+      markdownDigest: record.markdownDigest, markdownByteCount: Int64(markdown.count))
   }
 
   private func verifyAttributes(jobID: String, role: PrivateArtifactRole) throws {

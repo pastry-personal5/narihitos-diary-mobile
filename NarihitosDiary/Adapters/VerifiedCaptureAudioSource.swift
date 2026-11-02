@@ -32,6 +32,24 @@ final class VerifiedCaptureAudio: AppleSpeechAudioLease, CohereAudioLease {
 
   func close() throws { try handle.close() }
 
+  func readBytes(maximumBytes: Int64) throws -> Data {
+    try verifyUnchanged()
+    guard initial.st_size > 0, initial.st_size <= maximumBytes else {
+      throw AudioFingerprintFailure.invalidAudio
+    }
+    try handle.seek(toOffset: 0)
+    var bytes = Data()
+    while bytes.count < Int(initial.st_size) {
+      let remaining = Int(initial.st_size) - bytes.count
+      guard let chunk = try handle.read(upToCount: min(64 * 1_024, remaining)),
+        !chunk.isEmpty
+      else { throw AudioFingerprintFailure.invalidAudio }
+      bytes.append(chunk)
+    }
+    try verifyUnchanged()
+    return bytes
+  }
+
   func openAudioFile() throws -> AVAudioFile {
     do { return try AVAudioFile(forReading: url) } catch {
       throw AudioFingerprintFailure.invalidAudio

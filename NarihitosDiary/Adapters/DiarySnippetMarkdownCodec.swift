@@ -63,6 +63,7 @@ struct DiarySnippetMarkdownCodec: Sendable {
   ]
 
   private static let conditionalKeys = [
+    "audio_sha256",
     "transcription_model_id", "transcription_model_version", "transcription_runtime_id",
     "transcription_conversion_id", "title_prompt_revision", "title_os_version", "title_model_id",
   ]
@@ -105,6 +106,10 @@ struct DiarySnippetMarkdownCodec: Sendable {
       let createdAt = try SchemaInstant(string("created_at", in: entries))
       let updatedAt = try SchemaInstant(string("updated_at", in: entries))
       let audioFilename = try string("audio_filename", in: entries)
+      let audioSHA256 = optionalString("audio_sha256", in: entries)
+      guard audioSHA256.map(Self.validSHA256) ?? true else {
+        throw DiarySnippetMalformedCode.invalidField
+      }
       guard
         DiarySnippetLayout(id: id, createdAt: createdAt).validates(audioReference: audioFilename)
       else {
@@ -163,6 +168,7 @@ struct DiarySnippetMarkdownCodec: Sendable {
           favorite: try boolean("favorite", in: entries),
           language: try string("language", in: entries),
           audioFilename: audioFilename,
+          audioSHA256: audioSHA256,
           recordingDurationMilliseconds: duration,
           audioCodec: try string("audio_codec", in: entries),
           audioSampleRateHertz: sampleRate,
@@ -204,6 +210,7 @@ struct DiarySnippetMarkdownCodec: Sendable {
     lines.append("favorite: \(snippet.favorite ? "true" : "false")")
     quoted("language", snippet.language)
     quoted("audio_filename", snippet.audioFilename)
+    appendOptional("audio_sha256", snippet.audioSHA256, to: &lines)
     integer("recording_duration_ms", snippet.recordingDurationMilliseconds)
     quoted("audio_codec", snippet.audioCodec)
     integer("audio_sample_rate_hz", snippet.audioSampleRateHertz)
@@ -257,7 +264,8 @@ struct DiarySnippetMarkdownCodec: Sendable {
 
   private func validateForEncoding(_ snippet: DiarySnippetV1) throws {
     let strings = [
-      snippet.title, snippet.language, snippet.audioFilename, snippet.audioCodec,
+      snippet.title, snippet.language, snippet.audioFilename, snippet.audioSHA256,
+      snippet.audioCodec,
       snippet.transcription.methodID.description, snippet.transcription.languageHint,
       snippet.transcription.modelID, snippet.transcription.modelVersion,
       snippet.transcription.runtimeID, snippet.transcription.conversionID,
@@ -274,8 +282,14 @@ struct DiarySnippetMarkdownCodec: Sendable {
       (0...301_000).contains(snippet.recordingDurationMilliseconds),
       snippet.audioSampleRateHertz > 0, snippet.audioChannels > 0, snippet.audioBitrateBPS > 0,
       DiarySnippetLayout(id: snippet.id, createdAt: snippet.createdAt).validates(
-        audioReference: snippet.audioFilename)
+        audioReference: snippet.audioFilename),
+      snippet.audioSHA256.map(Self.validSHA256) ?? true
     else { throw DiarySnippetMalformedCode.invalidField }
+  }
+
+  private static func validSHA256(_ value: String) -> Bool {
+    value.utf8.count == 64
+      && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
   }
 
   // swiftlint:disable:next cyclomatic_complexity

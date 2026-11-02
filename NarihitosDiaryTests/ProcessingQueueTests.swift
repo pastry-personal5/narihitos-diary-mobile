@@ -6,7 +6,32 @@ import Testing
 // swiftlint:disable file_length
 
 @MainActor
+private final class FakeSaveWork: QueueSaveWork {
+  var working = true
+  func isWorking(jobID _: String) -> Bool { working }
+}
+
+@MainActor
 struct ProcessingQueueTests {
+  @Test func saveRemovalWaitsForProviderToRelinquish() throws {
+    let item = try receipt(start: 1)
+    let store = MemoryQueueStore()
+    store.values[item.id.description] = QueueJob(receipt: item, state: .readyToSave)
+    let source = MemoryReceiptSource([item])
+    let coordinator = makeCoordinator(store: store, source: source)
+    let save = FakeSaveWork()
+    coordinator.saveWork = save
+
+    coordinator.remove(jobID: item.id.description)
+    coordinator.reconcile()
+    #expect(store.values[item.id.description]?.state == .cancelling)
+    #expect(source.removed.isEmpty)
+    save.working = false
+    coordinator.saveAttemptSettled(jobID: item.id.description)
+    #expect(store.values[item.id.description] == nil)
+    #expect(source.removed == [item.id.description])
+  }
+
   @Test func existingJobFromAnotherInstallationRequiresReview() throws {
     let item = try receipt(start: 1, binding: "former")
     let store = MemoryQueueStore()

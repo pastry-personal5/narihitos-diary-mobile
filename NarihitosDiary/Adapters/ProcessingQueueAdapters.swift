@@ -53,12 +53,33 @@ final class KeychainInstallationIdentity: InstallationIdentityPort {
 @MainActor
 final class CaptureQueueReceiptSource: QueueReceiptSourcePort {
   private let files: CapturePrivateFiles
+  private let snapshots: FileDiaryConflictSnapshotStore?
 
-  init(files: CapturePrivateFiles) { self.files = files }
+  init(files: CapturePrivateFiles, snapshots: FileDiaryConflictSnapshotStore? = nil) {
+    self.files = files
+    self.snapshots = snapshots
+  }
 
   func pendingReceipts() -> [QueueReceipt] { files.pendingQueueReceipts() }
   func receipt(jobID: String) -> QueueReceipt? { files.queueReceipt(jobID: jobID) }
-  func removePrivateCapture(jobID: String) throws { try files.removeWorkspace(jobID: jobID) }
+  func removePrivateCapture(job: QueueJob) throws {
+    if let claim = job.conflictResolution {
+      guard job.state == .removing || job.state == .cancelling,
+        job.draftAssetID == claim.assetID,
+        let snapshots,
+        let first = try? WorkspaceID(claim.firstSnapshotID),
+        let second = try? WorkspaceID(claim.secondSnapshotID), first != second
+      else { throw QueueStoreFailure.corrupt }
+      // Removal invalidates the attempt generation. The retained asset/version
+      // binding, rather than the now-stale attempt claim, identifies these copies.
+      try snapshots.removeVerifiedIfPresent(
+        id: first, assetID: claim.assetID, version: claim.firstVersion)
+      try snapshots.removeVerifiedIfPresent(
+        id: second, assetID: claim.assetID, version: claim.secondVersion)
+    }
+    try files.removeWorkspace(jobID: job.id)
+    try files.removeUnreferencedSnapshot(job.destinationReference)
+  }
 }
 
 @MainActor

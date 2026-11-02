@@ -165,6 +165,7 @@ struct DiarySnippetV1: Equatable, Sendable {
   var favorite: Bool
   let language: String
   let audioFilename: String
+  var audioSHA256: String?
   let recordingDurationMilliseconds: Int64
   let audioCodec: String
   let audioSampleRateHertz: Int64
