@@ -3,6 +3,7 @@ enum AppleReadinessPresentation {
     switch state {
     case .ready: "Ready"
     case .downloadable: "Model not installed"
+    case .reservationRequired: "Setup required"
     case .downloading: "Downloading"
     case .unavailable: "Unavailable on this device"
     case .unsupported: "Language not supported"

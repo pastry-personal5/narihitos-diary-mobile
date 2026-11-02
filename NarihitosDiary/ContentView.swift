@@ -735,11 +735,21 @@ private struct TranscriptionSettingsView: View {
           model.cancelAppleInstallation(language)
         }
         .frame(minHeight: 44)
-      } else if model.appleReadinessStates[language] == .downloadable {
-        Button("Download \(label) Model") { model.installAppleModel(language) }
-          .frame(minHeight: 44)
+      } else if shouldOfferAppleSetup(language) {
+        Button(
+          model.appleReadinessStates[language] == .reservationRequired
+            ? "Set Up \(label) Model" : "Download \(label) Model"
+        ) {
+          model.installAppleModel(language)
+        }
+        .frame(minHeight: 44)
       }
     }
+  }
+
+  private func shouldOfferAppleSetup(_ language: CaptureLanguage) -> Bool {
+    model.appleReadinessStates[language] == .downloadable
+      || model.appleReadinessStates[language] == .reservationRequired
   }
 
   private var cohereStatus: String {

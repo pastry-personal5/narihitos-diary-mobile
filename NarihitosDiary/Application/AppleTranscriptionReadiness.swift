@@ -4,6 +4,7 @@ enum AppleTranscriptionAssetState: Equatable, Sendable {
   case unavailable
   case unsupported
   case downloadable
+  case reservationRequired
   case downloading
   case ready(resolvedLocale: String)
   case temporarilyUnavailable

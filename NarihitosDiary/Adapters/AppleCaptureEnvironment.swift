@@ -5,6 +5,18 @@ import UIKit
 // swift-format's multiline collections conflict with SwiftLint's trailing-comma rule.
 // swiftlint:disable trailing_comma
 
+enum AppleAudioRecorderStart {
+  static func run(
+    protect: () throws -> Void,
+    prepare: () -> Bool,
+    record: () -> Bool
+  ) throws {
+    try protect()
+    guard prepare() else { throw CaptureGateFailure.storage }
+    guard record() else { throw CaptureGateFailure.storage }
+  }
+}
+
 @MainActor
 final class AppleCaptureEnvironment: CaptureEnvironmentPort {
   private let microphone: any MicrophoneAuthorizationPort
@@ -58,7 +70,7 @@ final class AppleCaptureEnvironment: CaptureEnvironmentPort {
   }
 
   func startAudio(id: WorkspaceID) throws {
-    let url = try files.prepareAudio(id: id)
+    let url = try files.createProtectedAudio(id: id)
     let session = AVAudioSession.sharedInstance()
     do {
       try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
@@ -72,9 +84,10 @@ final class AppleCaptureEnvironment: CaptureEnvironmentPort {
           AVEncoderBitRateKey: 64_000,
         ])
       candidate.isMeteringEnabled = true
-      guard candidate.prepareToRecord() else { throw CaptureGateFailure.storage }
-      try files.protectOpenAudio(id: id)
-      guard candidate.record() else { throw CaptureGateFailure.storage }
+      try AppleAudioRecorderStart.run(
+        protect: { try files.verifyOpenAudio(id: id) },
+        prepare: candidate.prepareToRecord,
+        record: candidate.record)
       recorder = candidate
       currentID = id
     } catch {

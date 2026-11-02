@@ -14,6 +14,7 @@ protocol AppleSpeechReadinessPlatform {
   var isAvailable: Bool { get }
   func resolve(_ language: CaptureLanguage) async -> String?
   func status(locale: String) async -> AppleSpeechModuleStatus
+  func isReserved(locale: String) async -> Bool
 }
 
 @MainActor
@@ -31,7 +32,9 @@ struct AppleSpeechReadinessSource: AppleTranscriptionReadinessSource {
     case .unsupported: return .unsupported
     case .downloadable: return .downloadable
     case .downloading: return .downloading
-    case .installed: return .ready(resolvedLocale: locale)
+    case .installed:
+      guard await platform.isReserved(locale: locale) else { return .reservationRequired }
+      return .ready(resolvedLocale: locale)
     case .unavailable: return .temporarilyUnavailable
     }
   }
@@ -54,6 +57,12 @@ struct SystemAppleSpeechReadinessPlatform: AppleSpeechReadinessPlatform {
     case .downloading: return .downloading
     case .installed: return .installed
     @unknown default: return .unavailable
+    }
+  }
+
+  func isReserved(locale: String) async -> Bool {
+    await AssetInventory.reservedLocales.contains {
+      $0.identifier(.bcp47) == locale
     }
   }
 }

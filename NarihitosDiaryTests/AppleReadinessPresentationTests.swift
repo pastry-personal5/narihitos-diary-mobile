@@ -9,6 +9,7 @@ struct AppleReadinessPresentationTests {
     #expect(
       AppleReadinessPresentation.label(.downloadable) == "Model not installed"
     )
+    #expect(AppleReadinessPresentation.label(.reservationRequired) == "Setup required")
     #expect(AppleReadinessPresentation.label(.downloading) == "Downloading")
     #expect(AppleReadinessPresentation.label(.unsupported) == "Language not supported")
     #expect(AppleReadinessPresentation.label(.unavailable) == "Unavailable on this device")

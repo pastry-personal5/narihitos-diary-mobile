@@ -20,6 +20,9 @@ struct AppleTranscriptionReadinessTests {
     platform.module = .downloading
     #expect(await source.status(for: .korean) == .downloading)
     platform.module = .installed
+    platform.reserved = false
+    #expect(await source.status(for: .korean) == .reservationRequired)
+    platform.reserved = true
     #expect(await source.status(for: .korean) == .ready(resolvedLocale: "ko-KR"))
     platform.module = .unavailable
     #expect(await source.status(for: .korean) == .temporarilyUnavailable)
@@ -58,12 +61,14 @@ private final class FakeAppleSpeechPlatform: AppleSpeechReadinessPlatform {
   var isAvailable = true
   var locale: String? = "en-US"
   var module: AppleSpeechModuleStatus = .downloadable
+  var reserved = false
   var requests: [CaptureLanguage] = []
   func resolve(_ language: CaptureLanguage) async -> String? {
     requests.append(language)
     return locale
   }
   func status(locale _: String) async -> AppleSpeechModuleStatus { module }
+  func isReserved(locale _: String) async -> Bool { reserved }
 }
 
 @MainActor

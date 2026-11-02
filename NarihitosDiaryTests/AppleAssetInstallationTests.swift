@@ -36,6 +36,19 @@ struct AppleAssetInstallationTests {
     #expect(await installer.install(plan) == .ready)
   }
 
+  @Test func installedButUnreservedAssetIsSetUpBeforeBecomingReady() async throws {
+    let backend = FakeAppleInstallationBackend()
+    backend.state = .reservationRequired
+    backend.requestValue = nil
+    backend.onRequest = { backend.state = .ready(resolvedLocale: "en-US") }
+    let installer = AppleAssetInstaller(backend: backend)
+
+    let plan = try await preparedPlan(installer, language: .english)
+    #expect(await installer.install(plan) == .ready)
+    #expect(backend.reservations == ["en-US"])
+    #expect(backend.requestCount == 1)
+  }
+
   @Test func sameLanguageInstallsCoalesceAndRecheckStatus() async throws {
     let backend = FakeAppleInstallationBackend()
     let installer = AppleAssetInstaller(backend: backend)

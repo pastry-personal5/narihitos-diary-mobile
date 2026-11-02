@@ -10,6 +10,33 @@ import Testing
 @MainActor
 // swiftlint:disable:next type_body_length
 struct CapturePrivateFilesTests {
+  @Test func recorderOutputExistsBeforePreparationAndCannotReplaceAnExistingFile() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]), disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 5),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+
+    let url = try files.createProtectedAudio(id: identity.id)
+    #expect(FileManager.default.fileExists(atPath: url.path))
+    #expect(try Data(contentsOf: url).isEmpty)
+    let attributes = try url.resourceValues(forKeys: [.isExcludedFromBackupKey])
+    #expect(attributes.isExcludedFromBackup == true)
+    try files.verifyOpenAudio(id: identity.id)
+    try Data([1, 2, 3]).write(to: url)
+    #expect(throws: CaptureGateFailure.storage) {
+      try files.createProtectedAudio(id: identity.id)
+    }
+    #expect(try Data(contentsOf: url) == Data([1, 2, 3]))
+  }
+
   @Test func pendingRemovalReleasesCaptureDestinationSnapshot() throws {
     let root = FileManager.default.temporaryDirectory.appending(
       path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)

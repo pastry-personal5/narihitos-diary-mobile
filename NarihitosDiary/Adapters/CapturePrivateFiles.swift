@@ -1,5 +1,6 @@
 import AVFAudio
 import AudioToolbox
+import Darwin
 import Foundation
 import UIKit
 
@@ -117,10 +118,25 @@ final class CapturePrivateFiles {
     return url
   }
 
+  func createProtectedAudio(id: WorkspaceID) throws -> URL {
+    let url = try prepareAudio(id: id)
+    let descriptor = Darwin.open(url.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+    guard descriptor >= 0 else { throw CaptureGateFailure.storage }
+    Darwin.close(descriptor)
+    try protectOpenAudio(id: id)
+    return url
+  }
+
   func protectOpenAudio(id: WorkspaceID) throws {
     let url = audioURL(id)
     try requirePlainFile(url)
     try setPrivateAttributes(url, open: true)
+  }
+
+  func verifyOpenAudio(id: WorkspaceID) throws {
+    let url = audioURL(id)
+    try requirePlainFile(url)
+    try verifyPrivateAttributes(url, open: true)
   }
 
   func inspectAudio(id: WorkspaceID) throws -> CaptureInspection {

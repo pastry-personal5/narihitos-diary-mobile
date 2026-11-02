@@ -22,7 +22,7 @@ The SwiftUI app currently includes the five-root navigation shell, first-launch 
 
 Post-save catalog refreshes now wait for superseded catalog work, and a stale page caused by the app's own diary write starts a bounded fresh traversal instead of showing `Folder Unavailable`. Late callbacks from an old folder presenter cannot invalidate the replacement session. Finalized AAC inspection and Cohere conversion accept AVFoundation's typed clean end-of-file after decoded audio while still rejecting empty, changed, malformed, or truncated sources. These M20 repairs have simulator regressions; their combined Files/recorder/Cohere behavior still requires the documented real-iPhone check.
 
-The Settings flow now has a dedicated Transcription screen with explicit None, Apple Local, Cohere Q4, and Cohere Q5 choices. Selection is persisted separately from readiness; Q4 and Q5 use independently pinned local model installations and never switch automatically. Target-phone and long-input production evidence remains tracked separately.
+The Settings flow now has a dedicated Transcription screen with explicit None, Apple Local, Cohere Q4, and Cohere Q5 choices. Selection is persisted separately from readiness; Q4 and Q5 use independently pinned local model installations and never switch automatically. Apple Local also verifies that an installed language model is reserved for this app: an installed but unreserved language shows Setup required until its setup action completes. A target-iPhone recording fix now applies private-file attributes before preparing the AAC encoder, preventing long captures from collapsing to an empty encoder-priming file. Spoken Apple diary/relaunch acceptance and long-input production evidence remain tracked separately.
 
 ## License
 

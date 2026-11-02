@@ -63,7 +63,7 @@ final class AppleAssetInstaller {
     case .downloading: return .downloading
     case .unsupported, .unavailable: return .unsupported
     case .temporarilyUnavailable: return .failed
-    case .downloadable: break
+    case .downloadable, .reservationRequired: break
     }
     guard let locale = await backend.resolvedLocale(for: language) else { return .unsupported }
     return .downloadable(AppleAssetInstallPlan(language: language, resolvedLocale: locale))
