@@ -14,6 +14,8 @@ M20 also repairs two transcription failures: recording checks preserve an active
 
 In Pending and Failed Recordings, Retry and Remove are large, full-width buttons. Remove expands confirmation inside the selected entry; choose Remove Recording to proceed or Cancel to keep it.
 
+M20 also repairs false `This diary pair needs review.` messages after metadata changes to already-published diary files. Verification rechecks the original app-created files and waits for both iCloud uploads before releasing private staging. Simulator regressions cover the repair; confirmation of the reported Apple Local entry on the target iPhone remains open.
+
 The pending-recording performance repair reuses checks of unchanged audio and avoids preparing playback during list refreshes. Queue readiness checks are shared while pending, and recordings continue to transcribe one at a time. Target-iPhone confirmation with six pending recordings remains open; see [M20 Task 18](docs/phase-1/milestone-20-enhancements-fixes-refactoring-overview.md#task-18-app-becomes-slow-with-multiple-pending-recordings).
 
 ## Development

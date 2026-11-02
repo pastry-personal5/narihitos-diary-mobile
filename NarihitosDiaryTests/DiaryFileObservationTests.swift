@@ -1,9 +1,38 @@
+import Darwin
 import Foundation
 import Testing
 
 @testable import NarihitosDiary
 
 struct DiaryFileObservationTests {
+  @Test func metadataRaceWaitsWhileContentRaceRequiresReview() throws {
+    var before = stat()
+    before.st_dev = 1
+    before.st_ino = 2
+    before.st_size = 512
+    before.st_mtimespec.tv_sec = 100
+    before.st_ctimespec.tv_sec = 100
+    var metadata = before
+    metadata.st_ctimespec.tv_sec += 1
+    do {
+      try DiaryFileIdentity.requireStableRead(before, metadata)
+      Issue.record("A ctime race must wait for a stable read")
+    } catch DiaryFileObservationFailure.unavailable {}
+    var content = metadata
+    content.st_mtimespec.tv_nsec += 1
+    do {
+      try DiaryFileIdentity.requireStableRead(before, content)
+      Issue.record("A content-version race must remain a conflict")
+    } catch DiaryFileObservationFailure.changed {}
+    var replacement = metadata
+    replacement.st_ino += 1
+    do {
+      try DiaryFileIdentity.requireStableRead(before, replacement)
+      Issue.record("A replacement inode must remain a conflict")
+    } catch DiaryFileObservationFailure.changed {}
+    try DiaryFileIdentity.requireStableRead(before, before)
+  }
+
   @Test func localFileCannotMasqueradeAsUploadedICloudFile() throws {
     let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

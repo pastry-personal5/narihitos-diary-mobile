@@ -2,7 +2,7 @@
 
 Status: Active
 
-Correct app behavior reported by the owner, with related enhancements and targeted refactoring. Current tasks cover iCloud folder selection and post-recording access, an unexpected folder picker on Settings entry, dedicated Transcription Settings/model choices, Korean Cohere recovery after relaunch, Apple Local transcription recovery, the All Screen Settings control, Settings-screen flickering, Cohere recording and Q5-installation failures, inline recording-removal confirmation, and an explicit Danger Zone purge flow.
+Correct app behavior reported by the owner, with related enhancements and targeted refactoring. Current tasks cover iCloud folder selection and post-recording access, an unexpected folder picker on Settings entry, dedicated Transcription Settings/model choices, Korean Cohere recovery after relaunch, Apple Local transcription recovery and published-pair verification, the All Screen Settings control, Settings-screen flickering, Cohere recording and Q5-installation failures, inline recording-removal confirmation, and an explicit Danger Zone purge flow.
 
 ## Entry and scope
 
@@ -30,6 +30,7 @@ Correct app behavior reported by the owner, with related enhancements and target
 - Task 15 verifies that the exact approved Cohere Q4_K_M and Q5_K_M artifacts retain Korean transcription capability and makes both explicit choices available to a retained `ko-KR` recording after a fresh app launch. Capability metadata alone is not completion: each variant must safely pass the production recovery, queue, Metal, and provenance path without automatic model substitution. Q5 remains fail-closed until its exact production device/runtime path satisfies the existing memory-safety certification gate.
 - Task 16 addresses the owner's current-code report that Apple Local transcription does not work. Cohere Q4 and Q5 are explicitly outside this task. Treat selection as only the first state boundary: establish per-language Apple asset readiness, queue/retry state, claim, verified-audio access, SpeechAnalyzer work, candidate publication, and draft/save outcomes before assigning a cause.
 - Task 17 addresses the owner's 2026-11-03 Apple Local `Record (en)` start failure. Keep the capture-file lifecycle private and verify on the target phone before claiming recovery.
+- Task 19 addresses the owner’s 2026-11-03 report that Apple Local creates a diary visible in Main, while Pending Recordings says `This diary pair needs review.` Trace publication, local version checks, upload proof, and retry/relaunch before repairing the responsible boundary; retain real conflicts and private staging until both upload reports are verified.
 - Task 18 addresses the owner's report that the app becomes very slow with about six pending recordings. Trace queue callbacks, file-backed projection reads, and SwiftUI publication/redraws; prove the first responsible boundary with a focused regression before making a bounded repair.
 
 ## Out of scope
@@ -37,6 +38,23 @@ Correct app behavior reported by the owner, with related enhancements and target
 No change to accepted folder providers, iCloud identity requirements, readable-files disclosure, capture-time destinations, ordinary pending-data removal, dependencies, build tools, or the Cohere runtime/Metal and bounded-input safeguards. Task 9 is the explicit exception for its separately confirmed purge actions. No hosted models, automatic model switching, automatic destination replacement, or M16 features. These tasks do not close earlier physical-device evidence.
 
 ## Completion checklist
+
+### Task 19: Published Apple Local diary incorrectly needs pair review
+
+Status: Implemented and simulator validated; target-phone confirmation remains open.
+
+Source/regression evidence (2026-11-03): Main reads a locally published pair before the queue has per-file upload proof. `DiaryFileIdentity.versionIdentity` includes ctime, which changes on filesystem metadata updates. The pair store compared that identity permanently with the original checkpoint. Two synthetic Apple-provenance regressions reproduced the exact review message after extended-attribute changes without changing inode, bytes, size, or mtime; both failed before repair (five assertions), while the other twelve pair tests passed. This establishes a code defect matching the report, not a captured provider event from the owner's phone.
+
+The store now rechecks its existing per-file creation token bound to device/inode, exact retained length/digest, no unresolved conflicts, and two stable coordinated observations before checkpointing a changed version as a repair. It neither republishes the files nor repeats transcription. Metadata drift after checkpoint or upload observation waits for another verification attempt; fresh upload proof for both newly checkpointed versions and the final unchanged check still precede cleanup. A missing-file repair can use a similarly reverified owned survivor. Missing markers, replacement inodes, changed bytes (including same-size writes with restored mtime), unsafe references, and unresolved conflicts remain blocked. No stored identity format or queue schema changes. During observation, metadata-only ctime/upload-flag transitions produce a retryable wait, while resource/content changes still fail verification. Strict ctime stability remains required before returning any observation.
+
+The focused run passes 35 tests across pair-store, observation, commit, and pair-recovery suites, including fresh coordinator recovery, upload waits, exact-version proof, and cleanup safeguards. `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` pass on 2026-11-03 (generation, lint, build, all tests). The restricted shell initially could not connect to CoreSimulator; the service-access retry and full gate succeeded. The target-phone recording has not been inspected or retried in this session; its exact metadata transition and recovered state remain unverified.
+
+- [x] Trace the exact review-message paths and reproduce the responsible save/verification boundary with a synthetic regression that fails before the fix.
+- [x] Repair that boundary without weakening content, ownership, conflict, upload-proof, removal, or private-staging safeguards; existing waiting jobs must recover through verification without retranscription.
+- [x] Cover unchanged-content provider metadata transitions, real content changes, and retry/reopen as applicable to the demonstrated cause.
+- [x] Update affected documentation with the cause, repair, and limits of the evidence.
+- [x] Pass focused regressions, `make lint`, and `TEST_DESTINATION=… scripts/validate.sh`, recording the simulator destination.
+- [ ] Confirm on the target iPhone that the reported entry recovers and a fresh Apple Local recording remains visible after relaunch without false pair review; distinguish upload waits from verified completion.
 
 ### Task 17: Apple Local recording cannot start
 
@@ -264,7 +282,7 @@ Status: Done for the owner-reported Apple Local transcription failure. The owner
 
 ## Evidence
 
-**Task 16 owner acceptance (2026-11-03):** the owner confirms that Apple Local transcription now creates English and Korean Diary Snippets on the target iPhone and that both remain visible after relaunch. This closes the reported transcription failure. The report does not independently inspect candidate/Markdown method and language provenance or establish the decoded duration of a fresh production recording; those checks remain open in the Task 16 and Task 17 checklists.
+**Task 16 owner acceptance (2026-11-03):** the owner confirms that Apple Local transcription now creates English and Korean Diary Snippets on the target iPhone and that both remain visible after relaunch. The owner subsequently reaffirmed Task 16 as done on the real iPhone. This closes the reported transcription failure. The report does not independently inspect candidate/Markdown method and language provenance or establish the decoded duration of a fresh production recording; those checks remain open in the Task 16 and Task 17 checklists.
 
 **Task 17 recording-start boundary (2026-11-03):** on the connected iPhone 17 Pro Max, the owner reproduced `Record (en)` while a focused breakpoint stopped in `AppModel.startCapture`'s generic error handler. The thrown error was Cocoa 260 with underlying POSIX 2 (missing file) for the capture output. No recording contents were read. `CapturePrivateFiles.prepareAudio` only returned a URL; the M20 protection-before-preparation repair then called `protectOpenAudio`, which requires the file to exist. The previous device diagnostic used a temporary-directory recorder path, so it did not prove production workspace creation. Production now creates the output exclusively in its private workspace, applies backup exclusion and open-file protection, then initializes/prepares/starts the recorder. The focused regression verifies the output exists and rejects replacement of an existing file.
 

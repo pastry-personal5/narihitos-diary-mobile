@@ -42,7 +42,8 @@ final class AppleDiaryPairStore: DiaryPairStorePort {
       return try await withPaths(intent, createDirectories: true) { paths in
         let repair = try await canRepairMissing(
           targetURL: paths.audio, missing: intent.audioVersion,
-          surviving: intent.markdownVersion, survivorURL: paths.markdown)
+          surviving: intent.markdownVersion, survivorURL: paths.markdown,
+          survivorToken: intent.markdownCreationToken)
         return try await ensureFile(
           at: paths.audio, bytes: bytes, expectedDigest: intent.audioDigest,
           prior: intent.audioVersion, allowRepair: repair,
@@ -57,7 +58,8 @@ final class AppleDiaryPairStore: DiaryPairStorePort {
       return try await withPaths(intent, createDirectories: true) { paths in
         let repair = try await canRepairMissing(
           targetURL: paths.markdown, missing: intent.markdownVersion,
-          surviving: intent.audioVersion, survivorURL: paths.audio)
+          surviving: intent.audioVersion, survivorURL: paths.audio,
+          survivorToken: intent.audioCreationToken)
         return try await ensureFile(
           at: paths.markdown, bytes: bytes, expectedDigest: intent.markdownDigest,
           prior: intent.markdownVersion, allowRepair: repair,
@@ -78,11 +80,15 @@ final class AppleDiaryPairStore: DiaryPairStorePort {
           == intent.directoryComponents
       else { return .recoveryRequired }
       return try await withPaths(intent, createDirectories: false) { paths in
-        guard let markdown = intent.markdownVersion,
-          let audio = intent.audioVersion,
-          try await verified(paths.markdown, against: markdown),
+        guard let markdown = intent.markdownVersion, let audio = intent.audioVersion else {
+          return .recoveryRequired
+        }
+        guard try await verified(paths.markdown, against: markdown),
           try await verified(paths.audio, against: audio)
-        else { return .recoveryRequired }
+        else {
+          return try await ownedPairStillMatches(paths, intent: intent)
+            ? .waiting(.upload) : .recoveryRequired
+        }
         return .verified(
           DiaryPairVersion(
             markdownIdentity: markdown.identity, audioIdentity: audio.identity,
@@ -118,7 +124,9 @@ final class AppleDiaryPairStore: DiaryPairStorePort {
           audio.identity == version.audioIdentity,
           try await verified(paths.markdown, against: markdown),
           try await verified(paths.audio, against: audio)
-        else { return .changed }
+        else {
+          return try await ownedPairStillMatches(paths, intent: intent) ? .waiting : .changed
+        }
         return .unchanged
       }
     } catch DiaryFileObservationFailure.unavailable {
@@ -139,7 +147,16 @@ final class AppleDiaryPairStore: DiaryPairStorePort {
     case .unsafe: return .recoveryRequired
     case .regular:
       if let prior {
-        return try await verified(url, against: prior) ? .verified(prior) : .recoveryRequired
+        if try await verified(url, against: prior) { return .verified(prior) }
+        // Provider metadata can change ctime after publication. Recheckpoint
+        // only the original marked inode with the exact retained payload.
+        guard prior.digest == expectedDigest, prior.byteCount == Int64(bytes.count),
+          let creationToken,
+          let refreshed = try await adoptInterruptedCreation(
+            url, token: creationToken, expectedDigest: expectedDigest,
+            expectedCount: prior.byteCount)
+        else { return .recoveryRequired }
+        return .repaired(refreshed)
       }
       guard let creationToken,
         let adopted = try await adoptInterruptedCreation(
@@ -163,6 +180,24 @@ final class AppleDiaryPairStore: DiaryPairStorePort {
     }
   }
 
+  /// A metadata race after a file checkpoint must retry verification, rather
+  /// than report a conflict. The next attempt persists both fresh versions and
+  /// acquires new upload proof; this observation never authorizes cleanup.
+  private func ownedPairStillMatches(
+    _ paths: PairPaths, intent: DiaryCommitRecord
+  ) async throws -> Bool {
+    guard let markdownToken = intent.markdownCreationToken,
+      let audioToken = intent.audioCreationToken,
+      try await adoptInterruptedCreation(
+        paths.markdown, token: markdownToken, expectedDigest: intent.markdownDigest,
+        expectedCount: intent.markdownByteCount) != nil,
+      try await adoptInterruptedCreation(
+        paths.audio, token: audioToken, expectedDigest: intent.audioDigest,
+        expectedCount: intent.audioByteCount) != nil
+    else { return false }
+    return true
+  }
+
   private func adoptInterruptedCreation(
     _ url: URL, token: UUID, expectedDigest: String, expectedCount: Int64
   ) async throws -> DiaryFileVersion? {
@@ -184,12 +219,16 @@ final class AppleDiaryPairStore: DiaryPairStorePort {
 
   private func canRepairMissing(
     targetURL: URL, missing: DiaryFileVersion?, surviving: DiaryFileVersion?,
-    survivorURL: URL
+    survivorURL: URL, survivorToken: UUID?
   ) async throws -> Bool {
     guard missing != nil, let surviving, try Self.state(of: targetURL) == .absent else {
       return false
     }
-    return try await verified(survivorURL, against: surviving)
+    if try await verified(survivorURL, against: surviving) { return true }
+    guard let survivorToken else { return false }
+    return try await adoptInterruptedCreation(
+      survivorURL, token: survivorToken, expectedDigest: surviving.digest,
+      expectedCount: surviving.byteCount) != nil
   }
 
   private func verified(_ url: URL, against version: DiaryFileVersion) async throws -> Bool {

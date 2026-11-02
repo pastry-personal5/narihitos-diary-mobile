@@ -3,9 +3,9 @@ import Darwin
 import Foundation
 import Testing
 
-// swiftlint:disable file_length
-
 @testable import NarihitosDiary
+
+// swiftlint:disable file_length
 
 @MainActor
 private final class PairTestDestinationStore: DestinationSettingsStore {
@@ -70,7 +70,8 @@ private final class PairCheckpointDrafts: DiaryDraftStore {
 
 @MainActor
 private final class PairCheckpointCleanup: DiaryCommitCleanupPort {
-  func removeOwnedStaging(job _: QueueJob) throws {}
+  var calls = 0
+  func removeOwnedStaging(job _: QueueJob) throws { calls += 1 }
 }
 
 private struct PairConflictVersions: DiaryExternalVersionSourcePort {
@@ -202,6 +203,131 @@ struct AppleDiaryPairStoreTests {
     #expect(upload.markdown == nil)
     #expect(upload.audio == nil)
     #expect(fixture.platform.scopeCount == 0)
+  }
+
+  @Test func metadataOnlyChangesDoNotInvalidatePublishedPair() async throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    var pair = try #require(await createPair(fixture))
+    let paths = paths(for: pair.intent, root: fixture.external)
+    guard case .verified(let version) = await fixture.store.verifyPair(pair.intent, job: pair.job)
+    else {
+      Issue.record("Expected published pair")
+      return
+    }
+
+    try changeProviderMetadata(paths.audio)
+    try changeProviderMetadata(paths.markdown)
+
+    #expect(await fixture.store.verifyPair(pair.intent, job: pair.job) == .waiting(.upload))
+    #expect(await fixture.store.verifyUnchanged(version, intent: pair.intent) == .waiting)
+    guard case .repaired(let audio) = await fixture.store.ensureAudio(pair.intent, job: pair.job)
+    else {
+      Issue.record("Expected owned audio recheckpoint")
+      return
+    }
+    pair.intent.audioVersion = audio
+    pair.job.commit = pair.intent
+    guard
+      case .repaired(let markdown) = await fixture.store.ensureMarkdown(pair.intent, job: pair.job)
+    else {
+      Issue.record("Expected owned Markdown recheckpoint")
+      return
+    }
+    pair.intent.markdownVersion = markdown
+    pair.job.commit = pair.intent
+    guard case .verified(let refreshed) = await fixture.store.verifyPair(pair.intent, job: pair.job)
+    else {
+      Issue.record("Expected reverified pair")
+      return
+    }
+    #expect(await fixture.store.verifyUnchanged(refreshed, intent: pair.intent) == .unchanged)
+    #expect(
+      await fixture.store.observeUploads(refreshed, intent: pair.intent)
+        == DiaryPairUploadObservation(markdown: nil, audio: nil))
+    #expect(fixture.platform.scopeCount == 0)
+  }
+
+  @Test func reopenedSaveAfterMetadataChangeWaitsForBothUploads() async throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    let queue = MemoryQueueStore()
+    queue.values[fixture.job.id] = fixture.job
+    let cleanup = PairCheckpointCleanup()
+    let coordinator = DiaryCommitCoordinator(
+      queue: queue, drafts: PairCheckpointDrafts(fixture.draft),
+      pairs: fixture.store, cleanup: cleanup)
+    await coordinator.attempt(jobID: fixture.job.id)
+    let published = try #require(queue.values[fixture.job.id])
+    #expect(published.reason == DiaryCommitWait.upload.message)
+    let paths = paths(for: fixture.intent, root: fixture.external)
+    try changeProviderMetadata(paths.audio)
+    try changeProviderMetadata(paths.markdown)
+
+    let reopened = DiaryCommitCoordinator(
+      queue: queue, drafts: PairCheckpointDrafts(fixture.draft),
+      pairs: fixture.store, cleanup: cleanup)
+    await reopened.attempt(jobID: fixture.job.id)
+    #expect(queue.values[fixture.job.id]?.reason == DiaryCommitWait.upload.message)
+    #expect(queue.values[fixture.job.id]?.commit?.audioVersion != published.commit?.audioVersion)
+    #expect(
+      queue.values[fixture.job.id]?.commit?.markdownVersion != published.commit?.markdownVersion)
+    #expect(cleanup.calls == 0)
+    let uploadedStore = AppleDiaryPairStore(
+      destination: fixture.destination, captures: fixture.captures,
+      payload: PairTestPayload(
+        markdown: fixture.markdownBytes, audio: Data(repeating: 0x41, count: 512)),
+      observer: PairUploadedObserver())
+    let uploaded = DiaryCommitCoordinator(
+      queue: queue, drafts: PairCheckpointDrafts(fixture.draft), pairs: uploadedStore,
+      cleanup: cleanup)
+    await uploaded.attempt(jobID: fixture.job.id)
+    #expect(queue.values[fixture.job.id]?.state == .saved)
+    #expect(cleanup.calls == 1)
+    #expect(try Data(contentsOf: paths.markdown) == fixture.markdownBytes)
+    #expect(try Data(contentsOf: paths.audio) == Data(repeating: 0x41, count: 512))
+  }
+
+  @Test(arguments: ["changed-bytes", "replaced-inode", "missing-marker"])
+  func metadataRecoveryRejectsUnownedOrChangedAudio(change: String) async throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    let pair = try #require(await createPair(fixture))
+    let audio = paths(for: pair.intent, root: fixture.external).audio
+    if change == "changed-bytes" {
+      let modified = try audio.resourceValues(forKeys: [.contentModificationDateKey])
+      let handle = try FileHandle(forWritingTo: audio)
+      try handle.write(contentsOf: Data(repeating: 0x42, count: 512))
+      try handle.close()
+      try FileManager.default.setAttributes(
+        [.modificationDate: try #require(modified.contentModificationDate)],
+        ofItemAtPath: audio.path)
+    } else if change == "replaced-inode" {
+      let copy = audio.appendingPathExtension("copy")
+      try FileManager.default.copyItem(at: audio, to: copy)
+      try FileManager.default.removeItem(at: audio)
+      try FileManager.default.moveItem(at: copy, to: audio)
+    } else {
+      #expect(removexattr(audio.path, "com.narihitosdiary.commit-creation", 0) == 0)
+    }
+    #expect(await fixture.store.ensureAudio(pair.intent, job: pair.job) == .recoveryRequired)
+    #expect(await fixture.store.verifyPair(pair.intent, job: pair.job) == .recoveryRequired)
+    #expect(fixture.platform.scopeCount == 0)
+  }
+
+  @Test func missingFileRepairsAfterSurvivorMetadataChanges() async throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    let pair = try #require(await createPair(fixture))
+    let paths = paths(for: pair.intent, root: fixture.external)
+    try changeProviderMetadata(paths.markdown)
+    try FileManager.default.removeItem(at: paths.audio)
+    guard case .repaired = await fixture.store.ensureAudio(pair.intent, job: pair.job)
+    else {
+      Issue.record("Expected owned pair repair")
+      return
+    }
+    #expect(try Data(contentsOf: paths.audio) == Data(repeating: 0x41, count: 512))
   }
 
   @Test func preexistingExactBytesWithoutRecordedVersionAreCollision() async throws {
@@ -676,6 +802,19 @@ struct AppleDiaryPairStoreTests {
     #expect(
       try AppleDiaryConflictPairStore.fingerprint(
         paths.audio, maximumBytes: Int64(audio.count)) == originalAudio)
+  }
+
+  private func changeProviderMetadata(_ url: URL) throws {
+    var before = stat()
+    #expect(lstat(url.path, &before) == 0)
+    var value: UInt8 = 1
+    #expect(setxattr(url.path, "com.narihitosdiary.test-provider", &value, 1, 0, 0) == 0)
+    var after = stat()
+    #expect(lstat(url.path, &after) == 0)
+    #expect(before.st_ino == after.st_ino && before.st_size == after.st_size)
+    #expect(before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec)
+    #expect(before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec)
+    #expect(!DiaryFileIdentity.sameVersion(before, after))
   }
 
   private func createPair(_ fixture: PairStoreFixture) async -> (
