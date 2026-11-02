@@ -69,6 +69,32 @@ final class AppleDestinationService: DestinationSelectionPort {
     prepared.removeAll()
   }
 
+  /// Selection-fenced catalog access differs from a capture's immutable destination.
+  func withActiveCatalog<Value: Sendable>(
+    expectedID: DestinationID? = nil,
+    operation: (URL) async throws -> Value
+  ) async throws -> Value {
+    let loanGeneration = generation
+    guard let stored = repository.loadDestination(),
+      let (id, _) = validateStoredRecord(stored),
+      expectedID == nil || expectedID == id
+    else { throw DestinationValidationError.invalidReference }
+    let access = await activeDestination()
+    guard access.accessState == .accessible, generation == loanGeneration else {
+      throw DestinationValidationError.providerUnavailable
+    }
+    return try await withCaptureSnapshotAsync(stored) { root in
+      guard generation == loanGeneration, repository.loadDestination()?.id == stored.id else {
+        throw CatalogIssue.changed
+      }
+      let value = try await operation(root)
+      guard generation == loanGeneration,
+        repository.loadDestination()?.id == stored.id
+      else { throw CatalogIssue.changed }
+      return value
+    }
+  }
+
   func activeDestination() async -> ActiveDestination {
     guard let stored = repository.loadDestination() else {
       return ActiveDestination(summary: nil, accessState: .restoreAccessRequired)

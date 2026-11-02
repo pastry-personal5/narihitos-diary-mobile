@@ -1,0 +1,285 @@
+import SwiftUI
+import UIKit
+
+@MainActor
+struct CatalogDetailRendererRegistry {
+  private var renderers: [String: (CatalogDetail) -> AnyView] = [:]
+
+  mutating func register(_ kind: String, renderer: @escaping (CatalogDetail) -> AnyView) {
+    renderers[kind] = renderer
+  }
+
+  func render(_ detail: CatalogDetail) -> AnyView {
+    renderers[detail.handle.kind]?(detail) ?? AnyView(Text("This format isn’t supported."))
+  }
+
+  static func production(
+    attributionSource: any WeatherAttributionPort
+  ) -> CatalogDetailRendererRegistry {
+    var registry = CatalogDetailRendererRegistry()
+    registry.register(DiarySnippetSupportPolicy.kind) { detail in
+      if let recovery = detail.payload as? CatalogRecoveryText {
+        return AnyView(ScrollView { Text(verbatim: recovery.body).padding(20) })
+      }
+      guard let diary = detail.payload as? DiaryCatalogDetail else {
+        return AnyView(Text("This format isn’t supported."))
+      }
+      return AnyView(DiaryCatalogDetailView(diary: diary, attributionSource: attributionSource))
+    }
+    return registry
+  }
+}
+
+struct CatalogCollectionView: View {
+  @ObservedObject var catalog: CatalogModel
+  let openAll: () -> Void
+  let renderers: CatalogDetailRendererRegistry
+  @State private var calendarRevision = 0
+
+  private var sections: [CatalogDateSection] {
+    _ = calendarRevision
+    return CatalogDateSections.group(catalog.summaries, calendar: .autoupdatingCurrent)
+  }
+
+  var body: some View {
+    List {
+      ForEach(sections, id: \.date) { section in
+        Section(section.date.formatted(date: .complete, time: .omitted)) {
+          ForEach(section.entries) { summary in
+            Button {
+              catalog.open(summary.handle)
+            } label: {
+              VStack(alignment: .leading, spacing: 6) {
+                Text(verbatim: summary.title).font(.headline).foregroundStyle(.primary)
+                Text(summary.createdAt.formatted(date: .omitted, time: .shortened))
+                  .font(.subheadline).foregroundStyle(.secondary)
+              }
+              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens Diary Snippet")
+          }
+        }
+      }
+      if !catalog.summaries.isEmpty { footer }
+    }
+    .overlay { if catalog.summaries.isEmpty { emptyState } }
+    .refreshable { catalog.refresh() }
+    .navigationDestination(item: $catalog.selectedItem) { handle in
+      CatalogDetailScreen(catalog: catalog, handle: handle, renderers: renderers)
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+      calendarRevision += 1
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+      calendarRevision += 1
+    }
+    .onReceive(
+      NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)
+    ) { _ in calendarRevision += 1 }
+    .privacySensitive()
+  }
+
+  @ViewBuilder private var footer: some View {
+    if catalog.state == .unavailable {
+      Button("Retry Loading", action: catalog.refresh).frame(minHeight: 44)
+    } else if catalog.canLoadMore || catalog.state == .loading || catalog.state == .discovering {
+      ProgressView("Loading Diary Snippets")
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .task(id: catalog.pageRevision) { catalog.loadMore() }
+    }
+  }
+
+  @ViewBuilder private var emptyState: some View {
+    switch catalog.state {
+    case .idle, .loading, .discovering, .loaded:
+      ProgressView(
+        catalog.state == .discovering ? "Finding Diary Snippets" : "Loading Diary Snippets")
+    case .noFolder:
+      ContentUnavailableView {
+        Label {
+          Text("Choose an iCloud Folder")
+        } icon: {
+          InterfaceIcon(.incomplete)
+        }
+      } description: {
+        Text("Choose your active folder in All’s Settings to see your diary.")
+      } actions: {
+        Button("Open All", action: openAll).frame(minHeight: 44)
+      }
+    case .unavailable:
+      ContentUnavailableView {
+        Label {
+          Text("Folder Unavailable")
+        } icon: {
+          InterfaceIcon(.warning)
+        }
+      } description: {
+        Text("Restore access to your active folder or try again.")
+      } actions: {
+        Button("Retry", action: catalog.refresh).frame(minHeight: 44)
+        Button("Open All", action: openAll).frame(minHeight: 44)
+      }
+    case .end:
+      ContentUnavailableView {
+        Label {
+          Text("No Diary Snippets")
+        } icon: {
+          InterfaceIcon(.main)
+        }
+      } description: {
+        Text(
+          catalog.recovery.isEmpty
+            ? "Your active folder has no Diary Snippets."
+            : "Some items need attention. Open All to review their status.")
+      }
+    }
+  }
+}
+
+private struct CatalogDetailScreen: View {
+  @ObservedObject var catalog: CatalogModel
+  let handle: CatalogItemHandle
+  let renderers: CatalogDetailRendererRegistry
+
+  var body: some View {
+    Group {
+      if let detail = catalog.detail, detail.handle == handle {
+        renderers.render(detail)
+      } else if let issue = catalog.detailIssue {
+        ContentUnavailableView {
+          Label {
+            Text("Diary Unavailable")
+          } icon: {
+            InterfaceIcon(.warning)
+          }
+        } description: {
+          Text(issue.message)
+        } actions: {
+          Button("Retry") { catalog.open(handle) }.frame(minHeight: 44)
+        }
+      } else {
+        ProgressView("Opening Diary Snippet")
+      }
+    }
+    .navigationTitle("Diary Snippet")
+    .navigationBarTitleDisplayMode(.inline)
+    .onDisappear { catalog.clearDetail() }
+    .privacySensitive()
+  }
+}
+
+private struct DiaryCatalogDetailView: View {
+  let diary: DiaryCatalogDetail
+  @StateObject private var attribution: WeatherAttributionModel
+  @Environment(\.colorScheme) private var colorScheme
+
+  init(diary: DiaryCatalogDetail, attributionSource: any WeatherAttributionPort) {
+    self.diary = diary
+    _attribution = StateObject(wrappedValue: WeatherAttributionModel(source: attributionSource))
+  }
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 12) {
+          ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+              title
+              favorite
+            }
+            VStack(alignment: .leading, spacing: 8) {
+              title
+              favorite
+            }
+          }
+          Text(verbatim: diary.body)
+            .font(.body).frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
+        }
+        Divider()
+        metadata
+      }
+      .padding(20)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .task { if diary.weather != nil { await attribution.load() } }
+  }
+
+  private var weatherMark: UIImage? {
+    colorScheme == .dark ? attribution.darkMark : attribution.lightMark
+  }
+
+  private var title: some View {
+    Text(verbatim: diary.title).font(.title2.bold())
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .accessibilityAddTraits(.isHeader)
+  }
+
+  @ViewBuilder private var favorite: some View {
+    if let favorite = diary.favorite {
+      Text(favorite ? "Favorite: On" : "Favorite: Off")
+        .font(.subheadline).foregroundStyle(.secondary)
+        .accessibilityLabel("Favorite").accessibilityValue(favorite ? "On" : "Off")
+    }
+  }
+
+  private var metadata: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Text("Metadata").font(.headline).accessibilityAddTraits(.isHeader)
+      if let date = diary.recordedAt {
+        field("Recorded", value: date.formatted(date: .complete, time: .shortened))
+      }
+      if let duration = diary.duration {
+        field(
+          "Duration", value: Duration.seconds(duration).formatted(.time(pattern: .minuteSecond)))
+      }
+      if let language = diary.language {
+        field(
+          "Recording language",
+          value: Locale.current.localizedString(forIdentifier: language) ?? language)
+      }
+      field(
+        "Audio", value: diary.audioAvailable ? "Available; replay is coming later." : "Unavailable")
+      if let location = diary.location {
+        field("Place", value: location.placeName ?? "\(location.latitude), \(location.longitude)")
+      }
+      if let weather = diary.weather {
+        if attribution.ready {
+          field("Weather", value: weather.summary)
+          field(
+            "Temperature",
+            value: Measurement(
+              value: NSDecimalNumber(decimal: weather.temperatureCelsius).doubleValue,
+              unit: UnitTemperature.celsius
+            ).formatted(.measurement(width: .abbreviated, usage: .weather)))
+          if let mark = weatherMark, let legalPage = attribution.legalPage {
+            Link(destination: legalPage) {
+              Image(uiImage: mark).resizable().scaledToFit().frame(height: 20)
+                .frame(minHeight: 44, alignment: .leading)
+            }
+            .accessibilityLabel("Apple Weather attribution")
+          }
+        } else if attribution.failed {
+          Text("Weather attribution is unavailable.").foregroundStyle(.secondary)
+          Button("Retry Weather Attribution") { Task { await attribution.load() } }.frame(
+            minHeight: 44)
+        } else {
+          ProgressView("Loading weather attribution")
+        }
+      }
+      if diary.isLegacy {
+        Text("Read-only legacy diary").font(.footnote).foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  private func field(_ label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(label).font(.subheadline).foregroundStyle(.secondary)
+      Text(verbatim: value).frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .accessibilityElement(children: .combine)
+  }
+}

@@ -10,41 +10,53 @@ struct ContentView: View {
     ZStack {
       TabView(selection: $model.selectedRoot) {
         MainView(model: model)
-          .tabItem { Label("Main", systemImage: "house") }
+          .tabItem {
+            Label {
+              Text("Main")
+            } icon: {
+              InterfaceIcon(.main, selected: model.selectedRoot == .main)
+            }
+          }
           .tag(RootTab.main)
         EmptyRootView(message: "Benefits are coming later.")
-          .tabItem { Label("Benefits", systemImage: "sparkles") }
+          .tabItem {
+            Label {
+              Text("Benefits")
+            } icon: {
+              InterfaceIcon(.benefits, selected: model.selectedRoot == .benefits)
+            }
+          }
           .tag(RootTab.benefits)
         EmptyRootView(message: "Calendar is coming later.")
-          .tabItem { Label("Calendar", systemImage: "calendar") }
+          .tabItem {
+            Label {
+              Text("Calendar")
+            } icon: {
+              InterfaceIcon(.calendar, selected: model.selectedRoot == .calendar)
+            }
+          }
           .tag(RootTab.calendar)
         EmptyRootView(message: "Plugins are coming later.")
-          .tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }
+          .tabItem {
+            Label {
+              Text("Plugins")
+            } icon: {
+              InterfaceIcon(.plugins, selected: model.selectedRoot == .plugins)
+            }
+          }
           .tag(RootTab.plugins)
         AllView(model: model)
-          .tabItem { Label("All", systemImage: "square.grid.2x2") }
+          .tabItem {
+            Label {
+              Text("All")
+            } icon: {
+              InterfaceIcon(.all, selected: model.selectedRoot == .all)
+            }
+          }
           .tag(RootTab.all)
       }
       .disabled(scenePhase != .active)
       .accessibilityHidden(scenePhase != .active)
-
-      if scenePhase == .active, let banner = model.savedFolderBanner {
-        VStack {
-          HStack(spacing: 12) {
-            Text(banner)
-              .font(.subheadline)
-              .accessibilityAddTraits(.updatesFrequently)
-            Spacer()
-            Button("Dismiss", action: model.dismissSavedFolderBanner)
-          }
-          .padding()
-          .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-          .padding(.horizontal, 16)
-          Spacer()
-        }
-        .padding(.top, 8)
-        .zIndex(1)
-      }
 
       if scenePhase != .active {
         PrivacyCover()
@@ -52,7 +64,24 @@ struct ContentView: View {
           .zIndex(100)
       }
     }
+    .safeAreaInset(edge: .top) {
+      if scenePhase == .active, let banner = model.savedFolderBanner {
+        HStack(spacing: 12) {
+          Text(verbatim: banner).font(.subheadline)
+          Spacer()
+          Button("Dismiss", action: model.dismissSavedFolderBanner).frame(minHeight: 44)
+        }
+        .padding(.horizontal, 16)
+        .background(.regularMaterial)
+      }
+    }
     .animation(nil, value: scenePhase)
+    .onChange(of: model.selectedRoot) { _, root in model.catalog.setVisible(root == .main) }
+    .onReceive(
+      NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
+    ) { _ in
+      model.catalog.discard()
+    }
     .task { await model.becameActive() }
     .onChange(of: scenePhase) { _, phase in
       if phase == .active {
@@ -137,11 +166,13 @@ private struct MainView: View {
 
   var body: some View {
     NavigationStack {
-      ContentUnavailableView(
-        "No Diary Snippets",
-        systemImage: "book.closed",
-        description: Text("Diary Snippets in your active folder will appear here.")
+      CatalogCollectionView(
+        catalog: model.catalog, openAll: model.openAll, renderers: model.catalogRenderers
       )
+      .safeAreaInset(edge: .top) {
+        MainNoticeView(notices: model.notices, open: model.openRecovery)
+      }
+      .onAppear { model.catalog.setVisible(model.selectedRoot == .main) }
       .navigationTitle("Main")
       .safeAreaInset(edge: .bottom) {
         HStack {
@@ -167,8 +198,7 @@ private struct MainView: View {
       Task { await model.handleRecord(language: language) }
     } label: {
       VStack(spacing: 0) {
-        Image(systemName: "mic.fill")
-          .font(.system(size: 23, weight: .medium))
+        InterfaceIcon(.record)
         Text(shortLabel)
           .font(.system(size: 11, weight: .bold))
       }
@@ -211,12 +241,39 @@ private struct AllView: View {
             onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
             onRemove: model.removeQueueJob, onChooseMethod: model.chooseMethodForRecovery)
         }
-        placeholder("Incomplete Diary Snippets")
-        placeholder("Conflicting Versions")
-        NavigationLink("Settings") { SettingsView(model: model) }
-          .accessibilityLabel("Settings")
+        NavigationLink {
+          CatalogRecoveryAttentionView(catalog: model.catalog, destination: .incomplete)
+        } label: {
+          Label {
+            Text("Incomplete Diary Snippets")
+          } icon: {
+            InterfaceIcon(.incomplete)
+          }
+        }
+        NavigationLink {
+          CatalogRecoveryAttentionView(catalog: model.catalog, destination: .conflicts)
+        } label: {
+          Label {
+            Text("Conflicting Versions")
+          } icon: {
+            InterfaceIcon(.conflicts)
+          }
+        }
+        NavigationLink {
+          SettingsView(model: model)
+        } label: {
+          Label {
+            Text("Settings")
+          } icon: {
+            InterfaceIcon(.settings)
+          }
+        }
+        .accessibilityLabel("Settings")
       }
       .navigationTitle("All")
+      .navigationDestination(item: $model.recoveryRoute) { destination in
+        recoveryDestination(destination)
+      }
       .navigationDestination(isPresented: $model.showSettings) { SettingsView(model: model) }
       .navigationDestination(isPresented: $model.showPendingRecordings) {
         CaptureListView(
@@ -228,12 +285,26 @@ private struct AllView: View {
     }
   }
 
-  private func placeholder(_ title: String) -> some View {
-    NavigationLink(title) {
-      ContentUnavailableView("Coming Later", systemImage: "hourglass")
-        .navigationTitle(title)
+  @ViewBuilder
+  private func recoveryDestination(_ destination: CatalogRecoveryDestination) -> some View {
+    switch destination {
+    case .pending:
+      CaptureListView(
+        title: destination.rawValue, captures: model.pendingCaptures,
+        queueEntries: model.queuePending, pausedReason: model.queuePausedReason,
+        onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
+        onRemove: model.removeQueueJob, onChooseMethod: model.chooseMethodForRecovery)
+    case .failed:
+      CaptureListView(
+        title: destination.rawValue, captures: model.failedCaptures, issues: model.captureIssues,
+        queueEntries: model.queueFailed, pausedReason: model.queuePausedReason,
+        showFailureReason: true, onRetry: model.retryQueueJob, onResume: model.resumeQueueJob,
+        onRemove: model.removeQueueJob, onChooseMethod: model.chooseMethodForRecovery)
+    case .incomplete, .conflicts:
+      CatalogRecoveryAttentionView(catalog: model.catalog, destination: destination)
     }
   }
+
 }
 
 private struct RecordingView: View {
@@ -253,10 +324,18 @@ private struct RecordingView: View {
           .accessibilityLabel("Recording level")
           .padding(.horizontal, 40)
         Spacer()
-        Button("Stop & Transcribe") { model.stopCapture() }
-          .buttonStyle(.borderedProminent)
-          .controlSize(.large)
-          .padding(.bottom, 40)
+        Button {
+          model.stopCapture()
+        } label: {
+          Label {
+            Text("Stop & Transcribe")
+          } icon: {
+            InterfaceIcon(.stop)
+          }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .padding(.bottom, 40)
       }
       .accessibilityHidden(scenePhase != .active)
       if scenePhase != .active {

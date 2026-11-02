@@ -1,10 +1,10 @@
 import Foundation
 import Testing
 
+@testable import NarihitosDiary
+
 // Transaction and capture-snapshot cases share one adapter fake.
 // swiftlint:disable file_length type_body_length
-
-@testable import NarihitosDiary
 
 @MainActor
 struct DestinationTransactionTests {
@@ -360,6 +360,43 @@ struct DestinationTransactionTests {
     #expect(state == .accessible)
     #expect(captured.bookmark == Data([0x44]))
     #expect(store.destination?.bookmark == Data([0x44]))
+  }
+
+  @Test func catalogLoanRejectsSelectionChangesAndBalancesScope() async throws {
+    let original = storedDestination()
+    let store = FakeDestinationStore(destination: original)
+    let platform = FakeDestinationPlatform()
+    let service = AppleDestinationService(repository: store, platform: platform)
+    let id = try #require(DestinationID(rawValue: original.id))
+    do {
+      _ = try await service.withActiveCatalog(expectedID: id) { _ in
+        store.destination = storedDestination(displayName: "Another folder")
+        service.invalidateAccess()
+        return true
+      }
+      Issue.record("A stale active-folder loan succeeded")
+    } catch {
+      #expect(platform.startCount == platform.stopCount)
+    }
+    #expect(platform.startCount == platform.stopCount)
+  }
+
+  @Test func catalogLoanRejectsWrongDestinationAndAccountChanges() async throws {
+    let original = storedDestination()
+    let platform = FakeDestinationPlatform()
+    let service = AppleDestinationService(
+      repository: FakeDestinationStore(destination: original), platform: platform)
+    do {
+      _ = try await service.withActiveCatalog(expectedID: .make()) { _ in true }
+      Issue.record("An unrelated folder was accepted")
+    } catch { #expect(platform.startCount == 0) }
+    do {
+      _ = try await service.withActiveCatalog { _ in
+        platform.identitiesAreEqual = false
+        return true
+      }
+      Issue.record("An identity change was accepted")
+    } catch { #expect(platform.startCount == platform.stopCount) }
   }
 
   private func storedDestination(

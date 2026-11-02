@@ -18,6 +18,11 @@ enum RootTab: Hashable {
 
 @MainActor
 final class AppModel: ObservableObject {
+  let catalog: CatalogModel
+  let catalogRenderers = CatalogDetailRendererRegistry.production(
+    attributionSource: AppleWeatherAttributionSource())
+  let notices = MainNoticeModel()
+  @Published var recoveryRoute: CatalogRecoveryDestination?
   @Published private(set) var microphoneState: PermissionState
   @Published private(set) var locationState: PermissionState
   @Published private(set) var destination = ActiveDestination(
@@ -93,6 +98,9 @@ final class AppModel: ObservableObject {
   convenience init() {
     let repository = PrivateSettingsRepository()
     let destination = AppleDestinationService(repository: repository)
+    var catalogRegistry = CatalogAssetRegistry()
+    catalogRegistry.register(DiaryCatalogHandler())
+    let catalog = AppleAssetCatalog(destination: destination, registry: catalogRegistry)
     let files = CapturePrivateFiles()
     let audioSource = VerifiedCaptureAudioSource(files: files)
     let candidateStore = FileTranscriptionCandidateStore(root: files.root, audio: audioSource)
@@ -113,7 +121,7 @@ final class AppModel: ObservableObject {
       location: AppleLocationAuthorization(),
       systemSettings: AppleSystemSettings(),
       destinationService: destination,
-      firstLaunchStore: repository)
+      firstLaunchStore: repository, catalogPort: catalog)
     captureEnvironment = AppleCaptureEnvironment(
       microphone: microphone, destination: destination, files: files,
       installationIdentity: installationIdentity)
@@ -165,11 +173,14 @@ final class AppModel: ObservableObject {
       self?.refreshCaptureLists()
     }
     commit.onSaved = { [weak self] job in
-      guard let self,
-        let snapshot = try? files.readSnapshot(job.destinationReference),
-        self.destination.summary?.id.rawValue != snapshot.id
-      else { return }
-      showSavedFolderBanner(snapshot.displayName)
+      guard let self, let snapshot = try? files.readSnapshot(job.destinationReference) else {
+        return
+      }
+      if self.destination.summary?.id.rawValue == snapshot.id {
+        self.catalog.refresh()
+      } else {
+        showSavedFolderBanner(snapshot.displayName)
+      }
     }
     draftAdoption?.onChange = { [weak self] in
       self?.refreshCaptureLists()
@@ -187,8 +198,10 @@ final class AppModel: ObservableObject {
     location: any LocationAuthorizationPort,
     systemSettings: any SystemSettingsPort,
     destinationService: any DestinationSelectionPort,
-    firstLaunchStore: any FirstLaunchStorePort
+    firstLaunchStore: any FirstLaunchStorePort,
+    catalogPort: (any AssetCatalogPort)? = nil
   ) {
+    self.catalog = CatalogModel(catalog: catalogPort ?? InactiveAssetCatalog())
     self.microphone = microphone
     self.location = location
     self.systemSettings = systemSettings
@@ -198,6 +211,14 @@ final class AppModel: ObservableObject {
     microphoneState = microphone.currentState()
     locationState = location.currentState()
     firstLaunchStep = firstLaunch.pendingExplanation
+    catalog.onChange = { [weak self] in self?.updateMainNotices() }
+    notices.announce = { message in
+      if UIAccessibility.isVoiceOverRunning {
+        let queued = NSAttributedString(
+          string: message, attributes: [.accessibilitySpeechQueueAnnouncement: true])
+        UIAccessibility.post(notification: .announcement, argument: queued)
+      }
+    }
   }
 
   func becameActive() async {
@@ -216,10 +237,13 @@ final class AppModel: ObservableObject {
     refreshAppleReadiness()
     refreshCohereReadiness()
     refreshCaptureLists()
+    catalog.activate(destinationID: destination.summary?.id)
   }
 
   func becameInactive() {
     isAppActive = false
+    catalog.stop()
+    notices.setEnvironment(visible: false, paused: true)
     processingQueue?.deactivate()
     draftAdoption?.deactivate()
     appleReadiness?.invalidate()
@@ -230,8 +254,11 @@ final class AppModel: ObservableObject {
   }
 
   func identityChanged() async {
+    catalog.stop()
+    catalog.changeScope(nil)
     destinationService.invalidateAccess()
     destination = await destinationService.activeDestination()
+    catalog.activate(destinationID: destination.summary?.id)
     saveAttempted.removeAll()
     pumpSaves()
   }
@@ -443,6 +470,50 @@ final class AppModel: ObservableObject {
     queuePending = queue.filter { $0.state != .failed && $0.state != .saved }
     queueFailed = queue.filter { $0.state == .failed }
     queuePausedReason = processingQueue?.pausedReason ?? draftAdoption?.pausedReason
+    updateMainNotices()
+  }
+
+  func openRecovery(_ destination: CatalogRecoveryDestination) {
+    selectedRoot = .all
+    recoveryRoute = destination
+  }
+
+  func openAll() {
+    selectedRoot = .all
+  }
+
+  private func updateMainNotices() {
+    var values: [MainNotice] = []
+    let processing = queuePending.filter { $0.state == .transcribing }.count
+    let pending = pendingCaptures.count + queuePending.filter { $0.state != .transcribing }.count
+    if processing > 0 {
+      values.append(
+        MainNotice(
+          category: .processing, destination: .pending, message: "Transcribing a recording."))
+    }
+    if pending > 0 {
+      values.append(
+        MainNotice(
+          category: .queued, destination: .pending, message: "\(pending) pending recordings."))
+    }
+    if !failedCaptures.isEmpty || !queueFailed.isEmpty || !captureIssues.isEmpty {
+      values.append(
+        MainNotice(category: .recovery, destination: .failed, message: "Recordings need attention.")
+      )
+    }
+    if queuePausedReason != nil {
+      values.append(
+        MainNotice(
+          category: .recovery, destination: .pending, message: "Pending work needs attention."))
+    }
+    for destination in [CatalogRecoveryDestination.incomplete, .conflicts]
+    where catalog.knownRecoveryDestinations.contains(destination) {
+      values.append(
+        MainNotice(
+          category: .recovery, destination: destination,
+          message: "\(destination.rawValue) need attention."))
+    }
+    notices.update(values)
   }
 
   func refreshTranscriptionReadiness() {
@@ -657,6 +728,7 @@ final class AppModel: ObservableObject {
     case .committed(let summary):
       folderSelectionLogger.debug("Folder selection committed")
       destination = ActiveDestination(summary: summary, accessState: .accessible)
+      catalog.changeScope(summary.id)
     case .superseded:
       folderSelectionLogger.debug("Folder selection commit superseded")
       presentMessage("The selection changed before it could be saved.")

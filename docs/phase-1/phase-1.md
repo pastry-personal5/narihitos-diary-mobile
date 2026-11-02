@@ -108,22 +108,31 @@ Notes: M14 has a live audio-first coordinated pair writer, per-file upload obser
 
 ### P1-M15: Build the Main Collection and Diary Detail
 
-Status: Planned
+Status: Active
 Goal: Page and validate the active-folder Diary Snippet collection, surface recovery attention, and present safe read-only Diary Snippet detail.
 Plan: [overview](milestone-15-main-collection-diary-detail-overview.md), [approach](milestone-15-main-collection-diary-detail-architecture.md), [device evidence](milestone-15-main-collection-diary-detail-device-evidence.md)
-Notes: M15 is planned after M14. M16 retains body editing, Favorite mutation, and audio replay; M17 retains recovery actions/screens; M18 retains optional-context acquisition and reminders.
+Notes: The owner requested implementation on 2026-11-02 ahead of remaining M14 device evidence. M15 now has scoped catalog discovery/paging, exact-version read-only detail, evidenced legacy support, Main notices/All routing, and custom template artwork. Lint and the full simulator gate passed with `platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082`; target-iPhone M15-D01–D10 and the unchecked display/provider/visual checklist items remain open, so the milestone stays Active. M16 retains editing/Favorite mutation/replay; M17 retains complete recovery actions/screens; M18 retains context acquisition/reminders. Earlier device gates are unchanged.
 
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 
 Status: Planned
+Goal: Save version-checked body and Favorite edits durably and replay verified audio without compromising capture or legacy read-only behavior.
+Plan: [overview](milestone-16-diary-editing-favorite-audio-replay-overview.md), [approach](milestone-16-diary-editing-favorite-audio-replay-architecture.md), [device evidence](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md)
+Notes: Planning only; implementation follows M15 unless the owner authorizes a reorder. Submitted edits need an independent committed-asset journal and destination capability, and replay needs shared audio-session ownership with capture. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence remains open.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 
 Status: Planned
+Goal: Complete the four All recovery destinations with typed state, safe inspection, version-bound retry/replacement/removal, and verified conflict choice and cleanup.
+Plan: [overview](milestone-17-recovery-overview.md), [approach](milestone-17-recovery-architecture.md), [device evidence](milestone-17-recovery-device-evidence.md)
+Notes: Planning only; implementation follows M16 unless the owner authorizes a reorder. Recovery spans capture jobs, active-folder resources, and M16 submitted edits through owner-specific capabilities and journals. Confirmation never substitutes for fresh resource/version checks, cancellation settlement, or chosen-pair/upload proof. Earlier validation and target-phone evidence remain open.
 
 ### P1-M18: Add Optional Context and Pending-Work Reminders
 
 Status: Planned
+Goal: Bind optional location/weather to recording start and schedule a generic next-local-day reminder from durable pending work without blocking capture or saving.
+Plan: [overview](milestone-18-context-reminders-overview.md), [approach](milestone-18-context-reminders-architecture.md), [device evidence](milestone-18-context-reminders-device-evidence.md)
+Notes: Planning only; implementation follows M17 unless the owner authorizes a reorder. Context needs a protected recording-bound handoff into draft/publication and a verified WeatherKit capability/profile; reminders need authoritative pending state, genuine departure events, and calendar/permission reconciliation. Earlier implementation gates and target-phone evidence remain open.
 
 ### P1-M19: Validate the Complete V1 Experience
 

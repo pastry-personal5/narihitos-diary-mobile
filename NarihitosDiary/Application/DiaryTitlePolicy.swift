@@ -123,7 +123,7 @@ final class DiaryTitlePolicy {
     }
   }
 
-  static func fallback(_ text: String) -> GeneratedDiaryTitle {
+  nonisolated static func fallback(_ text: String) -> GeneratedDiaryTitle {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return result("Untitled", origin: "empty-body") }
     let tokenizer = NLTokenizer(unit: .sentence)
@@ -141,7 +141,7 @@ final class DiaryTitlePolicy {
     return result(capped(line), origin: "first-sentence")
   }
 
-  private static func result(_ text: String, origin: String) -> GeneratedDiaryTitle {
+  private nonisolated static func result(_ text: String, origin: String) -> GeneratedDiaryTitle {
     GeneratedDiaryTitle(
       text: text,
       provenance: TitleProvenance(
@@ -149,7 +149,7 @@ final class DiaryTitlePolicy {
         osVersion: nil, modelID: nil))
   }
 
-  private static func origin(_ value: String) -> TitleOriginID {
+  private nonisolated static func origin(_ value: String) -> TitleOriginID {
     // These literals are the approved codec origins and cannot fail validation.
     // swiftlint:disable:next force_try
     try! TitleOriginID(value)
@@ -160,11 +160,11 @@ final class DiaryTitlePolicy {
     return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
   }
 
-  private static func capped(_ text: String) -> String {
+  private nonisolated static func capped(_ text: String) -> String {
     text.count <= 30 ? text : String(text.prefix(29)) + "…"
   }
 
-  private static func oneLine(_ text: String) -> String {
+  private nonisolated static func oneLine(_ text: String) -> String {
     let scalars = text.unicodeScalars.map { scalar -> String in
       CharacterSet.whitespacesAndNewlines.contains(scalar)
         || CharacterSet.controlCharacters.contains(scalar) ? " " : String(scalar)

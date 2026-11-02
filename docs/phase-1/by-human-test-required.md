@@ -4,6 +4,10 @@ Status: Active
 
 This tracker lists physical-device scenarios that still need human observations. Record redacted results in the linked milestone evidence records.
 
+## P1-M15
+
+M15-D01–M15-D10 remain unrun in the [M15 device evidence record](milestone-15-main-collection-diary-detail-device-evidence.md). The implementation and simulator gate pass; human evidence must still establish user-picked-folder paging/downloads/refresh, selection/account changes, provider conflicts and stalls, stored-weather attribution, full layout/VoiceOver/Reduce Motion, and app-switcher privacy. Use controlled synthetic iCloud fixtures, not the personal files supplied to establish the legacy format. Record state/count/timing observations without content or paths; earlier device gates remain open.
+
 ## P1-M11
 
 M11-D01–M11-D10 remain unrun. Record redacted results in the [M11 device evidence record](milestone-11-apple-on-device-transcription-device-evidence.md); installation scenarios depend on resolving the documented size and storage-preflight blocker. Simulator tests do not establish real model availability, file protection, offline inference, resource use, or network behavior.

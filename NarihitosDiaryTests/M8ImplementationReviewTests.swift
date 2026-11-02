@@ -208,8 +208,15 @@ struct M8ImplementationReviewTests {
       contentsOf: repositoryRoot.appendingPathComponent("NarihitosDiary/ContentView.swift"),
       encoding: .utf8)
 
+    let mainStart = try #require(source.range(of: "private struct MainView:"))
+    let allStart = try #require(source.range(of: "private struct AllView:"))
+    let recordingStart = try #require(source.range(of: "private struct RecordingView:"))
+    let tabs = String(source[..<mainStart.lowerBound])
+    let main = String(source[mainStart.lowerBound..<allStart.lowerBound])
+    let all = String(source[allStart.lowerBound..<recordingStart.lowerBound])
     for label in ["Main", "Benefits", "Calendar", "Plugins", "All"] {
-      #expect(source.contains("Label(\"\(label)\""))
+      #expect(tabs.contains("\"\(label)\""))
+      #expect(tabs.contains(".tag(RootTab.\(label.lowercased()))"))
     }
     // swiftlint:disable trailing_comma
     for message in [
@@ -220,7 +227,15 @@ struct M8ImplementationReviewTests {
     }
     // swiftlint:enable trailing_comma
     #expect(source.contains(".accessibilityHidden(scenePhase != .active)"))
-    #expect(source.contains("NavigationLink(\"Settings\")"))
+    #expect(!main.contains("SettingsView("))
+    #expect(all.contains("SettingsView(model: model)"))
+    let model = makeModel(microphone: ReviewMicrophone(state: .authorized))
+    model.openAll()
+    #expect(model.selectedRoot == .all)
+    #expect(!model.showSettings)
+    model.openRecovery(.incomplete)
+    #expect(model.selectedRoot == .all)
+    #expect(model.recoveryRoute == .incomplete)
   }
 
   private var repositoryRoot: URL {

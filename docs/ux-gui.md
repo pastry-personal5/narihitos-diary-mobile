@@ -6,7 +6,7 @@ This document defines the current interface and records owner-approved GUI behav
 
 ## Current interface
 
-The current shell includes Main, All, first-launch and Settings flows, and an M9 recording path. Main has separate 56 pt circular `en` and `ko` microphone buttons at the bottom right above the tab bar, with blue and purple backgrounds respectively and the accessibility names `Record in English` and `Record in Korean`. Tapping one carries its language into the recording gate. The planned v1 interface below remains in progress.
+The current shell includes Main, All, first-launch and Settings flows, and an M9 recording path. Main has separate 56 pt circular `en` and `ko` microphone buttons at the bottom right above the tab bar, with blue and purple backgrounds respectively and the accessibility names `Record in English` and `Record in Korean`. Tapping one carries its language into the recording gate. Main now includes the active-folder collection, local-date sections, inert read-only Diary Snippet detail, rotating notice routing through All, and custom template bitmap artwork. Favorite is currently read-only state; editing and playback remain M16. All shows typed incomplete/conflict attention without mutation actions; complete recovery presentation remains M17. Stored weather is shown only with Apple attribution material available; browsing does not reacquire recording context. The remaining v1 interface below stays in progress.
 
 ## Planned owner-approved behavior
 
