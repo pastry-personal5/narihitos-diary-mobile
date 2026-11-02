@@ -1,6 +1,6 @@
 # P1-M8: First launch, Settings, and iCloud folder selection overview
 
-Status: Active
+Status: Done (owner decision; by-human test and evidence pending)
 
 Build the permission onboarding, Settings foundation, and persistent iCloud-only destination boundary needed before recording can begin. The milestone must prove on a physical iPhone that a selected or newly created Files folder is positively identifiable as iCloud Drive and remains safely accessible through a persisted bookmark without treating a path, picker success, or repeated provider error as authority.
 
@@ -95,4 +95,4 @@ The device trial must use synthetic folders and files with controlled nonpersona
 - No M8-D01–M8-D11 target-iPhone scenario was run. The redacted [device evidence record](milestone-08-first-launch-settings-icloud-device-evidence.md) lists the unavailable controlled-device/account/provider prerequisites, so the milestone remains Active rather than Done.
 - On 2026-11-02 the full `scripts/validate.sh` gate passed on the booted iPhone 18 Pro iOS 27.0 simulator through host-level simulator access: generation, strict format, SwiftLint, generic build, and all tests. The regression fixture for a failed progression write was corrected to fail both attempted advancement saves before the passing rerun. This proves the automated paths but not the target-phone provider and bookmark scenarios.
 - A subsequent full-gate rerun passed after adding focused regressions for identity unavailability, unreadable provider metadata, canceled selection, bookmark creation failure, and the first Record permission grant routing through a live destination check. These cases retain the previous folder or route to setup as appropriate. The unchecked mixed platform items above still require the M8-D01–M8-D11 target-phone observations; simulator fakes and source inspection cannot close their device claims.
-- On 2026-11-02 the owner reported that the M8 by-human test run was done and passed. The [device evidence record](milestone-08-first-launch-settings-icloud-device-evidence.md) now records that attestation. Scenario-level redacted observations, device/OS/app revision, and provider coverage are still needed to verify the physical-device checklist items, so M8 remains Active.
+- On 2026-11-02 the owner marked M8 implementation done, except for the by-human test and evidence. The owner’s overall test attestation remains recorded; scenario-level redacted observations, device/OS/app revision, and provider coverage remain pending.

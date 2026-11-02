@@ -59,17 +59,17 @@ Notes: The owner explicitly reordered implementation ahead of P1-M6 on 2026-11-0
 
 ### P1-M8: Build First Launch, Settings, and iCloud Folder Selection
 
-Status: Active
+Status: Done (owner decision; by-human test and evidence pending)
 Goal: Implement resumable microphone/location onboarding, the Settings and Record prerequisite foundation, and a physically verified iCloud-only persistent folder boundary.
 Plan: [overview](milestone-08-first-launch-settings-icloud-overview.md), [approach](milestone-08-first-launch-settings-icloud-architecture.md)
-Notes: The owner explicitly requested implementation while P1-M7's environment-blocked full validation item remains open. Apple/Cohere readiness remains P1-M11/P1-M12, capture remains P1-M9, and coordinated asset publication/upload proof remains P1-M14.
+Notes: The owner marked M8 implementation done on 2026-11-02, except for the by-human test and evidence. The environment-blocked validation item and physical provider/account evidence remain open. Apple/Cohere readiness remains P1-M11/P1-M12, capture remains P1-M9, and coordinated asset publication/upload proof remains P1-M14.
 
 ### P1-M9: Implement Recording and Capture Recovery
 
 Status: Active
 Goal: Capture private playable audio through lock and backgrounding, settle it durably on stop/interruption/five minutes, and recover playable partials after relaunch.
 Plan: [overview](milestone-09-recording-capture-recovery-overview.md), [approach](milestone-09-recording-capture-recovery-architecture.md), [device evidence](milestone-09-recording-capture-recovery-device-evidence.md)
-Notes: The owner requested M9 implementation on 2026-11-02 while M8 physical-device evidence remains open. P1-M9 provides the minimal durable capture receipt that P1-M10 adopts into the full processing queue; target-phone Data Protection and interruption evidence are required.
+Notes: The owner marked M9 implementation done on 2026-11-02, except for the by-human test and evidence. P1-M9 provides the minimal durable capture receipt that P1-M10 adopts into the full processing queue; target-phone Data Protection and interruption evidence remain open.
 
 ### P1-M10: Implement the Durable Processing Queue
 
@@ -80,25 +80,31 @@ Notes: The owner marked implementation done except human tests on 2026-11-02. Ph
 
 ### P1-M11: Add Apple On-Device Transcription
 
-Status: Active
+Status: Done (owner decision; by-human test and evidence pending)
 Goal: Integrate Apple SpeechTranscriber for explicit English/Korean local transcription, truthful system-asset readiness and installation, durable result handoff, and acknowledged cancellation.
 Plan: [overview](milestone-11-apple-on-device-transcription-overview.md), [approach](milestone-11-apple-on-device-transcription-architecture.md), [device evidence](milestone-11-apple-on-device-transcription-device-evidence.md)
-Notes: Implementation started by owner request after the P1-M10 owner decision. Apple installation remains blocked pending direction on the unavailable documented download-size and storage-preflight information. M11 stages a protected transcription-result candidate; P1-M13 adopts it as the managed Diary body, and P1-M12 adds the separately approved Cohere method.
+Notes: The owner marked M11 implementation done on 2026-11-02, except for the by-human test and evidence. Apple installation remains blocked pending direction on the unavailable documented download-size and storage-preflight information. M11 stages a protected transcription-result candidate; P1-M13 adopts it as the managed Diary body, and P1-M12 adds the separately approved Cohere method.
 
 ### P1-M12: Add Cohere Model Installation and On-Device Transcription
 
-Status: Active
+Status: Done (owner decision; by-human test and evidence pending)
 Goal: Install the verified approved Cohere model and integrate local Metal transcription with bounded chunking, durable handoff, and target-phone evidence.
 Plan: [overview](milestone-12-cohere-transcription-overview.md), [approach](milestone-12-cohere-transcription-architecture.md), [device evidence](milestone-12-cohere-transcription-device-evidence.md)
-Notes: The owner authorized implementation ahead of M11 completion and approved the pinned production `transcribe.cpp` dependency/build integration on 2026-11-02. Open M8–M11 device evidence and the M11 Apple-installation blocker remain open and are not waived.
+Notes: The owner marked implementation done on 2026-11-02, except for the by-human test and evidence. The owner authorized implementation ahead of M11 completion and approved the pinned production `transcribe.cpp` dependency/build integration. Open M8–M11 device evidence, M12-D01–D08, and the M11 Apple-installation blocker remain open and are not waived; the unavailable full validation gate is also reported in the M12 overview.
 
 ### P1-M13: Create Diary Drafts and Generate Titles
 
-Status: Planned
+Status: Done (owner decision; target-iPhone evidence pending)
+Goal: Adopt a verified transcription candidate as one protected managed Diary draft and generate a bounded read-only title with an on-device AI or first-sentence fallback.
+Plan: [overview](milestone-13-diary-drafts-titles-overview.md), [approach](milestone-13-diary-drafts-titles-architecture.md), [device evidence](milestone-13-diary-drafts-titles-device-evidence.md)
+Notes: The owner requested M13 implementation on 2026-11-02, authorizing work ahead of M12 completion. The implementation and simulator test suite are complete; M13 retains the draft and audio for M14's iCloud pair publication. Target-iPhone evidence remains open, and the current validation attempt is blocked by the local CoreSimulator/Swift macro service.
 
 ### P1-M14: Commit and Reconcile iCloud Diary Assets
 
 Status: Planned
+Goal: Publish the verified diary/audio pair to its capture-time iCloud folder, prove both uploads, and reconcile partial writes and conflicts safely.
+Plan: [overview](milestone-14-icloud-commit-reconciliation-overview.md), [approach](milestone-14-icloud-commit-reconciliation-architecture.md), [device evidence](milestone-14-icloud-commit-reconciliation-device-evidence.md)
+Notes: Implementation follows M13 completion unless the owner authorizes a reorder. M15–M17 own collection, edit, and full recovery interfaces; open earlier device evidence and gates are unchanged.
 
 ### P1-M15: Build the Main Collection and Diary Detail
 

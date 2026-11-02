@@ -29,6 +29,7 @@ enum QueueJobState: String, Codable, Sendable {
   case waiting
   case transcribing
   case resultReady
+  case readyToSave
   case failed
   case reviewRequired
   case cancelling
@@ -59,6 +60,8 @@ struct QueueJob: Codable, Equatable, Sendable {
   var conversionIdentity: String?
   var destinationRevision: Int
   var bodyRevision: Int
+  /// Assigned once before the first draft write; nil in queue records made before M13.
+  var draftAssetID: String?
 
   init(receipt: QueueReceipt, state: QueueJobState, reason: String? = nil) {
     schema = Self.schemaVersion
@@ -77,6 +80,7 @@ struct QueueJob: Codable, Equatable, Sendable {
     attemptGeneration = 0
     destinationRevision = 0
     bodyRevision = 0
+    draftAssetID = nil
   }
 
   func matches(_ receipt: QueueReceipt) -> Bool {
@@ -259,6 +263,7 @@ final class ProcessingQueueCoordinator {
   private let settings: any TranscriptionSettingsPort
   private let registry: TranscriptionMethodRegistry
   private let candidates: any TranscriptionCandidateStore
+  private let drafts: (any DiaryDraftStore)?
   private let timeout: Duration
   private struct ActiveAttempt {
     let jobID: String
@@ -280,6 +285,7 @@ final class ProcessingQueueCoordinator {
     identity: any InstallationIdentityPort, settings: any TranscriptionSettingsPort,
     registry: TranscriptionMethodRegistry,
     candidates: any TranscriptionCandidateStore = UnavailableTranscriptionCandidateStore(),
+    drafts: (any DiaryDraftStore)? = nil,
     timeout: Duration = .seconds(600)
   ) {
     self.store = store
@@ -288,6 +294,7 @@ final class ProcessingQueueCoordinator {
     self.settings = settings
     self.registry = registry
     self.candidates = candidates
+    self.drafts = drafts
     self.timeout = timeout
   }
 
@@ -363,6 +370,17 @@ final class ProcessingQueueCoordinator {
       where (job.state == .transcribing && activeWork?.jobID != job.id)
         || job.state == .resultReady
       {
+        if job.state == .resultReady, let drafts {
+          switch try drafts.inspect(job: job) {
+          case .verified:
+            job.state = .readyToSave
+            job.reason = nil
+            try store.replace(job)
+            continue
+          case .protectedDataUnavailable: continue
+          case .missing, .invalid: break
+          }
+        }
         let inspection = try candidates.inspect(job: job)
         switch inspection {
         case .verified:
@@ -386,6 +404,24 @@ final class ProcessingQueueCoordinator {
         }
       }
       // swiftlint:enable opening_brace
+      if let drafts {
+        for var job in try store.jobs() where job.state == .readyToSave {
+          switch try drafts.inspect(job: job) {
+          case .verified, .protectedDataUnavailable: continue
+          case .missing, .invalid:
+            switch try candidates.inspect(job: job) {
+            case .verified:
+              job.state = .resultReady
+              job.reason = nil
+            case .protectedDataUnavailable: continue
+            case .missing, .invalid:
+              job.state = .failed
+              job.reason = "This diary draft needs review."
+            }
+            try store.replace(job)
+          }
+        }
+      }
       for job in try store.jobs() where job.state == .removing {
         guard finishRemoval(jobID: job.id) else { return }
       }

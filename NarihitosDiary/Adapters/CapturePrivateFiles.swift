@@ -269,6 +269,10 @@ final class CapturePrivateFiles {
   private func isOwnedCaptureFile(_ name: String) -> Bool {
     let fixed = [
       "capture.json", "receipt.json", "pending-audio.m4a", "transcription-result-v1.json",
+      PrivateArtifactRole.markdownDraft.ownedFilename,
+      PrivateArtifactRole.draftBinding.ownedFilename,
+      ".recovery-\(PrivateArtifactRole.markdownDraft.rawValue)",
+      ".recovery-\(PrivateArtifactRole.draftBinding.rawValue)",
     ]
     if fixed.contains(name) { return true }
     for prefix in [".write-", ".result-"] where name.hasPrefix(prefix) {

@@ -1,6 +1,6 @@
 # P1-M12: Cohere model installation and transcription overview
 
-Status: Active
+Status: Done (owner decision; by-human test and evidence pending)
 
 Integrate the approved local Cohere model and Metal runtime with authenticated installation, bounded long-audio transcription, durable result handoff, and target-iPhone evidence. The owner authorized the production dependency and implementation ahead of P1-M11 completion; the remaining M11 and target-phone evidence is still required.
 
@@ -46,4 +46,4 @@ Hosted transcription, alternative model/runtime selection, automatic CPU fallbac
 
 The review found that a Cohere candidate could previously carry a self-consistent but unapproved runtime or conversion identity. The validator now requires the pinned identities, the claimed language's locale, and exactly the thirteen approved effective-setting fields. The inference adapter also checks the explicit language mapping and discards a result if cancellation arrives after seam assembly. The installer checks cancellation after artifact verification and before publication, and opens its installation record as a bounded regular file without following a symbolic link. Regression cases cover unapproved candidate fields/runtime and a linked installation record.
 
-The delegated validation run passed `make lint` and `git diff --check`. `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` generated the project and passed lint, then stopped during the simulator build when Xcode's `SwiftUIMacros.StateMacro` plugin server returned a malformed response in `ContentView.swift`. Tests and the M12 device matrix did not run. CoreSimulatorService was disconnected when queried through MobileBuildMCP. The full gate and target-phone checklist items remain unchecked.
+The owner marked implementation done on 2026-11-02, except for the by-human test and evidence. The delegated validation run passed `make lint` and `git diff --check`. `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` generated the project and passed lint, then stopped during the simulator build when Xcode's `SwiftUIMacros.StateMacro` plugin server returned a malformed response in `ContentView.swift`. Tests and the M12 device matrix did not run. CoreSimulatorService was disconnected when queried through MobileBuildMCP. The target-phone checklist remains unchecked; the unavailable full gate remains unchecked and is reported as a validation blocker.

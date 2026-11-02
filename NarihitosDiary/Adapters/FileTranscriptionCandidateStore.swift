@@ -230,7 +230,7 @@ final class FileTranscriptionCandidateStore: TranscriptionCandidateStore {
     }
     guard manager.fileExists(atPath: destination.path) else { return }
     try requirePlainFile(destination)
-    if job.state == .resultReady {
+    if job.state == .resultReady || job.state == .readyToSave {
       guard let record = try? read(destination), record.matches(job) else {
         throw QueueStoreFailure.corrupt
       }

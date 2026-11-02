@@ -1,6 +1,6 @@
 # P1-M11: Apple on-device transcription overview
 
-Status: Active
+Status: Done (owner decision; by-human test and evidence pending)
 
 Add a production Apple `SpeechTranscriber` method for English and Korean recordings, including truthful system-model readiness and installation controls, local-only file transcription, durable result handoff, and adapter-specific cancellation evidence. This milestone stops at a protected transcription-result candidate; P1-M13 turns that candidate into the one managed Diary body.
 

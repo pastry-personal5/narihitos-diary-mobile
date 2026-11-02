@@ -34,6 +34,31 @@ struct CapturePrivateFilesTests {
         atPath: unknown.deletingLastPathComponent().appending(path: "capture.json").path))
   }
 
+  @Test func removalAcceptsOwnedM13DraftAndRecoveryFiles() throws {
+    let root = FileManager.default.temporaryDirectory.appending(
+      path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let files = CapturePrivateFiles(root: root, protection: NoCaptureProtectionPolicy())
+    let reference = try files.saveSnapshot(
+      StoredDestinationRecord(
+        id: DestinationID.make().rawValue, displayName: "Synthetic",
+        bookmark: Data([1]), identityArchive: Data([2]), disclosureAcknowledged: true))
+    let identity = CaptureIdentity(
+      id: try WorkspaceID.random(), startedAt: Date(timeIntervalSince1970: 5),
+      language: .english, destinationReference: reference)
+    try files.createWorkspace(identity)
+    let folder = root.appending(path: identity.id.description, directoryHint: .isDirectory)
+    for name in [
+      PrivateArtifactRole.markdownDraft.ownedFilename,
+      PrivateArtifactRole.draftBinding.ownedFilename,
+      ".recovery-markdownDraft", ".recovery-draftBinding",
+    ] {
+      try Data([1]).write(to: folder.appending(path: name))
+    }
+    try files.removeWorkspace(jobID: identity.id.description)
+    #expect(!FileManager.default.fileExists(atPath: folder.path))
+  }
+
   @Test func transcriptionLeaseDetectsSameSizeAudioReplacement() throws {
     let root = FileManager.default.temporaryDirectory.appending(
       path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)

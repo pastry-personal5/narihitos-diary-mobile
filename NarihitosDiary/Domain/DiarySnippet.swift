@@ -50,6 +50,15 @@ typealias TitleOriginID = StableIdentifier
 struct SchemaInstant: Hashable, Sendable, CustomStringConvertible {
   let description: String
 
+  static func from(date: Date) throws -> SchemaInstant {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+    return try SchemaInstant(formatter.string(from: date))
+  }
+
   init(_ value: String) throws {
     let bytes = Array(value.utf8)
     guard bytes.count == 20,

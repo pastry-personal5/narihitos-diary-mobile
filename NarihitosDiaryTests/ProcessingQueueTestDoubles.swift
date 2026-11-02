@@ -36,6 +36,8 @@ final class MemoryCandidateStore: TranscriptionCandidateStore {
   var published: [String: TranscriptionPayload] = [:]
   var failPublish = false
   var publishFailure: TranscriptionCandidateFailure?
+  var failRead = false
+  var failDiscard = false
   var onPublish: (() -> Void)?
   var inspected: [String] = []
 
@@ -59,9 +61,13 @@ final class MemoryCandidateStore: TranscriptionCandidateStore {
     return published[job.id] == nil ? .missing : .verified
   }
 
-  func discard(job: QueueJob) throws { published.removeValue(forKey: job.id) }
+  func discard(job: QueueJob) throws {
+    if failDiscard { throw QueueStoreFailure.unavailable }
+    published.removeValue(forKey: job.id)
+  }
 
   func readVerified(job: QueueJob) throws -> TranscriptionPayload {
+    if failRead { throw QueueStoreFailure.unavailable }
     guard job.state == .resultReady, let value = published[job.id] else {
       throw QueueStoreFailure.corrupt
     }
@@ -74,6 +80,7 @@ final class MemoryQueueStore: QueueStorePort {
   var values: [String: QueueJob] = [:]
   var createCalls = 0
   var failReplace = false
+  var failReplaceState: QueueJobState?
 
   func jobs() throws -> [QueueJob] { Array(values.values) }
 
@@ -85,7 +92,7 @@ final class MemoryQueueStore: QueueStorePort {
   }
 
   func replace(_ job: QueueJob) throws {
-    if failReplace { throw QueueStoreFailure.unavailable }
+    if failReplace || job.state == failReplaceState { throw QueueStoreFailure.unavailable }
     values[job.id] = job
   }
 

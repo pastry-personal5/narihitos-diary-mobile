@@ -57,6 +57,7 @@ final class AppModel: ObservableObject {
   private var captureEnvironment: AppleCaptureEnvironment?
   private var captureCoordinator: CaptureCoordinator?
   private var processingQueue: ProcessingQueueCoordinator?
+  private var draftAdoption: DiaryDraftAdoptionCoordinator?
   private var transcriptionSettings: PrivateSettingsRepository?
   private var appleReadiness: AppleTranscriptionReadiness?
   private var appleInstaller: AppleAssetInstaller?
@@ -82,11 +83,14 @@ final class AppModel: ObservableObject {
       })
   }
 
+  // swiftlint:disable:next function_body_length
   convenience init() {
     let repository = PrivateSettingsRepository()
     let destination = AppleDestinationService(repository: repository)
     let files = CapturePrivateFiles()
     let audioSource = VerifiedCaptureAudioSource(files: files)
+    let candidateStore = FileTranscriptionCandidateStore(root: files.root, audio: audioSource)
+    let draftStore = RetryingDiaryDraftStore(root: files.root, audio: audioSource)
     let readinessSource = AppleSpeechReadinessSource()
     let queueStore = FileQueueStore()
     let registry = TranscriptionMethodRegistry()
@@ -122,8 +126,17 @@ final class AppModel: ObservableObject {
       identity: installationIdentity,
       settings: ProductionTranscriptionSettings(repository: repository),
       registry: registry,
-      candidates: FileTranscriptionCandidateStore(root: files.root, audio: audioSource))
-    processingQueue?.onChange = { [weak self] in self?.refreshCaptureLists() }
+      candidates: candidateStore, drafts: draftStore)
+    draftAdoption = DiaryDraftAdoptionCoordinator(
+      queue: queueStore, receipts: CaptureQueueReceiptSource(files: files),
+      candidates: candidateStore, drafts: draftStore,
+      titles: DiaryTitlePolicy(
+        model: AppleDiaryTitleModel(), languageDetector: NaturalLanguageTitleDetector()))
+    draftAdoption?.onChange = { [weak self] in self?.refreshCaptureLists() }
+    processingQueue?.onChange = { [weak self] in
+      self?.refreshCaptureLists()
+      self?.draftAdoption?.prerequisiteChanged()
+    }
   }
 
   init(
@@ -153,6 +166,7 @@ final class AppModel: ObservableObject {
     firstLaunchStep = firstLaunch.pendingExplanation
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
+    draftAdoption?.activate()
     refreshAppleReadiness()
     refreshCohereReadiness()
     refreshCaptureLists()
@@ -161,6 +175,7 @@ final class AppModel: ObservableObject {
   func becameInactive() {
     isAppActive = false
     processingQueue?.deactivate()
+    draftAdoption?.deactivate()
     appleReadiness?.invalidate()
     appleReadinessStates = [:]
     destinationService.invalidateAccess()
@@ -379,7 +394,7 @@ final class AppModel: ObservableObject {
     captureIssues = captureEnvironment?.issues() ?? []
     queuePending = queue.filter { $0.state != .failed }
     queueFailed = queue.filter { $0.state == .failed }
-    queuePausedReason = processingQueue?.pausedReason
+    queuePausedReason = processingQueue?.pausedReason ?? draftAdoption?.pausedReason
   }
 
   func refreshTranscriptionReadiness() {

@@ -15,6 +15,7 @@ struct WorkspaceID: Hashable, Sendable, CustomStringConvertible {
 enum PrivateArtifactRole: String, CaseIterable, Sendable {
   case pendingAudio
   case markdownDraft
+  case draftBinding
   case replacement
   case recovery
 
@@ -22,6 +23,7 @@ enum PrivateArtifactRole: String, CaseIterable, Sendable {
     switch self {
     case .pendingAudio: "pending-audio.m4a"
     case .markdownDraft: "draft.md"
+    case .draftBinding: "draft-binding-v1.json"
     case .replacement: "replacement.data"
     case .recovery: "recovery.data"
     }

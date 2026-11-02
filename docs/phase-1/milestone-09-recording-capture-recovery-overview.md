@@ -1,6 +1,6 @@
 # P1-M9: Recording and capture recovery overview
 
-Status: Active
+Status: Done (owner decision; by-human test and evidence pending)
 
 Implement private iPhone audio capture, immediate durable settlement, and recovery of interrupted or abandoned capture. This milestone must prove on the target phone that capture continues through lock and backgrounding and that a recording ending while locked is finalized and recorded durably without waiting for unlock.
 
@@ -63,6 +63,8 @@ Implement private iPhone audio capture, immediate durable settlement, and recove
 - [x] The generated project builds and all tests pass through `scripts/validate.sh` on an available iPhone simulator. The current review revision passed on a booted iPhone 18 Pro simulator running iOS 27.0.
 
 ## Acceptance evidence
+
+The owner marked M9 implementation done on 2026-11-02, except for the by-human test and evidence. Target-phone capture, interruption, lock/background, and Data Protection evidence remain pending; any unavailable validation gate remains unchecked.
 
 Check items only with focused tests, source/attribute inspection, a successful validation command, or a redacted target-phone trial record. Simulator tests establish state transitions and injected failure behavior; they cannot establish locked audio continuity, iOS audio-session behavior, actual Data Protection access while locked, or background execution. Record requested versus observed audio parameters and any device-specific variance before accepting the encoder path.
 
