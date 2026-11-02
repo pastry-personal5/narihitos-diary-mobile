@@ -132,6 +132,7 @@ enum TranscriptionWaitReason: Equatable, Sendable {
   case appleNotReady
   case protectedDataUnavailable
   case cohereNotInstalled
+  case cohereQ5MemoryUnsupported
   case methodUnavailable
 
   var message: String {
@@ -139,6 +140,8 @@ enum TranscriptionWaitReason: Equatable, Sendable {
     case .appleNotReady: "Apple transcription isn’t ready for this language."
     case .protectedDataUnavailable: "Recording is waiting for protected data."
     case .cohereNotInstalled: "Cohere model isn’t installed."
+    case .cohereQ5MemoryUnsupported:
+      "Cohere Q5 needs more memory than this iPhone can safely use. Choose another ready method."
     case .methodUnavailable: "The selected transcription method isn’t ready."
     }
   }

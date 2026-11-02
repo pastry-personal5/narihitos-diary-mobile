@@ -26,12 +26,14 @@ final class CohereTranscriptionAdapter: AsynchronousTranscriptionReadiness {
   private let q5Models: CohereModelManager
   private let selectedModel: @MainActor () -> TranscriptionModelSelection
   private let runtime: any CohereRuntimeRunning
+  private let q5RuntimeCertified: @Sendable () -> Bool
 
   init(
     store: any QueueStorePort, audio: any CohereAudioSource, models: CohereModelManager,
     q5Models: CohereModelManager? = nil,
     selectedModel: @escaping @MainActor () -> TranscriptionModelSelection = { .cohereQ4 },
-    runtime: any CohereRuntimeRunning = NativeCohereRuntime()
+    runtime: any CohereRuntimeRunning = NativeCohereRuntime(),
+    q5RuntimeCertified: @escaping @Sendable () -> Bool = { false }
   ) {
     self.store = store
     self.audio = audio
@@ -39,6 +41,7 @@ final class CohereTranscriptionAdapter: AsynchronousTranscriptionReadiness {
     self.q5Models = q5Models ?? models
     self.selectedModel = selectedModel
     self.runtime = runtime
+    self.q5RuntimeCertified = q5RuntimeCertified
   }
 
   func readiness(for _: CaptureLanguage) -> TranscriptionReadiness {
@@ -53,6 +56,14 @@ final class CohereTranscriptionAdapter: AsynchronousTranscriptionReadiness {
     else {
       return TranscriptionPreflight(
         readiness: .waiting(.cohereNotInstalled), effectiveValues: [:])
+    }
+    // iOS killed the production Q5 Metal load at its per-process limit even when
+    // os_proc_available_memory() reported more than the trial-derived floor. The
+    // kill cannot be caught, so fail closed until this exact production path has
+    // separate target-device evidence. Installation remains independently valid.
+    guard models.descriptor.quantization != "Q5_K_M" || q5RuntimeCertified() else {
+      return TranscriptionPreflight(
+        readiness: .waiting(.cohereQ5MemoryUnsupported), effectiveValues: [:])
     }
     return TranscriptionPreflight(
       readiness: .ready,
@@ -126,11 +137,20 @@ final class CohereTranscriptionAttempt: TranscriptionWork {
 
   func start() {
     guard task == nil else { return }
+    task = Task { [weak self] in
+      await self?.performAttempt()
+    }
+  }
+
+  private func performAttempt() async {
     let modelLease: CohereModelLease
     do {
-      modelLease = try models.acquireLease()
+      modelLease = try await models.acquireLease()
     } catch CohereModelFailure.protectedDataUnavailable {
       finish(.waiting(.protectedDataUnavailable))
+      return
+    } catch is CancellationError {
+      finish(.failure(.cancelled))
       return
     } catch {
       finish(.waiting(.cohereNotInstalled))
@@ -153,31 +173,31 @@ final class CohereTranscriptionAttempt: TranscriptionWork {
     let cancellation = self.cancellation
     let audioURL = audioLease.url
     let sourceDigest = audioLease.digest
-    task = Task { [weak self] in
-      let worker = Task.detached(priority: .userInitiated) {
-        Self.perform(
-          request: request, audioURL: audioURL, sourceDigest: sourceDigest,
-          modelLease: modelLease, runtime: runtime, cancellation: cancellation)
-      }
-      let outcome = await worker.value
-      guard let self else { return }
-      do { try audioLease.verifyUnchanged() } catch {
-        try? audioLease.close()
-        self.models.release(modelLease)
-        self.finish(.failure(.audioUnreadable))
-        return
-      }
+    let worker = Task.detached(priority: .userInitiated) {
+      Self.perform(
+        request: request, audioURL: audioURL, sourceDigest: sourceDigest,
+        modelLease: modelLease, runtime: runtime, cancellation: cancellation)
+    }
+    let outcome = await worker.value
+    do { try audioLease.verifyUnchanged() } catch {
       try? audioLease.close()
-      self.models.release(modelLease)
-      switch outcome {
-      case .success(let payload): self.finish(.success(payload))
-      case .failure(let failure): self.finish(.failure(failure))
-      case .waiting: self.finish(.waiting(.protectedDataUnavailable))
-      }
+      models.release(modelLease)
+      finish(.failure(.audioUnreadable))
+      return
+    }
+    try? audioLease.close()
+    models.release(modelLease)
+    switch outcome {
+    case .success(let payload): finish(.success(payload))
+    case .failure(let failure): finish(.failure(failure))
+    case .waiting: finish(.waiting(.protectedDataUnavailable))
     }
   }
 
-  func cancel() { cancellation.cancel() }
+  func cancel() {
+    cancellation.cancel()
+    task?.cancel()
+  }
 
   private func finish(_ result: TranscriptionResult) {
     guard !finished else { return }

@@ -168,6 +168,16 @@ protocol CohereModelDownloading: Sendable {
   ) async throws
 }
 
+protocol CohereModelArtifactVerifying: Sendable {
+  func verify(_ url: URL, descriptor: CohereTrustedModel) throws
+}
+
+struct StreamingCohereModelArtifactVerifier: CohereModelArtifactVerifying {
+  func verify(_ url: URL, descriptor: CohereTrustedModel) throws {
+    try CohereModelArtifact.verify(url, descriptor: descriptor)
+  }
+}
+
 final class HTTPSCohereModelDownloader: NSObject, CohereModelDownloading, @unchecked Sendable {
   func download(
     from source: URL, to destination: URL, expectedBytes: Int64, allowedHosts: Set<String>,
@@ -344,15 +354,18 @@ final class CohereModelManager: ObservableObject {
   private let root: URL
   private let manager: FileManager
   private let downloader: any CohereModelDownloading
+  private let artifactVerifier: any CohereModelArtifactVerifying
   private let availableCapacity: @Sendable (URL) throws -> Int64?
   private let protectedDataAvailable: () -> Bool
   private var installationTask: Task<Void, Never>?
   private var leaseCount = 0
+  private var readinessGeneration: UInt64 = 0
 
   init(
     descriptor: CohereTrustedModel = .production, root: URL? = nil,
     manager: FileManager = .default,
     downloader: any CohereModelDownloading = HTTPSCohereModelDownloader(),
+    artifactVerifier: any CohereModelArtifactVerifying = StreamingCohereModelArtifactVerifier(),
     availableCapacity: @escaping @Sendable (URL) throws -> Int64? = { url in
       try url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         .volumeAvailableCapacityForImportantUsage
@@ -364,6 +377,7 @@ final class CohereModelManager: ObservableObject {
     self.descriptor = descriptor
     self.manager = manager
     self.downloader = downloader
+    self.artifactVerifier = artifactVerifier
     self.availableCapacity = availableCapacity
     self.protectedDataAvailable = protectedDataAvailable
     if let root {
@@ -384,26 +398,27 @@ final class CohereModelManager: ObservableObject {
 
   func refresh() async -> CohereModelReadiness {
     if isInstalling { return .checking }
+    readinessGeneration &+= 1
+    let generation = readinessGeneration
     readiness = .checking
     guard protectedDataAvailable() else {
-      readiness = .failed(.protectedDataUnavailable)
-      return readiness
+      return settleReadiness(.failed(.protectedDataUnavailable), generation: generation)
     }
     do {
       _ = try descriptor.validatedURL()
       try prepareRoot()
       try removeAbandonedStaging()
-      guard try verifyPublishedInstallation() else {
-        readiness = .notInstalled
-        return readiness
+      guard try await verifyPublishedInstallation() else {
+        return settleReadiness(.notInstalled, generation: generation)
       }
-      readiness = .ready(descriptor.installationIdentity)
+      return settleReadiness(.ready(descriptor.installationIdentity), generation: generation)
     } catch let failure as CohereModelFailure {
-      readiness = .failed(failure)
+      return settleReadiness(.failed(failure), generation: generation)
+    } catch is CancellationError {
+      return settleReadiness(.failed(.cancelled), generation: generation)
     } catch {
-      readiness = .failed(.storage)
+      return settleReadiness(.failed(.storage), generation: generation)
     }
-    return readiness
   }
 
   func install() {
@@ -412,6 +427,7 @@ final class CohereModelManager: ObservableObject {
       readiness = .failed(.contended)
       return
     }
+    readinessGeneration &+= 1
     Self.activeInstallationIdentity = descriptor.installationIdentity
     isInstalling = true
     progress = CohereInstallProgress(receivedBytes: 0, expectedBytes: descriptor.byteCount)
@@ -419,8 +435,8 @@ final class CohereModelManager: ObservableObject {
       guard let self else { return }
       do {
         try await self.performInstallation()
-        self.isInstalling = false
-        _ = await self.refresh()
+        try Task.checkCancellation()
+        self.readiness = .ready(self.descriptor.installationIdentity)
       } catch let failure as CohereModelFailure {
         self.readiness = .failed(failure)
       } catch is CancellationError {
@@ -439,12 +455,22 @@ final class CohereModelManager: ObservableObject {
 
   func cancelInstallation() { installationTask?.cancel() }
 
-  func acquireLease() throws -> CohereModelLease {
+  func acquireLease() async throws -> CohereModelLease {
     guard case .ready(let identity) = readiness,
-      identity == descriptor.installationIdentity, try verifyPublishedInstallation()
+      identity == descriptor.installationIdentity
     else { throw CohereModelFailure.invalidModel }
+    // Reserve replacement ownership before the suspension. An installation cannot
+    // replace the URL while the exact bytes for this lease are being reverified.
     leaseCount += 1
-    return CohereModelLease(url: modelURL, identity: identity)
+    do {
+      guard try await verifyPublishedInstallation() else {
+        throw CohereModelFailure.invalidModel
+      }
+      return CohereModelLease(url: modelURL, identity: identity)
+    } catch {
+      leaseCount -= 1
+      throw error
+    }
   }
 
   func release(_ lease: CohereModelLease) {
@@ -465,7 +491,7 @@ final class CohereModelManager: ObservableObject {
     guard protectedDataAvailable() else { throw CohereModelFailure.protectedDataUnavailable }
     let source = try descriptor.validatedURL()
     try prepareRoot()
-    if try verifyPublishedInstallation() { return }
+    if try await verifyPublishedInstallation() { return }
     guard leaseCount == 0 else { throw CohereModelFailure.contended }
     let preservedBytes = manager.fileExists(atPath: modelURL.path) ? descriptor.byteCount : 0
     let required = try Self.requiredAvailableBytes(
@@ -489,7 +515,7 @@ final class CohereModelManager: ObservableObject {
       }
     }
     try Task.checkCancellation()
-    try Self.verifyArtifact(staging, descriptor: descriptor)
+    try await verifyArtifact(staging)
     try Task.checkCancellation()
     try applyBackupExclusion(staging)
     try manager.setAttributes(
@@ -502,7 +528,7 @@ final class CohereModelManager: ObservableObject {
       try manager.moveItem(at: staging, to: modelURL)
     }
     try applyBackupExclusion(modelURL)
-    try Self.verifyArtifact(modelURL, descriptor: descriptor)
+    try await verifyArtifact(modelURL)
     let publishedAttributes = try manager.attributesOfItem(atPath: modelURL.path)
     let modified =
       (publishedAttributes[.modificationDate] as? Date)?.timeIntervalSinceReferenceDate ?? 0
@@ -514,6 +540,9 @@ final class CohereModelManager: ObservableObject {
     try data.write(
       to: recordURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     try applyBackupExclusion(recordURL)
+    guard try verifyPublishedInstallationMetadata() else {
+      throw CohereModelFailure.invalidModel
+    }
   }
 
   static func requiredAvailableBytes(modelBytes: Int64, preservedBytes: Int64) throws -> Int64 {
@@ -547,7 +576,13 @@ final class CohereModelManager: ObservableObject {
     }
   }
 
-  private func verifyPublishedInstallation() throws -> Bool {
+  private func verifyPublishedInstallation() async throws -> Bool {
+    guard try verifyPublishedInstallationMetadata() else { return false }
+    try await verifyArtifact(modelURL)
+    return true
+  }
+
+  private func verifyPublishedInstallationMetadata() throws -> Bool {
     guard manager.fileExists(atPath: modelURL.path), manager.fileExists(atPath: recordURL.path)
     else { return false }
     let recordDescriptor = Darwin.open(recordURL.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
@@ -580,8 +615,30 @@ final class CohereModelManager: ObservableObject {
     else { return false }
     guard abs(modified.timeIntervalSinceReferenceDate - record.modificationSeconds) <= 0.001
     else { return false }
-    try Self.verifyArtifact(modelURL, descriptor: descriptor)
     return true
+  }
+
+  private func verifyArtifact(_ url: URL) async throws {
+    let artifactVerifier = artifactVerifier
+    let descriptor = descriptor
+    let worker = Task.detached(priority: .utility) {
+      try Task.checkCancellation()
+      try artifactVerifier.verify(url, descriptor: descriptor)
+      try Task.checkCancellation()
+    }
+    try await withTaskCancellationHandler {
+      try await worker.value
+    } onCancel: {
+      worker.cancel()
+    }
+  }
+
+  private func settleReadiness(
+    _ outcome: CohereModelReadiness, generation: UInt64
+  ) -> CohereModelReadiness {
+    guard generation == readinessGeneration else { return readiness }
+    readiness = outcome
+    return outcome
   }
 
   private func applyBackupExclusion(_ url: URL) throws {
@@ -592,38 +649,66 @@ final class CohereModelManager: ObservableObject {
     guard try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true
     else { throw CohereModelFailure.storage }
   }
+}
 
-  private static func verifyArtifact(_ url: URL, descriptor: CohereTrustedModel) throws {
+private enum CohereModelArtifact {
+  static func verify(_ url: URL, descriptor: CohereTrustedModel) throws {
     let fileDescriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
     guard fileDescriptor >= 0 else { throw CohereModelFailure.unsafeResource }
-    let handle = FileHandle(fileDescriptor: fileDescriptor, closeOnDealloc: true)
+    defer { Darwin.close(fileDescriptor) }
     var initial = stat()
     guard fstat(fileDescriptor, &initial) == 0, (initial.st_mode & S_IFMT) == S_IFREG,
       initial.st_nlink == 1, initial.st_size == descriptor.byteCount
     else { throw CohereModelFailure.invalidSize }
-    guard let header = try handle.read(upToCount: 8), header.count == 8,
-      Array(header.prefix(4)) == [0x47, 0x47, 0x55, 0x46]
-    else { throw CohereModelFailure.invalidModel }
-    let version = header.dropFirst(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
-    guard (2...3).contains(UInt32(littleEndian: version)) else {
-      throw CohereModelFailure.invalidModel
-    }
-    try handle.seek(toOffset: 0)
-    var hash = SHA256()
-    var readBytes: Int64 = 0
-    while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty {
-      readBytes += Int64(data.count)
-      guard readBytes <= descriptor.byteCount else { throw CohereModelFailure.invalidSize }
-      hash.update(data: data)
-    }
+    try validateHeader(fileDescriptor)
+    let result = try digest(fileDescriptor, expectedBytes: descriptor.byteCount)
     var final = stat()
     guard fstat(fileDescriptor, &final) == 0, initial.st_dev == final.st_dev,
       initial.st_ino == final.st_ino, initial.st_size == final.st_size,
       initial.st_mtimespec.tv_sec == final.st_mtimespec.tv_sec,
       initial.st_mtimespec.tv_nsec == final.st_mtimespec.tv_nsec,
-      readBytes == descriptor.byteCount
+      result.byteCount == descriptor.byteCount
     else { throw CohereModelFailure.invalidSize }
-    let digest = hash.finalize().map { String(format: "%02x", $0) }.joined()
-    guard digest == descriptor.sha256 else { throw CohereModelFailure.invalidDigest }
+    guard result.value == descriptor.sha256 else { throw CohereModelFailure.invalidDigest }
+  }
+
+  private static func validateHeader(_ fileDescriptor: Int32) throws {
+    var header = [UInt8](repeating: 0, count: 8)
+    let headerCount = header.withUnsafeMutableBytes { bytes in
+      Darwin.pread(fileDescriptor, bytes.baseAddress, bytes.count, 0)
+    }
+    guard headerCount == header.count,
+      Array(header.prefix(4)) == [0x47, 0x47, 0x55, 0x46]
+    else { throw CohereModelFailure.invalidModel }
+    let version = header.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }
+    guard (2...3).contains(UInt32(littleEndian: version)) else {
+      throw CohereModelFailure.invalidModel
+    }
+  }
+
+  private static func digest(
+    _ fileDescriptor: Int32, expectedBytes: Int64
+  ) throws -> (value: String, byteCount: Int64) {
+    guard Darwin.lseek(fileDescriptor, 0, SEEK_SET) == 0 else {
+      throw CohereModelFailure.storage
+    }
+    var hash = SHA256()
+    var readBytes: Int64 = 0
+    let buffer = UnsafeMutableRawBufferPointer.allocate(
+      byteCount: 1_048_576, alignment: MemoryLayout<UInt8>.alignment)
+    defer { buffer.deallocate() }
+    while true {
+      try Task.checkCancellation()
+      let count = Darwin.read(fileDescriptor, buffer.baseAddress, buffer.count)
+      if count < 0, errno == EINTR { continue }
+      guard count >= 0 else { throw CohereModelFailure.storage }
+      if count == 0 { break }
+      readBytes += Int64(count)
+      guard readBytes <= expectedBytes else { throw CohereModelFailure.invalidSize }
+      hash.update(
+        bufferPointer: UnsafeRawBufferPointer(start: buffer.baseAddress, count: count))
+    }
+    let value = hash.finalize().map { String(format: "%02x", $0) }.joined()
+    return (value, readBytes)
   }
 }
