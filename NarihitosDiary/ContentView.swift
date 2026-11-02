@@ -272,15 +272,20 @@ private struct AllView: View {
             InterfaceIcon(.conflicts)
           }
         }
-        NavigationLink {
-          SettingsView(model: model)
+        // Settle the All-row action before constructing Settings so the navigation tap cannot
+        // activate the newly inserted folder-selection row in the destination Form.
+        Button {
+          model.openAppSettings()
         } label: {
           Label {
             Text("Settings")
           } icon: {
             InterfaceIcon(.settings)
           }
+          .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+          .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("Settings")
       }
       .navigationTitle("All")
@@ -565,7 +570,7 @@ private struct SettingsView: View {
           .accessibilityLabel("Active folder")
           .accessibilityValue(model.destination.summary?.displayName ?? "No folder selected")
         Button(model.destination.summary == nil ? "Select Folder" : "Change Folder") {
-          model.selectFolder()
+          model.selectFolderFromSettings()
         }
         .frame(minHeight: 44)
       }

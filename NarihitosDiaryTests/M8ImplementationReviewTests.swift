@@ -243,6 +243,8 @@ struct M8ImplementationReviewTests {
     #expect(source.contains(".accessibilityHidden(scenePhase != .active)"))
     #expect(!main.contains("SettingsView("))
     #expect(all.contains("SettingsView(model: model)"))
+    #expect(all.contains("model.openAppSettings()"))
+    #expect(all.contains(".navigationDestination(isPresented: $model.showSettings)"))
     let model = makeModel(microphone: ReviewMicrophone(state: .authorized))
     model.openAll()
     #expect(model.selectedRoot == .all)

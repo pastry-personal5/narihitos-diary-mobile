@@ -259,81 +259,7 @@ struct FolderSelectionPresentationTests {
 }
 
 @MainActor
-@Suite(.serialized)
-struct FolderSelectionSettingsHierarchyTests {
-  @Test func settingsHierarchyShowsDisclosureForResultAfterSheetDismissal() async throws {
-    let destination = FolderSelectionTestDestination()
-    let model = makeFolderSelectionModel(destination)
-    model.selectedRoot = .all
-    let scene = try #require(
-      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        .first { $0.activationState == .foregroundActive })
-    let previousWindow = scene.keyWindow
-    let window = UIWindow(windowScene: scene)
-    let host = UIHostingController(rootView: ContentView(model: model))
-    window.rootViewController = host
-    window.makeKeyAndVisible()
-    defer {
-      host.dismiss(animated: false)
-      window.isHidden = true
-      window.rootViewController = nil
-      previousWindow?.makeKey()
-    }
-    await waitForPresentation { model.firstLaunchStep == nil && host.view.window != nil }
-    model.showSettings = true
-    await waitForPresentation { self.showsSettings(in: host) }
-    try #require(showsSettings(in: host))
-    model.selectFolder()
-    await waitForPresentation {
-      self.findController(UIDocumentPickerViewController.self, in: host) != nil
-    }
-    let picker = try #require(findController(UIDocumentPickerViewController.self, in: host))
-    let delegate = try #require(picker.delegate)
-
-    model.isFolderPickerPresented = false
-    await waitForPresentation { picker.viewIfLoaded?.window == nil }
-    delegate.documentPicker?(
-      picker, didPickDocumentsAt: [URL(fileURLWithPath: "/unused-test-folder")])
-    await waitForPresentation { self.findController(UIAlertController.self, in: host) != nil }
-    let disclosure = try #require(findController(UIAlertController.self, in: host))
-
-    #expect(disclosure.title == "Readable Files")
-    #expect(disclosure.actions.map(\.title).contains("Use Folder"))
-    #expect(destination.commitCount == 0)
-    model.cancelDisclosure()
-    host.dismiss(animated: false)
-  }
-
-  private func findController<Controller: UIViewController>(
-    _ type: Controller.Type, in controller: UIViewController
-  ) -> Controller? {
-    if let match = controller as? Controller { return match }
-    if let presented = controller.presentedViewController {
-      if let match = findController(type, in: presented) { return match }
-    }
-    for child in controller.children {
-      if let match = findController(type, in: child) { return match }
-    }
-    return nil
-  }
-
-  private func showsSettings(in controller: UIViewController) -> Bool {
-    if let navigation = controller as? UINavigationController {
-      if navigation.topViewController?.navigationItem.title == "Settings" { return true }
-    }
-    return controller.children.contains { showsSettings(in: $0) }
-  }
-
-  private func waitForPresentation(_ condition: @MainActor () -> Bool) async {
-    for _ in 0..<100 {
-      if condition() { return }
-      try? await Task.sleep(for: .milliseconds(25))
-    }
-  }
-}
-
-@MainActor
-private func makeFolderSelectionModel(_ destination: FolderSelectionTestDestination) -> AppModel {
+func makeFolderSelectionModel(_ destination: FolderSelectionTestDestination) -> AppModel {
   let permissions = FolderTestPermissions()
   return AppModel(
     microphone: permissions, location: permissions, systemSettings: permissions,
@@ -341,7 +267,7 @@ private func makeFolderSelectionModel(_ destination: FolderSelectionTestDestinat
 }
 
 @MainActor
-private final class FolderTestPermissions: MicrophoneAuthorizationPort, LocationAuthorizationPort {
+final class FolderTestPermissions: MicrophoneAuthorizationPort, LocationAuthorizationPort {
   var progress = FirstLaunchProgress(step: .complete)
   func currentState() -> PermissionState { .authorized }
   func requestAccess() async -> PermissionState { .authorized }
@@ -354,7 +280,7 @@ private final class FolderTestPermissions: MicrophoneAuthorizationPort, Location
 extension FolderTestPermissions: SystemSettingsPort, FirstLaunchStorePort {}
 
 @MainActor
-private final class FolderSelectionTestDestination: DestinationSelectionPort {
+final class FolderSelectionTestDestination: DestinationSelectionPort {
   let summary = DestinationSummary(id: .make(), displayName: "Synthetic Diary")
   let needsDisclosure: Bool
   var commitCount = 0

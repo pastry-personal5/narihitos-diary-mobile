@@ -16,6 +16,12 @@ enum RootTab: Hashable {
   case all
 }
 
+private enum FolderPickerRequestOrigin: String {
+  case direct
+  case recordingRecovery = "recording-recovery"
+  case settingsAction = "settings-action"
+}
+
 @MainActor
 final class AppModel: ObservableObject {
   let catalog: CatalogModel
@@ -86,6 +92,7 @@ final class AppModel: ObservableObject {
   private var captureEntryInProgress = false
   private var pendingFolderSelection: DestinationSelectionOutcome?
   private var folderPickerHasDismissed = false
+  private var folderPickerRequestOrigin: FolderPickerRequestOrigin?
   private var isAppActive = false
   private var captureTimer: Task<Void, Never>?
   private var interruptionObserver: NSObjectProtocol?
@@ -272,6 +279,7 @@ final class AppModel: ObservableObject {
     destinationService.invalidateAccess()
     pendingFolderSelection = nil
     folderPickerHasDismissed = false
+    folderPickerRequestOrigin = nil
     folderPickerRequestID = nil
     preparedDestination = nil
     isFolderPickerPresented = false
@@ -283,6 +291,7 @@ final class AppModel: ObservableObject {
     destinationService.invalidateAccess()
     pendingFolderSelection = nil
     folderPickerHasDismissed = false
+    folderPickerRequestOrigin = nil
     folderPickerRequestID = nil
     preparedDestination = nil
     isFolderPickerPresented = false
@@ -309,6 +318,11 @@ final class AppModel: ObservableObject {
     systemSettings.openApplicationSettings()
   }
 
+  func openAppSettings() {
+    clearMessage()
+    showSettings = true
+  }
+
   func clearMessage() {
     message = nil
     offersSettingsRecovery = false
@@ -322,14 +336,24 @@ final class AppModel: ObservableObject {
   }
 
   func selectFolder() {
+    beginFolderSelection(origin: .direct)
+  }
+
+  func selectFolderFromSettings() {
+    beginFolderSelection(origin: .settingsAction)
+  }
+
+  private func beginFolderSelection(origin: FolderPickerRequestOrigin) {
     clearMessage()
     destinationService.invalidateAccess()
     pendingFolderSelection = nil
     folderPickerHasDismissed = false
     preparedDestination = nil
+    folderPickerRequestOrigin = origin
     folderPickerRequestID = UUID()
     isFolderPickerPresented = true
-    folderSelectionLogger.notice("Folder picker requested")
+    folderSelectionLogger.notice(
+      "Folder picker requested; origin=\(origin.rawValue, privacy: .public)")
   }
 
   func pickedFolder(_ url: URL, requestID: UUID?) {
@@ -337,8 +361,11 @@ final class AppModel: ObservableObject {
       folderSelectionLogger.notice("Folder picker result superseded")
       return
     }
+    let origin = folderPickerRequestOrigin?.rawValue ?? "unknown"
     folderPickerRequestID = nil
-    folderSelectionLogger.notice("Folder picker result received")
+    folderPickerRequestOrigin = nil
+    folderSelectionLogger.notice(
+      "Folder picker result received; origin=\(origin, privacy: .public)")
     // Prepare while the picker-granted URL is available, but wait for SwiftUI's
     // dismissal completion before presenting another modal or publishing a commit.
     // UIKit may deliver this result after SwiftUI has already reported dismissal.
@@ -378,10 +405,14 @@ final class AppModel: ObservableObject {
 
   func cancelFolderPicker(requestID: UUID?) {
     guard let requestID, requestID == folderPickerRequestID else { return }
+    let origin = folderPickerRequestOrigin?.rawValue ?? "unknown"
     folderPickerRequestID = nil
+    folderPickerRequestOrigin = nil
     pendingFolderSelection = nil
     folderPickerHasDismissed = false
     isFolderPickerPresented = false
+    folderSelectionLogger.notice(
+      "Folder picker canceled; origin=\(origin, privacy: .public)")
   }
 
   func cancelDisclosure() {
@@ -448,7 +479,7 @@ final class AppModel: ObservableObject {
       }
     }
     if destination.summary == nil || (destination.accessState != .accessible && !verifiedOffline) {
-      selectFolder()
+      beginFolderSelection(origin: .recordingRecovery)
     } else {
       await startCapture(language: language)
     }
