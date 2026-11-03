@@ -44,6 +44,16 @@ def shapes(name):
         return [([(7, 21), (4, 21), (4, 3), (15, 3), (20, 8), (20, 14)], False), ([(14, 3), (14, 9), (20, 9)], False), ([(12, 17), (12, 20)], False), (circle(12, 23, 0.6), True), ([(8, 12), (15, 12)], False)]
     if name == 'conflicts':
         return [([(3, 16), (3, 3), (15, 3), (15, 7)], False), ([(9, 8), (21, 8), (21, 22), (9, 22), (9, 8)], False), ([(13, 12), (17, 12)], False), ([(13, 16), (17, 16)], False)]
+    if name == 'favorite':
+        return [([(12, 21), (3, 12), (2, 8), (4, 4), (8, 3), (12, 7), (16, 3), (20, 4), (22, 8), (21, 12), (12, 21)], False)]
+    if name == 'play':
+        return [([(6, 3), (21, 12), (6, 21), (6, 3)], True)]
+    if name == 'pause':
+        return [([(5, 3), (9, 3), (9, 21), (5, 21), (5, 3)], True), ([(15, 3), (19, 3), (19, 21), (15, 21), (15, 3)], True)]
+    if name == 'seekBack':
+        return [([(12, 4), (3, 12), (12, 20), (12, 4)], True), ([(22, 4), (13, 12), (22, 20), (22, 4)], True)]
+    if name == 'seekForward':
+        return [([(2, 4), (11, 12), (2, 20), (2, 4)], True), ([(12, 4), (21, 12), (12, 20), (12, 4)], True)]
     raise ValueError(name)
 
 
@@ -74,7 +84,7 @@ def png(path, name, size, filled):
             for sy in range(3):
                 for sx in range(3):
                     x, y = (px+(sx+0.5)/3)*24/size, (py+(sy+0.5)/3)*24/size
-                    hits += any((fill and inside(x, y, points)) or stroke(x, y, points, 2.3 if filled else 1.7) for points, fill in art)
+                    hits += any(((fill or (filled and name == 'favorite')) and inside(x, y, points)) or stroke(x, y, points, 2.3 if filled else 1.7) for points, fill in art)
             rows.extend((0, 0, 0, round(hits*255/9)))
     def chunk(kind, payload):
         return struct.pack('!I', len(payload)) + kind + payload + struct.pack('!I', zlib.crc32(kind+payload) & 0xffffffff)
@@ -82,7 +92,7 @@ def png(path, name, size, filled):
 
 
 if __name__ == '__main__':
-    for name in ('main', 'benefits', 'calendar', 'plugins', 'all', 'record', 'stop', 'settings', 'pending', 'warning', 'incomplete', 'conflicts'):
+    for name in ('main', 'benefits', 'calendar', 'plugins', 'all', 'record', 'stop', 'settings', 'pending', 'warning', 'incomplete', 'conflicts', 'favorite', 'play', 'pause', 'seekBack', 'seekForward'):
         points = 25 if name in ('main', 'benefits', 'calendar', 'plugins', 'all') else 32 if name in ('record', 'stop') else 24
         for filled in (False, True):
             asset = 'ndm-' + name + ('-selected' if filled else '')

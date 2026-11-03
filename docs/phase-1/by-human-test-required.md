@@ -4,6 +4,16 @@ Status: Active
 
 This tracker lists physical-device scenarios that still need human observations. Record redacted results in the linked milestone evidence records.
 
+## P1-M16
+
+The [M16 connected-iPhone record](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md#connected-iphone-results) now contains passing synthetic storage/recovery/maintenance, native replay, and native Apple title checks. No complete M16-D01–D11 row is closed. Use disposable English/Korean fixtures and record the following remaining observations in that record:
+
+- **M16-D01/D02/D10:** real editor input, Korean marked-text composition, empty/long/over-limit Save, failure/discard retention, Favorite interaction, keyboard/focus, VoiceOver, Reduce Motion, largest text and physical rotation. Hosted phone control lookup failed before actions; the VoiceOver diagnostic could not be run.
+- **M16-D03/D05:** real iCloud publication and separate upload proof, offline restoration, folder/account changes, external replacement and actual provider conflicts. Current phone storage tests use synthetic destination/upload ports.
+- **M16-D04/D11:** physical termination/relaunch at journal, publication, completion and purge boundaries; locked-data denial, backup/restore and prior-install review. Injected filesystem faults and unlocked protection attributes are partial evidence.
+- **M16-D06/D07/D08:** large/boundary/corrupt media and storage pressure, real headphone loss/interruption/media reset, capture priority, background/lock/five-minute capture and playable-partial recovery. Native replay passed alone; combined-run audio-session rejection remains unexplained.
+- **M16-D09/D10:** actual background/app-switcher snapshots, editor-buffer privacy, route/folder/account departure and stale callback settlement. Synthetic rendered covers and state tests do not establish snapshot timing.
+
 ## P1-M15
 
 M15-D01–M15-D10 remain unrun in the [M15 device evidence record](milestone-15-main-collection-diary-detail-device-evidence.md). The implementation and simulator gate pass; human evidence must still establish user-picked-folder paging/downloads/refresh, selection/account changes, provider conflicts and stalls, stored-weather attribution, full layout/VoiceOver/Reduce Motion, and app-switcher privacy. Use controlled synthetic iCloud fixtures, not the personal files supplied to establish the legacy format. Record state/count/timing observations without content or paths; earlier device gates remain open.

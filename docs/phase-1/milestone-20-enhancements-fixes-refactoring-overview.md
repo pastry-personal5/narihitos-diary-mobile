@@ -6,6 +6,8 @@ Correct app behavior reported by the owner, with related enhancements and target
 
 ## Entry and scope
 
+- Task 21 adds the owner-requested full-width Delete Diary Snippet control to detail, with inline confirmation and no overlay. This authorizes deletion of the selected verified Markdown/audio pair, including an eligible legacy pair; it does not authorize editing legacy files or removing unrelated files.
+
 - The owner requested this M20 task and its plan documents on 2026-11-02. Work may proceed before M16 under the approved [Phase 1 order](phase-1.md); earlier implementation and target-iPhone evidence remain open.
 - Trace Settings → Select Folder through the picker, candidate validation, first-selection disclosure, commit, private persistence, and active-folder refresh. Identify the failing boundary rather than infer successful persistence from picker dismissal.
 - Audit the shared persistent Settings record for onboarding, active destination, and selected transcription method. Fix failures relevant to saving and restoring these settings, preserving previously committed values on errors.
@@ -39,6 +41,15 @@ Correct app behavior reported by the owner, with related enhancements and target
 No change to accepted folder providers, iCloud identity requirements, readable-files disclosure, capture-time destinations, ordinary pending-data removal, dependencies, build tools, or the Cohere runtime/Metal and bounded-input safeguards. Task 9 is the explicit exception for its separately confirmed purge actions. No hosted models, automatic model switching, automatic destination replacement, or M16 features. These tasks do not close earlier physical-device evidence.
 
 ## Completion checklist
+
+### Task 21: Delete a Diary Snippet from detail
+
+- [x] Add a full-width destructive button below Metadata; reveal an inline warning plus explicit Delete Diary Snippet and Cancel actions. First tap and Cancel never delete; navigation, scene departure, or a changed version disarms confirmation.
+- [x] Delete only the freshly verified displayed Markdown/audio pair in its bound destination. Reject stale, conflicted, duplicate, unsafe, or unavailable resources; preserve unrelated files and never recursively remove the assets directory.
+- [x] Settle replay and exclude edit/maintenance races. Refuse deletion while retained creation/edit work could republish the diary. Prevent duplicate confirmation callbacks and return to the refreshed Main collection after success; surface failures inline.
+- [x] Verify synthetic deletion, changed-version/unsafe-resource preservation, retained-work exclusion, and confirmation/cancel behavior. Update product/GUI/README documentation and run `make lint` plus the full simulator validation gate.
+
+**Task 21 evidence (2026-11-04):** `DiaryDeletionTests` verifies arming/cancel/navigation invalidation, duplicate confirmation exclusion, replay settlement, edit-owner reservation, retained/isolated edit blocking, and inline failure/reconfirmation. `DiaryDeletionStorageTests` verifies current/legacy pair removal with unrelated files preserved, stale text and symlink rejection, creation-cleanup/capture-workspace guards, protected-data rejection, and partial removal retaining the surviving Markdown. `DiaryDeletionPresentationTests` activates the hosted controls, verifies the full-width accessible target and absence of a modal, cancels without mutation, disarms on scene departure, and returns to Main on confirmed success. Synthetic light and largest-text dark previews are generated; the full-width button and inline warning were visually inspected. No real diary was deleted. `make lint` and the complete `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` gate pass generation, lint, build, and tests. The restricted-shell CoreSimulator failure disappears with service access. Physical iCloud propagation, VoiceOver gestures, and target-phone deletion remain unrun; earlier milestone evidence stays open.
 
 ### Task 20: Installed Cohere Q4 blocked by local-storage pause
 

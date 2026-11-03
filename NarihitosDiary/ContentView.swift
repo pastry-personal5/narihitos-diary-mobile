@@ -84,6 +84,7 @@ struct ContentView: View {
       }
     }
     .animation(nil, value: scenePhase)
+    .modifier(DiaryEditorPresentation(actions: model.diaryActions))
     .onChange(of: model.selectedRoot) { _, root in model.catalog.setVisible(root == .main) }
     .onReceive(
       NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
@@ -784,7 +785,7 @@ private struct TranscriptionSettingsView: View {
   }
 }
 
-private struct PrivacyCover: View {
+struct PrivacyCover: View {
   var body: some View {
     ZStack {
       Color(.systemBackground).ignoresSafeArea()
@@ -794,5 +795,6 @@ private struct PrivacyCover: View {
         .accessibilityHidden(true)
     }
     .accessibilityLabel("Narihito's Diary hidden while inactive")
+    .accessibilityIdentifier("privacy-cover")
   }
 }

@@ -161,7 +161,7 @@ struct DiarySnippetV1: Equatable, Sendable {
   let createdAt: SchemaInstant
   var updatedAt: SchemaInstant
   var title: String
-  let titleProvenance: TitleProvenance
+  var titleProvenance: TitleProvenance
   var favorite: Bool
   let language: String
   let audioFilename: String

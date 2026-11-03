@@ -128,6 +128,20 @@ final class AppleAssetCatalog: AssetCatalogPort {
     destinationID = nil
   }
 
+  func actionBinding(_ handle: CatalogItemHandle) async throws -> CatalogActionBinding {
+    guard !busy, let worker, let destinationID else { throw CatalogIssue.unavailable }
+    busy = true
+    let generation = epoch
+    defer { settled() }
+    let stored = try await destination.committedDestinationRecord()
+    guard stored.id == destinationID.rawValue else { throw CatalogIssue.changed }
+    let resource = try await destination.withActiveCatalog(expectedID: destinationID) { root in
+      try await worker.actionResource(handle, root: root)
+    }
+    guard generation == epoch, !Task.isCancelled else { throw CatalogIssue.changed }
+    return CatalogActionBinding(destination: stored, resource: resource)
+  }
+
   func providerChanged(presenterID: UUID) {
     guard presenter?.id == presenterID, worker != nil else { return }
     end()

@@ -1,6 +1,6 @@
 import Foundation
 
-struct CatalogCandidate: Hashable, Sendable {
+struct CatalogCandidate: Codable, Hashable, Sendable {
   let components: [String]
   let handler: String
   let date: Date?

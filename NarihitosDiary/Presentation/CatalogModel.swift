@@ -36,6 +36,7 @@ final class CatalogModel: ObservableObject {
   private var active = false
   private var loading = false
   private var automaticChangedPageRestarts = 0
+  private var reopenAssetID: String?
 
   init(catalog: any AssetCatalogPort) {
     self.catalog = catalog
@@ -49,6 +50,7 @@ final class CatalogModel: ObservableObject {
 
   func activate(destinationID: DestinationID? = nil) {
     if scopeID != destinationID {
+      reopenAssetID = nil
       scopeID = destinationID
       knownRecoveryDestinations = []
     }
@@ -57,6 +59,7 @@ final class CatalogModel: ObservableObject {
   }
 
   func changeScope(_ id: DestinationID?) {
+    reopenAssetID = nil
     scopeID = id
     knownRecoveryDestinations = []
     refresh()
@@ -72,11 +75,13 @@ final class CatalogModel: ObservableObject {
   }
 
   func discard() {
+    reopenAssetID = nil
     reset()
     state = .unavailable
   }
 
   func stop() {
+    reopenAssetID = nil
     active = false
     reset()
     state = .idle
@@ -87,8 +92,24 @@ final class CatalogModel: ObservableObject {
     startRefresh()
   }
 
+  func refreshAfterMutation(assetID: String) {
+    holdSelectionForMutation(assetID: assetID)
+    refresh()
+  }
+
+  func holdSelectionForMutation(assetID: String) {
+    let matches = summaries.contains { $0.handle == selectedItem && $0.assetID == assetID }
+    if matches { reopenAssetID = assetID }
+  }
+
   private func startRefresh() {
+    let pinnedItem = reopenAssetID == nil ? nil : selectedItem
+    let pinnedDetail = reopenAssetID == nil ? nil : detail
     reset()
+    if let pinnedItem {
+      selectedItem = pinnedItem
+      detail = pinnedDetail
+    }
     guard active, visible else {
       state = .idle
       return
@@ -158,6 +179,18 @@ final class CatalogModel: ObservableObject {
     state = page.continuation == nil ? .end : (page.isDiscovering ? .discovering : .loaded)
     pageRevision = UUID()
     onChange?()
+    if let reopenAssetID {
+      if let replacement = summaries.first(where: { $0.assetID == reopenAssetID }) {
+        self.reopenAssetID = nil
+        open(replacement.handle)
+      } else if page.continuation == nil {
+        self.reopenAssetID = nil
+        selectedItem = nil
+        clearDetail()
+      } else if !loading {
+        loadMore()
+      }
+    }
     if let selectedItem {
       if let issue = recovery.first(where: { $0.id == selectedItem.id })?.issue {
         clearDetail()
@@ -172,6 +205,9 @@ final class CatalogModel: ObservableObject {
     }
   }
 
+}
+
+extension CatalogModel {
   func open(_ handle: CatalogItemHandle) {
     selectedItem = handle
     clearDetail()
@@ -200,7 +236,8 @@ final class CatalogModel: ObservableObject {
     }
   }
 
-  func clearDetail() {
+  func clearDetail(expectedHandle: CatalogItemHandle? = nil) {
+    guard expectedHandle == nil || selectedItem == expectedHandle else { return }
     detailOperation?.cancel()
     detailOperation = nil
     detail = nil
@@ -242,6 +279,7 @@ final class CatalogModel: ObservableObject {
   /// All can explain already observed recovery while Main is hidden. Catalog handles are not kept
   /// live: returning to Main starts a new selection-fenced traversal before anything can open.
   private func suspendAccessPreservingProjections() {
+    reopenAssetID = nil
     generation = UUID()
     operation?.cancel()
     operation = nil

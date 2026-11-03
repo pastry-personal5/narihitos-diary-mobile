@@ -4,7 +4,7 @@ import Testing
 @testable import NarihitosDiary
 
 @MainActor
-private final class FakeCatalog: AssetCatalogPort {
+final class FakeCatalog: AssetCatalogPort {
   var onEvent: (@MainActor (CatalogEvent) -> Void)?
   let session = CatalogSessionID()
   var pages = 0
@@ -14,6 +14,7 @@ private final class FakeCatalog: AssetCatalogPort {
   var waiting: CheckedContinuation<CatalogPage, Error>?
   var queuedPages: [CatalogPage] = []
   var pageFailures: [CatalogIssue] = []
+  var detailPayload: (any CatalogDetailPayload)?
   func begin() async -> CatalogStart {
     begins += 1
     return .ready(session, CatalogCursor(session: session, token: UUID()))
@@ -30,6 +31,7 @@ private final class FakeCatalog: AssetCatalogPort {
       isDiscovering: false)
   }
   func detail(_ handle: CatalogItemHandle) async throws -> CatalogDetail {
+    if let detailPayload { return CatalogDetail(handle: handle, payload: detailPayload) }
     throw CatalogIssue.changed
   }
   func end() { ends += 1 }

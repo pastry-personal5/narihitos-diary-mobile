@@ -197,6 +197,8 @@ final class ApplePurgeService: PurgePort {
           else {
             return false
           }
+        } else if root.lastPathComponent == "PrivateWorkspaces" {
+          guard try DiaryStagingNamespaces.isEmpty(root) else { return false }
         } else if try !PurgeFileTree.isEmpty(root) {
           return false
         }

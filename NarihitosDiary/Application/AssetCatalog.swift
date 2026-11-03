@@ -108,6 +108,7 @@ struct DiaryCatalogDetail: CatalogDetailPayload, Equatable {
   let weather: CatalogWeather?
   let audioAvailable: Bool
   let isLegacy: Bool
+  var assetID: String?
 }
 
 struct CatalogDetail: Sendable {

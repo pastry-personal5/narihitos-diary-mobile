@@ -18,7 +18,7 @@ enum PurgeScope: String, Codable, CaseIterable, Sendable {
         + "not created by this app. The folder itself is kept. This cannot be undone. "
         + "Pending work must finish or be purged separately first."
     case .internalStaging:
-      "Permanently remove pending and failed recordings, their audio, unsaved diary drafts, "
+      "Permanently remove pending and failed recordings, their audio, unsaved diary drafts, submitted diary edits, "
         + "and other private staging files. Saved iCloud diaries, Settings, and installed models "
         + "are kept. This cannot be undone."
     }

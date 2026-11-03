@@ -136,6 +136,23 @@ actor FileCatalogWorker {
     return CatalogDetail(handle: handle, payload: payload)
   }
 
+  // swiftlint:disable opening_brace
+  func actionResource(_ handle: CatalogItemHandle, root: URL) async throws -> CatalogActionResource
+  {
+    guard index.complete, handle.session == session,
+      let observation = observations[handle.resource], observation.handle == handle,
+      handle.kind == DiarySnippetSupportPolicy.kind
+    else { throw CatalogIssue.changed }
+    let candidate = observation.candidate
+    if !candidate.stableID.isEmpty {
+      let claims = index.candidates.values.filter { $0.stableID == candidate.stableID }
+      guard claims.count == 1 else { throw CatalogIssue.duplicateID }
+    }
+    _ = try await detail(handle, root: root)
+    return CatalogActionResource(candidate: candidate, version: observation.fileVersion)
+  }
+  // swiftlint:enable opening_brace
+
   private func observe(_ candidate: CatalogCandidate, read: CatalogReadValue) -> CatalogItemHandle {
     let resource = resources[candidate.key] ?? UUID()
     resources[candidate.key] = resource

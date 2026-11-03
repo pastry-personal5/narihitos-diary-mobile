@@ -1,6 +1,6 @@
 import Foundation
 
-struct StoredDestinationRecord: Codable, Equatable {
+struct StoredDestinationRecord: Codable, Equatable, Sendable {
   let id: String
   let displayName: String
   let bookmark: Data

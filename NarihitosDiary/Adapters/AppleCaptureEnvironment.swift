@@ -25,17 +25,23 @@ final class AppleCaptureEnvironment: CaptureEnvironmentPort {
   private let installationIdentity: any InstallationIdentityPort
   private var recorder: AVAudioRecorder?
   private var currentID: WorkspaceID?
+  private let sessionOwnership: AudioSessionOwnership
+  private var sessionToken: AudioSessionToken?
 
   init(
     microphone: any MicrophoneAuthorizationPort,
     destination: AppleDestinationService,
     files: CapturePrivateFiles = CapturePrivateFiles(),
-    installationIdentity: any InstallationIdentityPort = KeychainInstallationIdentity()
+    installationIdentity: any InstallationIdentityPort = KeychainInstallationIdentity(),
+    sessionOwnership: AudioSessionOwnership? = nil
   ) {
     self.microphone = microphone
     self.destination = destination
     self.files = files
     self.installationIdentity = installationIdentity
+    self.sessionOwnership =
+      sessionOwnership
+      ?? AudioSessionOwnership(platform: AppleAudioSessionConfiguration())
   }
 
   func installationBinding() throws -> String {
@@ -71,10 +77,8 @@ final class AppleCaptureEnvironment: CaptureEnvironmentPort {
 
   func startAudio(id: WorkspaceID) throws {
     let url = try files.createProtectedAudio(id: id)
-    let session = AVAudioSession.sharedInstance()
     do {
-      try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
-      try session.setActive(true)
+      sessionToken = try sessionOwnership.acquire(.recording)
       let candidate = try AVAudioRecorder(
         url: url,
         settings: [
@@ -93,7 +97,8 @@ final class AppleCaptureEnvironment: CaptureEnvironmentPort {
     } catch {
       recorder = nil
       currentID = nil
-      try? session.setActive(false)
+      if let sessionToken { sessionOwnership.release(sessionToken) }
+      sessionToken = nil
       throw error
     }
   }
@@ -103,7 +108,8 @@ final class AppleCaptureEnvironment: CaptureEnvironmentPort {
     recorder.stop()
     self.recorder = nil
     currentID = nil
-    try? AVAudioSession.sharedInstance().setActive(false)
+    if let sessionToken { sessionOwnership.release(sessionToken) }
+    sessionToken = nil
     return try files.inspectAudio(id: id)
   }
 

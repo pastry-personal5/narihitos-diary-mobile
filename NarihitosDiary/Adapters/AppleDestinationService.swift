@@ -156,6 +156,19 @@ final class AppleDestinationService: DestinationSelectionPort {
     _ stored: StoredDestinationRecord,
     operation: (URL) async throws -> Value
   ) async throws -> Value {
+    try await withCommittedDestination(stored, operation: operation)
+  }
+
+  /// Committed edits use the same validated destination loan, independently of
+  /// recording jobs and of any later active-folder selection.
+  func committedDestinationRecord() async throws -> StoredDestinationRecord {
+    try await captureSnapshotRecord().0
+  }
+
+  func withCommittedDestination<Value: Sendable>(
+    _ stored: StoredDestinationRecord,
+    operation: (URL) async throws -> Value
+  ) async throws -> Value {
     let url = try beginCaptureLoan(stored)
     defer { platform.stopAccessing(url) }
     let value = try await operation(url)

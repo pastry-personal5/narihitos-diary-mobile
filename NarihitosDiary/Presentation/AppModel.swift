@@ -26,8 +26,12 @@ private enum FolderPickerRequestOrigin: String {
 final class AppModel: ObservableObject {
   let dangerZone = DangerZoneModel()
   let catalog: CatalogModel
-  let catalogRenderers = CatalogDetailRendererRegistry.production(
-    attributionSource: AppleWeatherAttributionSource())
+  let diaryActions = DiaryActionsModel()
+  private let weatherAttribution = AppleWeatherAttributionSource()
+  var catalogRenderers: CatalogDetailRendererRegistry {
+    CatalogDetailRendererRegistry.production(
+      attributionSource: weatherAttribution, actions: diaryActions)
+  }
   let notices = MainNoticeModel()
   @Published var recoveryRoute: CatalogRecoveryDestination?
   @Published private(set) var microphoneState: PermissionState
@@ -81,6 +85,9 @@ final class AppModel: ObservableObject {
   private var processingQueue: ProcessingQueueCoordinator?
   private var draftAdoption: DiaryDraftAdoptionCoordinator?
   private var commitCoordinator: DiaryCommitCoordinator?
+  private var editCoordinator: DiaryEditCoordinator?
+  private var replayCoordinator: DiaryReplayCoordinator?
+  private var audioOwnership: AudioSessionOwnership?
   private var saveTasks: [String: Task<Void, Never>] = [:]
   private var saveAttempted: Set<String> = []
   private var savedFolderBannerTask: Task<Void, Never>?
@@ -148,9 +155,11 @@ final class AppModel: ObservableObject {
       systemSettings: AppleSystemSettings(),
       destinationService: destination,
       firstLaunchStore: repository, catalogPort: catalog)
+    let ownership = AudioSessionOwnership(platform: AppleAudioSessionConfiguration())
+    audioOwnership = ownership
     captureEnvironment = AppleCaptureEnvironment(
       microphone: microphone, destination: destination, files: files,
-      installationIdentity: installationIdentity)
+      installationIdentity: installationIdentity, sessionOwnership: ownership)
     transcriptionSettings = repository
     reloadTranscriptionSelection(from: repository)
     appleReadiness = AppleTranscriptionReadiness(source: readinessSource)
@@ -171,11 +180,41 @@ final class AppModel: ObservableObject {
       settings: ProductionTranscriptionSettings(repository: repository),
       registry: registry,
       candidates: candidateStore, drafts: draftStore)
+    let titles = DiaryTitlePolicy(
+      model: AppleDiaryTitleModel(), languageDetector: NaturalLanguageTitleDetector())
     draftAdoption = DiaryDraftAdoptionCoordinator(
       queue: queueStore, receipts: receipts,
       candidates: candidateStore, drafts: draftStore,
-      titles: DiaryTitlePolicy(
-        model: AppleDiaryTitleModel(), languageDetector: NaturalLanguageTitleDetector()))
+      titles: titles)
+    let edits = DiaryEditCoordinator(
+      store: AppleDiaryEditStore(
+        catalog: catalog, destination: destination, installation: installationIdentity),
+      titles: titles)
+    let replay = DiaryReplayCoordinator(
+      player: AppleDiaryReplayPlayer(
+        catalog: catalog, destination: destination, ownership: ownership))
+    editCoordinator = edits
+    replayCoordinator = replay
+    diaryActions.configure(edits: edits, replay: replay) { [weak self] in self?.updateMainNotices()
+    }
+    diaryActions.configureDeletion(
+      AppleDiaryDeletionService(
+        catalog: catalog, destination: destination,
+        creationIsSettled: { id in
+          try AppleDiaryDeletionService.creationIsSettled(
+            id: id, queue: queueStore, captures: files.root)
+        })
+    ) { [weak self] in
+      self?.catalog.refresh()
+    }
+    edits.onPublished = { [weak self] record in
+      guard let self, self.destination.summary?.id.rawValue == record.destinationID else { return }
+      self.catalog.refreshAfterMutation(assetID: record.assetID)
+    }
+    edits.onAccepted = { [weak self] record in
+      guard let self, self.destination.summary?.id.rawValue == record.destinationID else { return }
+      self.catalog.holdSelectionForMutation(assetID: record.assetID)
+    }
     let payload = RetryingDiaryCommitPayload(
       root: files.root, drafts: draftStore, audio: audioSource)
     let conflictInspector = conflictSnapshots.map {
@@ -260,6 +299,7 @@ final class AppModel: ObservableObject {
     microphoneState = microphone.currentState()
     locationState = location.currentState()
     destination = await destinationService.activeDestination()
+    diaryActions.updateScope(destination.summary?.id)
     if let repository = transcriptionSettings { reloadTranscriptionSelection(from: repository) }
     firstLaunchStep = firstLaunch.pendingExplanation
     dangerZone.reloadBarrier()
@@ -270,6 +310,8 @@ final class AppModel: ObservableObject {
     processingQueue?.endMaintenance()
     draftAdoption?.endMaintenance()
     commitCoordinator?.endMaintenance()
+    editCoordinator?.activate()
+    diaryActions.activate()
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
     draftAdoption?.activate()
@@ -288,6 +330,8 @@ final class AppModel: ObservableObject {
     notices.setEnvironment(visible: false, paused: true)
     processingQueue?.deactivate()
     draftAdoption?.deactivate()
+    editCoordinator?.deactivate()
+    diaryActions.invalidateVisibleActions()
     appleReadiness?.invalidate()
     appleReadinessStates = [:]
     destinationService.invalidateAccess()
@@ -301,6 +345,8 @@ final class AppModel: ObservableObject {
 
   func identityChanged() async {
     dangerZone.disarm()
+    editCoordinator?.deactivate()
+    diaryActions.invalidateVisibleActions()
     catalog.stop()
     catalog.changeScope(nil)
     destinationService.invalidateAccess()
@@ -312,6 +358,11 @@ final class AppModel: ObservableObject {
     isFolderPickerPresented = false
     destination = await destinationService.activeDestination()
     catalog.activate(destinationID: destination.summary?.id)
+    diaryActions.updateScope(destination.summary?.id)
+    if isAppActive {
+      editCoordinator?.activate()
+      diaryActions.activate()
+    }
     saveAttempted.removeAll()
     pumpSaves()
   }
@@ -511,6 +562,13 @@ final class AppModel: ObservableObject {
       presentMessage("Recording is temporarily unavailable.")
       return
     }
+    audioOwnership?.reserveCapture()
+    defer { audioOwnership?.cancelCaptureReservation() }
+    if let replayCoordinator, await !replayCoordinator.stopForCapture() {
+      presentMessage("Audio playback is still stopping. Try recording again when it finishes.")
+      return
+    }
+    guard isAppActive, !dangerZone.blocksWork else { return }
     let coordinator = CaptureCoordinator(environment: captureEnvironment)
     captureCoordinator = coordinator
     coordinator.onSettlement = { [weak self] phase in
@@ -629,6 +687,20 @@ final class AppModel: ObservableObject {
       values.append(
         MainNotice(
           category: .recovery, destination: .pending, message: "Pending work needs attention."))
+    }
+    if let edits = editCoordinator, !edits.pending.isEmpty {
+      let recovery = edits.pending.compactMap { $0.issue?.recoveryDestination }.first
+      values.append(
+        MainNotice(
+          category: recovery == nil ? .queued : .recovery, destination: recovery ?? .pending,
+          message: recovery == nil
+            ? "Diary changes are waiting to save." : "Diary changes need review."))
+    }
+    if let edits = editCoordinator, edits.isolatedCount > 0 || edits.discoveryIssue != nil {
+      values.append(
+        MainNotice(
+          category: .recovery, destination: .pending,
+          message: "Submitted diary edits need attention."))
     }
     for destination in [CatalogRecoveryDestination.incomplete, .conflicts]
     where catalog.knownRecoveryDestinations.contains(destination) {
@@ -924,7 +996,8 @@ final class AppModel: ObservableObject {
   private func beginPurgeMaintenance() -> Bool {
     guard !captureEntryInProgress, !isCapturePresented,
       processingQueue?.hasActiveWork != true, draftAdoption?.hasActiveWork != true,
-      commitCoordinator?.hasActiveWork != true, saveTasks.isEmpty
+      commitCoordinator?.hasActiveWork != true, editCoordinator?.hasActiveWork != true,
+      replayCoordinator?.hasActiveWork != true, saveTasks.isEmpty
     else { return false }
     suspendPurgeWork()
     return true
@@ -934,6 +1007,9 @@ final class AppModel: ObservableObject {
     processingQueue?.suspendForMaintenance()
     draftAdoption?.suspendForMaintenance()
     commitCoordinator?.suspendForMaintenance()
+    editCoordinator?.suspendForMaintenance()
+    replayCoordinator?.suspendForMaintenance()
+    diaryActions.invalidateVisibleActions()
     catalog.stop()
   }
 
@@ -941,6 +1017,8 @@ final class AppModel: ObservableObject {
     processingQueue?.endMaintenance()
     draftAdoption?.endMaintenance()
     commitCoordinator?.endMaintenance()
+    editCoordinator?.endMaintenance()
+    replayCoordinator?.endMaintenance()
     saveAttempted.removeAll()
     refreshCaptureLists()
     if isAppActive {
@@ -948,6 +1026,8 @@ final class AppModel: ObservableObject {
       draftAdoption?.activate()
       pumpSaves()
       catalog.activate(destinationID: destination.summary?.id)
+      editCoordinator?.activate()
+      diaryActions.activate()
     }
   }
 
@@ -984,7 +1064,14 @@ final class AppModel: ObservableObject {
     case .committed(let summary):
       folderSelectionLogger.notice("Folder selection committed")
       destination = ActiveDestination(summary: summary, accessState: .accessible)
+      diaryActions.updateScope(summary.id)
+      editCoordinator?.deactivate()
+      diaryActions.invalidateVisibleActions()
       catalog.changeScope(summary.id)
+      if isAppActive {
+        editCoordinator?.activate()
+        diaryActions.activate()
+      }
     case .superseded:
       folderSelectionLogger.notice("Folder selection commit superseded")
       presentMessage("The selection changed before it could be saved.")

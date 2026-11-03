@@ -136,10 +136,10 @@ Task 5 repairs Settings still showing `Active Folder` / `No folder selected` aft
 
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 
-Status: Planned
+Status: Active
 Goal: Save version-checked body and Favorite edits durably and replay verified audio without compromising capture or legacy read-only behavior.
 Plan: [overview](milestone-16-diary-editing-favorite-audio-replay-overview.md), [approach](milestone-16-diary-editing-favorite-audio-replay-architecture.md), [device evidence](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md)
-Notes: Planning only; implementation follows M15 and completion of M20, without waiting for M21. Reuse the existing title policy through the independent edit journal without turning submitted edits into recording jobs. The reviewed plan forbids persisting M15's session-local catalog UUIDs as restart authority, isolates edit journals, defines distinct retry-stable edit timestamps, and adds capacity-aware replay-cache evidence. Submitted edits need an independent committed-asset journal and destination capability, and replay needs shared audio-session ownership with capture. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence remains open.
+Notes: The owner requested completion on 2026-11-03, authorizing implementation against the current M15/M20 handoffs without waiting for M21. Body/Favorite editing now uses an independent durable journal and shared title policy, checked Markdown replacement, exact upload proof and resumable cleanup. Replay uses validated private leases and capture-priority session ownership. M20 maintenance integrates both owners. On 2026-11-04 KST, lint and the full simulator gate passed with `platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082`. The connected iPhone 17 Pro Max then passed 70 synthetic state/storage/recovery/maintenance tests, two native replay tests and one native title test; a completed-cleanup recovery fix and its final simulator gate also passed. M16 stays Active: M16-D01–D11 have partial evidence, hosted phone interaction tests remain unresolved, and the remaining human/provider/hardware acceptance criteria stay open. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence is unchanged.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 

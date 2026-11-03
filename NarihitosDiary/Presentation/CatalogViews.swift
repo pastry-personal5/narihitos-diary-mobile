@@ -14,7 +14,8 @@ struct CatalogDetailRendererRegistry {
   }
 
   static func production(
-    attributionSource: any WeatherAttributionPort
+    attributionSource: any WeatherAttributionPort,
+    actions: DiaryActionsModel = DiaryActionsModel()
   ) -> CatalogDetailRendererRegistry {
     var registry = CatalogDetailRendererRegistry()
     registry.register(DiarySnippetSupportPolicy.kind) { detail in
@@ -24,7 +25,10 @@ struct CatalogDetailRendererRegistry {
       guard let diary = detail.payload as? DiaryCatalogDetail else {
         return AnyView(Text("This format isn’t supported."))
       }
-      return AnyView(DiaryCatalogDetailView(diary: diary, attributionSource: attributionSource))
+      return AnyView(
+        DiaryCatalogDetailView(
+          diary: diary, handle: detail.handle, actions: actions,
+          attributionSource: attributionSource))
     }
     return registry
   }
@@ -165,18 +169,27 @@ private struct CatalogDetailScreen: View {
     }
     .navigationTitle("Diary Snippet")
     .navigationBarTitleDisplayMode(.inline)
-    .onDisappear { catalog.clearDetail() }
+    .onDisappear { catalog.clearDetail(expectedHandle: handle) }
     .privacySensitive()
   }
 }
 
 private struct DiaryCatalogDetailView: View {
   let diary: DiaryCatalogDetail
+  let handle: CatalogItemHandle
+  @ObservedObject var actions: DiaryActionsModel
   @StateObject private var attribution: WeatherAttributionModel
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.scenePhase) private var scenePhase
+  @AccessibilityFocusState private var deletionFocused: Bool
 
-  init(diary: DiaryCatalogDetail, attributionSource: any WeatherAttributionPort) {
+  init(
+    diary: DiaryCatalogDetail, handle: CatalogItemHandle, actions: DiaryActionsModel,
+    attributionSource: any WeatherAttributionPort
+  ) {
     self.diary = diary
+    self.handle = handle
+    self.actions = actions
     _attribution = StateObject(wrappedValue: WeatherAttributionModel(source: attributionSource))
   }
 
@@ -197,14 +210,40 @@ private struct DiaryCatalogDetailView: View {
           Text(verbatim: diary.body)
             .font(.body).frame(maxWidth: .infinity, alignment: .leading)
             .textSelection(.enabled)
+          if !diary.isLegacy {
+            Button("Edit Diary") { Task { await actions.openEditor(handle) } }
+              .frame(minHeight: 44)
+              .accessibilityIdentifier("diary-edit")
+              .disabled(
+                actions.edits == nil || actions.isOpening || actions.isDeleting || pending != nil)
+          }
+          if let pending {
+            Text(pending.issue?.message ?? "Saving changes.").foregroundStyle(.secondary)
+          }
+          if let message = actions.message { Text(message).foregroundStyle(.secondary) }
         }
         Divider()
         metadata
+        Divider()
+        deletion
       }
       .padding(20)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .task { if diary.weather != nil { await attribution.load() } }
+    .onAppear { actions.showDetail(handle) }
+    .onDisappear { actions.hideDetail(handle) }
+    .onChange(of: scenePhase) { _, phase in
+      if phase != .active { actions.cancelDeletion() }
+    }
+    .onChange(of: handle) { _, _ in actions.cancelDeletion() }
+    .onChange(of: actions.deletionConfirmation) { _, selected in
+      deletionFocused = selected == handle
+    }
+  }
+
+  private var pending: DiaryEditRecord? {
+    diary.assetID.flatMap { actions.pending(assetID: $0) }
   }
 
   private var weatherMark: UIImage? {
@@ -219,9 +258,18 @@ private struct DiaryCatalogDetailView: View {
 
   @ViewBuilder private var favorite: some View {
     if let favorite = diary.favorite {
-      Text(favorite ? "Favorite: On" : "Favorite: Off")
-        .font(.subheadline).foregroundStyle(.secondary)
-        .accessibilityLabel("Favorite").accessibilityValue(favorite ? "On" : "Off")
+      Button {
+        Task { await actions.setFavorite(!favorite, handle: handle) }
+      } label: {
+        InterfaceIcon(.favorite, selected: favorite).frame(minWidth: 44, minHeight: 44)
+      }
+      .disabled(
+        actions.edits == nil || actions.isOpening || actions.isDeleting || actions.editor != nil
+          || pending != nil
+      )
+      .accessibilityLabel("Favorite").accessibilityValue(favorite ? "On" : "Off")
+      .accessibilityIdentifier("diary-favorite")
+      .accessibilityAddTraits(favorite ? .isSelected : [])
     }
   }
 
@@ -240,8 +288,11 @@ private struct DiaryCatalogDetailView: View {
           "Recording language",
           value: Locale.current.localizedString(forIdentifier: language) ?? language)
       }
-      field(
-        "Audio", value: diary.audioAvailable ? "Available; replay is coming later." : "Unavailable")
+      if diary.audioAvailable {
+        DiaryReplayControls(actions: actions, handle: handle)
+      } else {
+        field("Audio", value: "Unavailable")
+      }
       if let location = diary.location {
         field("Place", value: location.placeName ?? "\(location.latitude), \(location.longitude)")
       }
@@ -273,6 +324,54 @@ private struct DiaryCatalogDetailView: View {
         Text("Read-only legacy diary").font(.footnote).foregroundStyle(.secondary)
       }
     }
+  }
+
+  private var deletion: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      if actions.isDeleting {
+        ProgressView("Deleting Diary Snippet")
+          .frame(maxWidth: .infinity, minHeight: 52)
+      } else if actions.deletionConfirmation == handle {
+        Text("Delete this Diary Snippet?").font(.headline).accessibilityAddTraits(.isHeader)
+          .accessibilityFocused($deletionFocused)
+        Text(
+          "This permanently deletes the diary text and its recorded audio from iCloud. This cannot be undone."
+        )
+        Button(role: .destructive) {
+          Task { await actions.confirmDeletion(handle) }
+        } label: {
+          deletionLabel("Delete Diary Snippet")
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("diary-confirm-delete")
+        Button {
+          actions.cancelDeletion()
+        } label: {
+          deletionLabel("Cancel")
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("diary-cancel-delete")
+      } else {
+        Button(role: .destructive) {
+          actions.requestDeletion(handle)
+        } label: {
+          deletionLabel("Delete Diary Snippet")
+        }
+        .buttonStyle(.bordered)
+        .disabled(!actions.canDelete)
+        .accessibilityIdentifier("diary-delete")
+      }
+      if let message = actions.deletionMessage {
+        Text(message).foregroundStyle(.secondary).accessibilityIdentifier("diary-delete-message")
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func deletionLabel(_ text: String) -> some View {
+    Text(text).font(.headline).multilineTextAlignment(.center)
+      .frame(maxWidth: .infinity, minHeight: 52)
+      .contentShape(Rectangle())
   }
 
   private func field(_ label: String, value: String) -> some View {

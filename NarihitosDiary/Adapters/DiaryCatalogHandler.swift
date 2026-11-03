@@ -171,6 +171,6 @@ struct DiaryCatalogHandler: CatalogAssetHandler {
       weather: snippet.weather.map {
         CatalogWeather(summary: $0.summary, temperatureCelsius: $0.temperatureCelsius)
       },
-      audioAvailable: audioAvailable, isLegacy: false)
+      audioAvailable: audioAvailable, isLegacy: false, assetID: snippet.id.description)
   }
 }
