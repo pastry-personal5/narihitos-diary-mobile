@@ -103,6 +103,10 @@ The proposed local staging area is file-oriented: a private folder per recording
 
 Completion verifies the referenced iCloud Markdown/audio pair against the private candidate and commit record, records success, and removes the private folder. Identity or file existence alone is insufficient evidence for cleanup. If the app closes between these operations, launch reconciliation checks the commit evidence and any later valid asset revision, preserving ambiguous candidates rather than overwriting external edits or creating another asset. No later iCloud outage can depend on a retained private copy.
 
+## Settings entry presentation
+
+All's root list owns the single top-trailing Settings toolbar button and retains its four recording/recovery destinations. The button uses `InterfaceIcon(.settings)` and calls `AppModel.openAppSettings()`; the existing `showSettings` binding presents Settings after the action settles. This preserves Task 14's navigation boundary so entry cannot activate the destination's folder-selection row. The toolbar is scoped to All's root rather than its child screens, and no storage or processing use case changes. See [M20 Task 6](phase-1/milestone-20-enhancements-fixes-refactoring-architecture.md#task-6-all-screen-settings-control-relocation) for layout, accessibility, and acceptance evidence.
+
 ## Recording flow
 
 1. First launch explains microphone access and requests permission. Before the first recording, the user selects or creates an iCloud destination folder and enters recording with an en-US or ko-KR language hint. The capture use case checks current microphone authorization and the destination reference again before starting; denial leaves other app functions available and directs Record to a Settings recovery path.

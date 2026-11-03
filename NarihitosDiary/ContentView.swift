@@ -272,23 +272,23 @@ private struct AllView: View {
             InterfaceIcon(.conflicts)
           }
         }
-        // Settle the All-row action before constructing Settings so the navigation tap cannot
-        // activate the newly inserted folder-selection row in the destination Form.
-        Button {
-          model.openAppSettings()
-        } label: {
-          Label {
-            Text("Settings")
-          } icon: {
-            InterfaceIcon(.settings)
-          }
-          .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Settings")
       }
       .navigationTitle("All")
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          // Keep Task 14's action boundary before constructing the Settings destination.
+          Button {
+            model.openAppSettings()
+          } label: {
+            InterfaceIcon(.settings)
+              .frame(minWidth: 44, minHeight: 44)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Settings")
+          .accessibilityIdentifier("all-settings-button")
+        }
+      }
       .navigationDestination(item: $model.recoveryRoute) { destination in
         recoveryDestination(destination)
       }

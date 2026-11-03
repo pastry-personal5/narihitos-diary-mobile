@@ -24,7 +24,7 @@ Root tabs (ordered)
    ├─ Failed Recordings → failed recording entries and actions
    ├─ Incomplete Diary Snippets → flagged pairs and confirmed removal
    ├─ Conflicting Versions → open both versions and choose one
-   └─ Settings → method readiness, model installation, and permissions
+   └─ Top-right Settings icon button → method readiness, model installation, and permissions
 ```
 
 Arrows indicate destinations or actions, not an approved navigation presentation or exact screen heading. First-launch permission and folder-selection steps are prerequisites to recording, not extra root tabs. Record must explain microphone denial and route to system Settings for recovery; folder selection is required before first capture.

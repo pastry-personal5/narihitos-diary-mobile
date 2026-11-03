@@ -15,7 +15,7 @@ This is the canonical vocabulary for approved v1 navigation and diary work. An *
 | All | all | Root tab containing utility and recovery entries, with no Diary Snippet list in v1. |
 | Record | record | Floating Main control that opens the recording path after required permissions and folder selection. |
 | Stop & Transcribe | stopAndTranscribe | Sole user control during capture; ends capture and queues playable audio. |
-| Settings | settings | All destination for method readiness, selection, model installation, and location access. |
+| Settings | settings | Destination opened by All's top-right icon-only button; method readiness, selection, model installation, and location access. |
 | Pending Recordings | pendingRecordings | Separate All destination for recordings awaiting processing or save. |
 | Failed Recordings | failedRecordings | Separate All destination for recordings requiring attention or manual retry. |
 | Incomplete Diary Snippets | incompleteDiarySnippets | Separate All recovery destination for flagged Markdown/audio pairs without a repair copy. |
