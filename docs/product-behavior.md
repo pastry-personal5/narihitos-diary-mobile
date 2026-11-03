@@ -6,6 +6,8 @@ Product scope: the v1 behavior confirmed by the owner. The complete P1-M5 implem
 
 ## Confirmed v1 behavior
 
+- Settings → Danger Zone has two independent, explicit inline confirmations. Purge Active Folder Contents removes every descendant, including non-app files, while keeping the selected folder/bookmark. Purge Internal Staging removes app-owned pending/failed audio, unsaved drafts, receipts and staging records while keeping saved iCloud assets, Settings and installed models. Neither operation starts while capture, transcription, title adoption or saving owns work. Folder purge also requires staging to finish or be explicitly purged separately, preventing automatic republication. Validated completed queue history remains intact and does not block folder purge. Cancel, navigation and scene departure disarm unconfirmed actions. Partial or interrupted purges pause recording and processing across relaunch until the same purge is explicitly retried; unavailable recovery data fails closed. See the [M20 purge contract](phase-1/milestone-20-enhancements-fixes-refactoring-architecture.md#task-9-danger-zone-purge-actions-in-settings).
+
 ### Target and recording
 
 - V1 targets iPhone 17 Pro Max running iOS 27.0.1 or later, without iPad support.

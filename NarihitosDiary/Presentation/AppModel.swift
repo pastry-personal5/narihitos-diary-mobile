@@ -24,6 +24,7 @@ private enum FolderPickerRequestOrigin: String {
 
 @MainActor
 final class AppModel: ObservableObject {
+  let dangerZone = DangerZoneModel()
   let catalog: CatalogModel
   let catalogRenderers = CatalogDetailRendererRegistry.production(
     attributionSource: AppleWeatherAttributionSource())
@@ -218,6 +219,10 @@ final class AppModel: ObservableObject {
       self?.draftAdoption?.prerequisiteChanged()
       self?.pumpSaves()
     }
+    dangerZone.configure(ApplePurgeService(destination: destination))
+    dangerZone.acquireMaintenance = { [weak self] in self?.beginPurgeMaintenance() == true }
+    dangerZone.releaseMaintenance = { [weak self] in self?.endPurgeMaintenance() }
+    if dangerZone.blocksWork { suspendPurgeWork() }
   }
 
   init(
@@ -257,6 +262,14 @@ final class AppModel: ObservableObject {
     destination = await destinationService.activeDestination()
     if let repository = transcriptionSettings { reloadTranscriptionSelection(from: repository) }
     firstLaunchStep = firstLaunch.pendingExplanation
+    dangerZone.reloadBarrier()
+    guard !dangerZone.blocksWork else {
+      suspendPurgeWork()
+      return
+    }
+    processingQueue?.endMaintenance()
+    draftAdoption?.endMaintenance()
+    commitCoordinator?.endMaintenance()
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
     draftAdoption?.activate()
@@ -270,6 +283,7 @@ final class AppModel: ObservableObject {
 
   func becameInactive() {
     isAppActive = false
+    dangerZone.disarm()
     catalog.stop()
     notices.setEnvironment(visible: false, paused: true)
     processingQueue?.deactivate()
@@ -286,6 +300,7 @@ final class AppModel: ObservableObject {
   }
 
   func identityChanged() async {
+    dangerZone.disarm()
     catalog.stop()
     catalog.changeScope(nil)
     destinationService.invalidateAccess()
@@ -344,6 +359,7 @@ final class AppModel: ObservableObject {
   }
 
   private func beginFolderSelection(origin: FolderPickerRequestOrigin) {
+    guard !dangerZone.blocksWork else { return }
     clearMessage()
     destinationService.invalidateAccess()
     pendingFolderSelection = nil
@@ -428,6 +444,11 @@ final class AppModel: ObservableObject {
   }
 
   func handleRecord(language: CaptureLanguage) async {
+    guard !dangerZone.blocksWork else {
+      presentMessage(
+        "Processing is paused for an unfinished purge. Open Settings → Danger Zone to retry.")
+      return
+    }
     guard !captureEntryInProgress, !isCapturePresented else { return }
     captureEntryInProgress = true
     defer { captureEntryInProgress = false }
@@ -860,6 +881,7 @@ final class AppModel: ObservableObject {
   }
 
   func retryQueueJob(_ id: String) {
+    guard !dangerZone.blocksWork else { return }
     if processingQueue?.projections().first(where: { $0.id == id })?.state == .readyToSave {
       saveAttempted.remove(id)
       pumpSaves()
@@ -870,7 +892,7 @@ final class AppModel: ObservableObject {
   }
 
   private func pumpSaves() {
-    guard isAppActive, let commitCoordinator else { return }
+    guard !dangerZone.blocksWork, isAppActive, let commitCoordinator else { return }
     let ready =
       processingQueue?.projections().filter {
         $0.state == .readyToSave && !saveAttempted.contains($0.id)
@@ -887,14 +909,46 @@ final class AppModel: ObservableObject {
   }
 
   func resumeQueueJob(_ id: String) {
+    guard !dangerZone.blocksWork else { return }
     processingQueue?.resumeRestored(jobID: id)
     refreshCaptureLists()
   }
 
   func removeQueueJob(_ id: String) {
+    guard !dangerZone.blocksWork else { return }
     processingQueue?.remove(jobID: id)
     saveTasks[id]?.cancel()
     refreshCaptureLists()
+  }
+
+  private func beginPurgeMaintenance() -> Bool {
+    guard !captureEntryInProgress, !isCapturePresented,
+      processingQueue?.hasActiveWork != true, draftAdoption?.hasActiveWork != true,
+      commitCoordinator?.hasActiveWork != true, saveTasks.isEmpty
+    else { return false }
+    suspendPurgeWork()
+    return true
+  }
+
+  private func suspendPurgeWork() {
+    processingQueue?.suspendForMaintenance()
+    draftAdoption?.suspendForMaintenance()
+    commitCoordinator?.suspendForMaintenance()
+    catalog.stop()
+  }
+
+  private func endPurgeMaintenance() {
+    processingQueue?.endMaintenance()
+    draftAdoption?.endMaintenance()
+    commitCoordinator?.endMaintenance()
+    saveAttempted.removeAll()
+    refreshCaptureLists()
+    if isAppActive {
+      processingQueue?.activate()
+      draftAdoption?.activate()
+      pumpSaves()
+      catalog.activate(destinationID: destination.summary?.id)
+    }
   }
 
   func dismissSavedFolderBanner() {
@@ -924,6 +978,7 @@ final class AppModel: ObservableObject {
   }
 
   private func commitPreparedDestination() {
+    guard !dangerZone.blocksWork else { return }
     guard let candidate = preparedDestination else { return }
     switch destinationService.commitPreparedSelection(candidate.id) {
     case .committed(let summary):

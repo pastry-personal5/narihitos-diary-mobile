@@ -22,9 +22,14 @@ private final class CommitPairStore: DiaryPairStorePort {
   var publications = 0
   var uploadChecks = 0
   var afterPublish: (() -> Void)?
+  var audioCalls = 0
+  var suspendAudio = false
+  var pendingAudio: CheckedContinuation<Void, Never>?
 
   func ensureAudio(_: DiaryCommitRecord, job _: QueueJob) async -> DiaryFileResult {
-    switch result {
+    audioCalls += 1
+    if suspendAudio { await withCheckedContinuation { pendingAudio = $0 } }
+    return switch result {
     case .verified(let pair):
       .verified(
         DiaryFileVersion(
@@ -166,6 +171,55 @@ private struct CommitFixture {
 @MainActor
 // swiftlint:disable:next type_body_length
 struct DiaryCommitTests {
+  @Test func providerOwnershipRemainsBusyAndMaintenanceBlocksNewAttempts() async throws {
+    let fixture = try makeFixture()
+    fixture.pairs.suspendAudio = true
+    let attempt = Task { await fixture.coordinator.attempt(jobID: fixture.job.id) }
+    for _ in 0..<100 where fixture.pairs.pendingAudio == nil { await Task.yield() }
+    let pending = try #require(fixture.pairs.pendingAudio)
+    #expect(fixture.coordinator.hasActiveWork)
+    fixture.coordinator.suspendForMaintenance()
+    await fixture.coordinator.attempt(jobID: fixture.job.id)
+    #expect(fixture.coordinator.hasActiveWork)
+    #expect(fixture.pairs.audioCalls == 1)
+    #expect(fixture.pairs.publications == 0)
+    pending.resume()
+    await attempt.value
+    #expect(!fixture.coordinator.hasActiveWork)
+    #expect(fixture.queue.values[fixture.job.id]?.state == .readyToSave)
+    await fixture.coordinator.attempt(jobID: fixture.job.id)
+    #expect(fixture.pairs.audioCalls == 1)
+    fixture.coordinator.endMaintenance()
+    fixture.pairs.suspendAudio = false
+    fixture.pairs.result = .verified(fixture.version)
+    fixture.pairs.observation = completeObservation(fixture.version)
+    await fixture.coordinator.attempt(jobID: fixture.job.id)
+    #expect(!fixture.coordinator.hasActiveWork)
+    #expect(fixture.queue.values[fixture.job.id]?.state == .saved)
+    #expect(fixture.cleanup.calls == 1)
+  }
+
+  @Test func maintenanceDefersInterruptedCleanupUntilExplicitResumption() async throws {
+    let fixture = try makeFixture()
+    fixture.pairs.result = .verified(fixture.version)
+    fixture.pairs.observation = completeObservation(fixture.version)
+    fixture.cleanup.fail = true
+    await fixture.coordinator.attempt(jobID: fixture.job.id)
+    #expect(fixture.queue.values[fixture.job.id]?.state == .saved)
+    #expect(fixture.queue.values[fixture.job.id]?.commitCleanupDone != true)
+    #expect(fixture.cleanup.calls == 1)
+    fixture.cleanup.fail = false
+    fixture.coordinator.suspendForMaintenance()
+    fixture.coordinator.resumeCleanup()
+    #expect(fixture.cleanup.calls == 1)
+    #expect(fixture.queue.values[fixture.job.id]?.commitCleanupDone != true)
+    fixture.coordinator.endMaintenance()
+    fixture.coordinator.resumeCleanup()
+    #expect(fixture.cleanup.calls == 2)
+    #expect(fixture.queue.values[fixture.job.id]?.commitCleanupDone == true)
+    #expect(fixture.pairs.publications == 1)
+  }
+
   @Test func oldQueueRecordHasNoCommitClaim() throws {
     let fixture = try makeFixture()
     let data = try JSONEncoder().encode(fixture.job)
@@ -258,6 +312,12 @@ struct DiaryCommitTests {
       await coordinator.chooseConflict(
         jobID: fixture.job.id, snapshotID: first.id.description) == false)
     inspector.allowChoice = true
+    coordinator.suspendForMaintenance()
+    #expect(
+      await coordinator.chooseConflict(
+        jobID: fixture.job.id, snapshotID: first.id.description) == false)
+    #expect(fixture.queue.values[fixture.job.id]?.conflictResolution?.selectedSnapshotID == nil)
+    coordinator.endMaintenance()
     #expect(
       await coordinator.chooseConflict(
         jobID: fixture.job.id, snapshotID: first.id.description))
@@ -284,6 +344,10 @@ struct DiaryCommitTests {
     #expect(
       fixture.queue.values[fixture.job.id]?.reason
         == "Waiting for confirmation to remove the other version.")
+    publishing.suspendForMaintenance()
+    #expect(publishing.confirmConflictRemoval(jobID: fixture.job.id) == false)
+    #expect(fixture.queue.values[fixture.job.id]?.conflictResolution?.removalConfirmed != true)
+    publishing.endMaintenance()
     #expect(publishing.confirmConflictRemoval(jobID: fixture.job.id))
     await publishing.attempt(jobID: fixture.job.id)
     #expect(fixture.queue.values[fixture.job.id]?.state == .saved)

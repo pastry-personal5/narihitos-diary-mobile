@@ -24,7 +24,12 @@ Root tabs (ordered)
    ├─ Failed Recordings → failed recording entries and actions
    ├─ Incomplete Diary Snippets → flagged pairs and confirmed removal
    ├─ Conflicting Versions → open both versions and choose one
-   └─ Top-right Settings icon button → method readiness, model installation, and permissions
+   └─ Top-right Settings icon button
+      ├─ Transcription → model selection, readiness and installation
+      ├─ Active Folder and Location
+      └─ Danger Zone
+         ├─ Purge Active Folder Contents → separate inline confirmation
+         └─ Purge Internal Staging → separate inline confirmation
 ```
 
 Arrows indicate destinations or actions, not an approved navigation presentation or exact screen heading. First-launch permission and folder-selection steps are prerequisites to recording, not extra root tabs. Record must explain microphone denial and route to system Settings for recovery; folder selection is required before first capture.
@@ -49,7 +54,8 @@ Arrows indicate destinations or actions, not an approved navigation presentation
 | All → Incomplete Diary Snippets | Inspect surviving content or confirm removal | Text or playable audio opens read-only; explain the missing file. |
 | All → Conflicting Versions | Inspect vertically scrollable version tabs and choose one | Do not silently choose when iCloud times are equal or missing. Confirm before removing the unchosen version. |
 | Main → Diary Snippet detail | Read, edit body, Favorite, replay | Title is read-only. Metadata is below the body. |
-| All → Settings | Method readiness and selection, model installation, location control | No hosted Qwen controls in v1. |
+| All → Settings | Method readiness and selection, model installation, location control, Danger Zone | No hosted Qwen controls in v1. |
+| Settings → Danger Zone | Separately confirmed folder-content or internal-staging purge | Require idle app work; folder purge also requires staging to finish (completed queue history is allowed). Preserve each scope's exclusions. An interrupted purge pauses processing until an explicit retry. |
 
 ## P1-M5 decisions
 

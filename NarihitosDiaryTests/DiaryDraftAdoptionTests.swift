@@ -127,6 +127,69 @@ private final class UnavailableTitleModel: DiaryTitleModelPort {
   // swiftlint:enable opening_brace
 }
 
+extension DiaryDraftAdoptionTests {
+  @Test func maintenanceKeepsCancelledTitleBusyUntilSettlementAndThenResumes() async throws {
+    let fixture = try makeFixture()
+    let model = SuspendedAdoptionTitleModel()
+    let adopter = DiaryDraftAdoptionCoordinator(
+      queue: fixture.queue, receipts: MemoryReceiptSource([fixture.receipt]),
+      candidates: fixture.candidates, drafts: fixture.drafts,
+      titles: DiaryTitlePolicy(
+        model: model, languageDetector: FixedEnglishTitleDetector()))
+    adopter.activate()
+    for _ in 0..<100 where model.pending == nil { await Task.yield() }
+    let first = try #require(model.pending)
+    #expect(adopter.hasActiveWork)
+    adopter.suspendForMaintenance()
+    adopter.activate()
+    adopter.prerequisiteChanged()
+    #expect(adopter.hasActiveWork)
+    #expect(fixture.drafts.publicationCount == 0)
+    model.pending = nil
+    first.resume(returning: TitleModelReply(text: "A good day at home", outputTokens: 5))
+    for _ in 0..<100 where adopter.hasActiveWork { await Task.yield() }
+    #expect(!adopter.hasActiveWork)
+    #expect(fixture.queue.values[fixture.job.id]?.state == .resultReady)
+    #expect(fixture.candidates.published[fixture.job.id] != nil)
+    #expect(fixture.drafts.publicationCount == 0)
+    adopter.endMaintenance()
+    adopter.activate()
+    for _ in 0..<100 where model.pending == nil { await Task.yield() }
+    let second = try #require(model.pending)
+    second.resume(returning: TitleModelReply(text: "A good day at home", outputTokens: 5))
+    for _ in 0..<100 where adopter.hasActiveWork { await Task.yield() }
+    #expect(fixture.queue.values[fixture.job.id]?.state == .readyToSave)
+    #expect(fixture.drafts.publicationCount == 1)
+  }
+
+  @Test func timedOutTitleRemainsBusyUntilNoncooperativeModelRelinquishesWork() async throws {
+    let fixture = try makeFixture()
+    let model = SuspendedAdoptionTitleModel()
+    let adopter = DiaryDraftAdoptionCoordinator(
+      queue: fixture.queue, receipts: MemoryReceiptSource([fixture.receipt]),
+      candidates: fixture.candidates, drafts: fixture.drafts,
+      titles: DiaryTitlePolicy(
+        model: model, languageDetector: FixedEnglishTitleDetector(),
+        timeout: .milliseconds(100)))
+    adopter.activate()
+    for _ in 0..<100 where model.pending == nil { await Task.yield() }
+    let pending = try #require(model.pending)
+    for _ in 0..<100 where fixture.queue.values[fixture.job.id]?.state != .readyToSave {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(fixture.queue.values[fixture.job.id]?.state == .readyToSave)
+    #expect(fixture.drafts.publicationCount == 1)
+    #expect(adopter.hasActiveWork)
+    adopter.suspendForMaintenance()
+    #expect(adopter.hasActiveWork)
+    pending.resume(returning: TitleModelReply(text: "A good day at home", outputTokens: 5))
+    for _ in 0..<100 where adopter.hasActiveWork { await Task.yield() }
+    #expect(!adopter.hasActiveWork)
+    #expect(fixture.drafts.publicationCount == 1)
+  }
+
+}
+
 @MainActor
 struct DiaryDraftAdoptionTests {
   @Test func oldQueueRecordDecodesWithoutDraftIdentity() throws {

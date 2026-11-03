@@ -584,6 +584,14 @@ private struct SettingsView: View {
             .frame(minHeight: 44)
         }
       }
+      Section {
+        NavigationLink("Danger Zone") {
+          DangerZoneView(
+            model: model.dangerZone, folderName: model.destination.summary?.displayName,
+            folderID: model.destination.summary?.id.rawValue)
+        }
+        .accessibilityIdentifier("settings-danger-zone")
+      }
     }
     .navigationTitle("Settings")
     .task {

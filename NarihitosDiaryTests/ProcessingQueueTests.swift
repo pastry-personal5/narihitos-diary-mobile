@@ -13,6 +13,59 @@ private final class FakeSaveWork: QueueSaveWork {
 
 @MainActor
 struct ProcessingQueueTests {
+  @Test func purgeSuspensionInvalidatesLatePreflightAndBlocksAllClaims() async throws {
+    let item = try receipt(start: 1)
+    let store = MemoryQueueStore()
+    let source = MemoryReceiptSource([item])
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "slow"
+    let registry = TranscriptionMethodRegistry()
+    let adapter = SuspendedPreflightTranscriber()
+    registry.register(adapter)
+    let coordinator = makeCoordinator(
+      store: store, source: source, settings: settings, registry: registry)
+    coordinator.activate()
+    for _ in 0..<30 where adapter.pending == nil { await Task.yield() }
+    #expect(adapter.pending != nil)
+    coordinator.suspendForMaintenance()
+    adapter.resolve(.ready)
+    for _ in 0..<5 { await Task.yield() }
+    coordinator.activate()
+    coordinator.prerequisiteChanged()
+    coordinator.settingsEntered()
+    coordinator.manualRetry(jobID: item.id.description)
+    coordinator.remove(jobID: item.id.description)
+    #expect(adapter.requests.isEmpty)
+    #expect(!coordinator.hasActiveWork)
+    #expect(!coordinator.isActive)
+    #expect(source.removed.isEmpty)
+    coordinator.endMaintenance()
+    coordinator.activate()
+    for _ in 0..<30 where adapter.pending == nil { await Task.yield() }
+    adapter.resolve(.ready)
+    for _ in 0..<30 where adapter.requests.isEmpty { await Task.yield() }
+    #expect(adapter.requests.count == 1)
+    #expect(coordinator.hasActiveWork)
+    adapter.finish(.failure(.unusableText))
+  }
+
+  @Test func deactivationDoesNotMisreportNativeWorkAsIdle() throws {
+    let item = try receipt(start: 1)
+    let settings = FakeTranscriptionSettings()
+    settings.methods[.english] = "ready"
+    let adapter = FakeTranscriber(id: "ready", readiness: .ready)
+    let registry = TranscriptionMethodRegistry()
+    registry.register(adapter)
+    let coordinator = makeCoordinator(
+      store: MemoryQueueStore(), source: MemoryReceiptSource([item]),
+      settings: settings, registry: registry)
+    coordinator.activate()
+    coordinator.deactivate()
+    #expect(coordinator.hasActiveWork)
+    adapter.finish(.failure(.unusableText))
+    #expect(!coordinator.hasActiveWork)
+  }
+
   @Test func saveRemovalWaitsForProviderToRelinquish() throws {
     let item = try receipt(start: 1)
     let store = MemoryQueueStore()

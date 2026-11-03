@@ -317,7 +317,18 @@ final class ProcessingQueueCoordinator {
     self.timeout = timeout
   }
 
+  private(set) var maintenanceSuspended = false
+  var hasActiveWork: Bool { activeWork != nil }
+
+  func suspendForMaintenance() {
+    maintenanceSuspended = true
+    deactivate()
+  }
+
+  func endMaintenance() { maintenanceSuspended = false }
+
   func activate() {
+    guard !maintenanceSuspended else { return }
     invalidateReadiness()
     isActive = true
     registry.refreshReadiness()
@@ -331,24 +342,28 @@ final class ProcessingQueueCoordinator {
   }
 
   func settingsEntered() {
+    guard !maintenanceSuspended else { return }
     invalidateReadiness()
     registry.refreshReadiness()
     reconsiderWaitingJobs()
   }
 
   func prerequisiteChanged() {
+    guard !maintenanceSuspended else { return }
     invalidateReadiness()
     registry.refreshReadiness()
     reconsiderWaitingJobs()
   }
 
   func captureSettled() {
+    guard !maintenanceSuspended else { return }
     reconcile()
     processNext()
   }
 
   // swiftlint:disable:next cyclomatic_complexity function_body_length
   func reconcile() {
+    guard !maintenanceSuspended else { return }
     let current: String
     switch identity.currentOrCreate() {
     case .available(let value): current = value
@@ -460,6 +475,7 @@ final class ProcessingQueueCoordinator {
   }
 
   func manualRetry(jobID: String) {
+    guard !maintenanceSuspended else { return }
     do {
       // swiftlint:disable opening_brace
       if let job = try store.jobs().first(where: { $0.id == jobID }),
@@ -487,6 +503,7 @@ final class ProcessingQueueCoordinator {
   }
 
   func resumeRestored(jobID: String) {
+    guard !maintenanceSuspended else { return }
     guard let receipt = receipts.receipt(jobID: jobID), receipt.inspection.isAccepted else {
       return
     }
@@ -509,6 +526,7 @@ final class ProcessingQueueCoordinator {
   }
 
   func remove(jobID: String) {
+    guard !maintenanceSuspended else { return }
     guard (try? store.jobs().first(where: { $0.id == jobID }))?.state != .saved else {
       return
     }

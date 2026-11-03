@@ -191,6 +191,10 @@ final class DiaryCommitCoordinator: QueueSaveWork {
   private let conflicts: (any DiaryConflictInspectionPort)?
   private let conflictPairs: (any DiaryConflictPairStorePort)?
   private var activeJobIDs: Set<String> = []
+  var hasActiveWork: Bool { !activeJobIDs.isEmpty }
+  private var maintenanceSuspended = false
+  func suspendForMaintenance() { maintenanceSuspended = true }
+  func endMaintenance() { maintenanceSuspended = false }
   var onChange: (@MainActor () -> Void)?
   var onSettled: (@MainActor (String) -> Void)?
   var onSaved: (@MainActor (QueueJob) -> Void)?
@@ -210,7 +214,7 @@ final class DiaryCommitCoordinator: QueueSaveWork {
   }
 
   func attempt(jobID: String) async {
-    guard activeJobIDs.insert(jobID).inserted else { return }
+    guard !maintenanceSuspended, activeJobIDs.insert(jobID).inserted else { return }
     defer {
       activeJobIDs.remove(jobID)
       onSettled?(jobID)
@@ -371,6 +375,7 @@ final class DiaryCommitCoordinator: QueueSaveWork {
   }
 
   func resumeCleanup() {
+    guard !maintenanceSuspended else { return }
     guard let jobs = try? queue.jobs() else { return }
     for job in jobs {
       guard job.state == .saved, job.commit != nil else { continue }
@@ -571,7 +576,7 @@ extension DiaryCommitCoordinator {
   /// M17 calls this only after the user chooses an ambiguous complete pair.
   /// Selection is durable; publication must recheck the same external versions.
   func chooseConflict(jobID: String, snapshotID: String) async -> Bool {
-    guard activeJobIDs.insert(jobID).inserted else { return false }
+    guard !maintenanceSuspended, activeJobIDs.insert(jobID).inserted else { return false }
     defer {
       activeJobIDs.remove(jobID)
       onSettled?(jobID)
@@ -599,7 +604,7 @@ extension DiaryCommitCoordinator {
   /// M17 calls this after the user confirms removal of the unchosen version.
   /// The provider adapter still requires verified publication and fresh checks.
   func confirmConflictRemoval(jobID: String) -> Bool {
-    guard !activeJobIDs.contains(jobID),
+    guard !maintenanceSuspended, !activeJobIDs.contains(jobID),
       var job = try? queue.jobs().first(where: { $0.id == jobID }),
       job.state == .readyToSave,
       var claim = job.conflictResolution,

@@ -31,7 +31,18 @@ final class DiaryDraftAdoptionCoordinator {
     self.makeAssetID = makeAssetID
   }
 
+  var hasActiveWork: Bool { activeTask != nil || titles.hasActiveWork }
+  private var maintenanceSuspended = false
+
+  func suspendForMaintenance() {
+    maintenanceSuspended = true
+    deactivate()
+  }
+
+  func endMaintenance() { maintenanceSuspended = false }
+
   func activate() {
+    guard !maintenanceSuspended else { return }
     isActive = true
     paused = false
     pausedReason = nil
@@ -45,6 +56,7 @@ final class DiaryDraftAdoptionCoordinator {
   }
 
   func prerequisiteChanged() {
+    guard !maintenanceSuspended else { return }
     paused = false
     pausedReason = nil
     cleanupAdoptedCandidates()

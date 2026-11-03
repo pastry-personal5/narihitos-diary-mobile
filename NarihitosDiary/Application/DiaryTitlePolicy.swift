@@ -41,6 +41,9 @@ final class DiaryTitlePolicy {
   private let timeout: Duration
   private var modelOperationInFlight = false
 
+  /// A deadline can return a fallback before a cancelled model call relinquishes work.
+  var hasActiveWork: Bool { modelOperationInFlight }
+
   init(
     model: any DiaryTitleModelPort, languageDetector: any DiaryTitleLanguageDetector,
     timeout: Duration = .seconds(30)
