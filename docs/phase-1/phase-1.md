@@ -4,7 +4,7 @@ Status: Active
 
 Phase 1 is organized into the following milestones.
 
-The owner placed P1-M20 and P1-M21 before P1-M16 in the execution order: P1-M15 → P1-M20 → P1-M21 → P1-M16 → P1-M17 → P1-M18 → P1-M19. Milestone IDs remain unchanged; earlier open evidence remains assigned to its owning milestone.
+The owner revised the execution order to P1-M15 → P1-M20 → P1-M16 → P1-M17 → P1-M18 → P1-M19 → P1-M21. M21 is no longer a prerequisite for M16. Milestone IDs remain unchanged; earlier open evidence remains assigned to its owning milestone.
 
 ## Milestones
 
@@ -134,19 +134,12 @@ Task 5 repairs Settings still showing `Active Folder` / `No folder selected` aft
 
 [Task 10 is Done](milestone-20-enhancements-fixes-refactoring-overview.md#task-10-full-width-recording-action-buttons): Pending/Failed recovery controls are larger full-width buttons, preserving inline confirmation and existing callbacks. Synthetic layouts were visually reviewed; hosted checks, lint/full simulator validation, and the signed build pass, and the update is installed. Actual assistive/rotation checks remain unperformed as recorded in its evidence.
 
-### P1-M21: Architecture enhancement and GUI enhancement
-
-Status: Planned
-Goal: Enhance the software architecture, initially reviewing processing lifecycle reporting, and implement GUI enhancements supplied by the owner.
-Plan: [overview](milestone-21-architecture-gui-enhancement-overview.md), [approach](milestone-21-architecture-gui-enhancement-architecture.md)
-Notes: Planning only; follows M20 and completes before M16. Concrete GUI changes await owner requests. The lifecycle review documents `resultReady` and transient title work, and proposes separating durable checkpoints, current phases, and unsettled ownership without new persisted title states. Earlier implementation, validation, and phone evidence remain open.
-
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 
 Status: Planned
 Goal: Save version-checked body and Favorite edits durably and replay verified audio without compromising capture or legacy read-only behavior.
 Plan: [overview](milestone-16-diary-editing-favorite-audio-replay-overview.md), [approach](milestone-16-diary-editing-favorite-audio-replay-architecture.md), [device evidence](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md)
-Notes: Planning only; implementation follows M15 and completion of M20 and M21. Consume M21's reviewed title/lifecycle handoff without turning submitted edits into recording jobs. The reviewed plan forbids persisting M15's session-local catalog UUIDs as restart authority, isolates edit journals, defines distinct retry-stable edit timestamps, and adds capacity-aware replay-cache evidence. Submitted edits need an independent committed-asset journal and destination capability, and replay needs shared audio-session ownership with capture. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence remains open.
+Notes: Planning only; implementation follows M15 and completion of M20, without waiting for M21. Reuse the existing title policy through the independent edit journal without turning submitted edits into recording jobs. The reviewed plan forbids persisting M15's session-local catalog UUIDs as restart authority, isolates edit journals, defines distinct retry-stable edit timestamps, and adds capacity-aware replay-cache evidence. Submitted edits need an independent committed-asset journal and destination capability, and replay needs shared audio-session ownership with capture. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence remains open.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 
@@ -165,3 +158,10 @@ Notes: Planning only; implementation follows M17 unless the owner authorizes a r
 ### P1-M19: Validate the Complete V1 Experience
 
 Status: Planned
+
+### P1-M21: Architecture enhancement and GUI enhancement
+
+Status: Planned
+Goal: Enhance the software architecture, initially reviewing processing lifecycle reporting, and implement GUI enhancements supplied by the owner.
+Plan: [overview](milestone-21-architecture-gui-enhancement-overview.md), [approach](milestone-21-architecture-gui-enhancement-architecture.md)
+Notes: Planning only; follows M19 under the revised execution order. Concrete GUI changes await owner requests. Recheck the lifecycle proposal against the M16–M19 outcomes before implementation. Earlier implementation, validation, and phone evidence remain open.

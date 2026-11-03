@@ -41,7 +41,7 @@ Use bounded snapshots and callbacks on actual changes, including the final settl
 
 Record the selected narrow implementation, or a justified no-change outcome, in the overview before changing code. Keep GUI labels and placement reserved for the owner's concrete request. If code inspection reveals a required product or mechanism change beyond approved outcomes, resolve that decision before implementation.
 
-## Title lifecycle and M16 handoff
+## Title lifecycle and M16 compatibility
 
 The implemented recording path is:
 
@@ -49,12 +49,12 @@ The implemented recording path is:
 
 During `resultReady`, adoption can reuse an already verified draft without running the title model. Otherwise the title policy chooses AI or local fallback. A deadline fences late output and lets the draft use fallback; the cancelled model remains owned until it settles. Later jobs can use fallback without starting overlapping title inference. Model readiness alone never rewrites a saved title.
 
-M16 should reuse the title policy and any selected runtime reporting seam for its independent submitted-edit journal. An edit is not a recording job; do not manufacture `resultReady` queue entries to report title work. Preserve M16's body-revision fencing, stable submitted candidate, separate Favorite path, and resource/version ownership.
+M16 precedes M21 and reuses the existing title policy through its independent submitted-edit journal. At M21 entry, reconcile any proposed runtime reporting seam with M16's delivered interfaces. An edit is not a recording job; do not manufacture `resultReady` queue entries to report title work. Preserve M16's body-revision fencing, stable submitted candidate, separate Favorite path, and resource/version ownership.
 
 ## Implementation and evidence sequence
 
-1. Read the current M20 outcome and recheck this source inventory; add each supplied GUI request and its completion criteria to the overview.
+1. Read the M20 and M16–M19 outcomes and recheck this source inventory; add each supplied GUI request and its completion criteria to the overview.
 2. Select the narrow lifecycle reporting change if justified. Keep durable storage and recovery semantics intact; add focused regressions only for changed behavior or identified gaps.
 3. Verify restart before/after candidate publication, draft publication, and queue replacement; title fallback and held cancellation; late callbacks after removal/supersession; maintenance busy/idle; and independent transcription/commit progress as applicable to the change.
 4. Implement the requested screens using existing view models and inward-owned ports. Capture synthetic before/after evidence and perform the relevant accessibility and target-phone checks without accessing real diary contents.
-5. Update affected docs and run the standard lint/full simulator gate. Record failures and unperformed phone checks without closing earlier milestones or advancing M16 prematurely.
+5. Update affected docs and run the standard lint/full simulator gate. Record failures and unperformed phone checks without closing earlier milestones' open evidence.

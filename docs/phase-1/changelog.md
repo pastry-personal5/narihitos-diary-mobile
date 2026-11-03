@@ -10,6 +10,8 @@ This log records owner decisions and significant plan changes for Phase 1. P1-M5
 
 ## Entries
 
+- 2026-11-03 — Owner execution-order revision — changed the remaining sequence to M20 → M16 → M17 → M18 → M19 → M21, superseding M21's earlier placement between M20 and M16. Updated the phase order, M16 entry condition, M21 plan, and documentation index; M16 uses the existing title policy without waiting for M21. Milestone IDs, statuses, scope ownership, and open implementation/validation/device evidence are unchanged. Planning/documentation only.
+
 - 2026-11-03 — Owner M21 theme clarification — set the milestone theme to **Architecture enhancement and GUI enhancement** and aligned its plan titles, filenames, and references. Processing lifecycle reporting remains the initial architecture task; specific GUI enhancements will be supplied by the owner. M20 → M21 → M16 order and planning-only status are unchanged.
 
 - 2026-11-03 — Owner M21 planning request — added the [GUI and processing-lifecycle overview](milestone-21-architecture-gui-enhancement-overview.md) and [approach](milestone-21-architecture-gui-enhancement-architecture.md), placing M21 after M20 and before M16 without renumbering milestones. Specific GUI enhancements will be supplied by the owner. Source review found that the architecture diagram omitted the durable `resultReady` candidate handoff and transient title/draft work; the lifecycle section now distinguishes those stages, commit/upload checkpoints, and title fallback from actual model settlement. The plan recommends a small read-only lifecycle projection without new persisted title states. Planning/documentation only; no app behavior or validation/device status changed.
