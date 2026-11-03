@@ -32,12 +32,38 @@ Correct app behavior reported by the owner, with related enhancements and target
 - Task 17 addresses the owner's 2026-11-03 Apple Local `Record (en)` start failure. Keep the capture-file lifecycle private and verify on the target phone before claiming recovery.
 - Task 19 addresses the owner’s 2026-11-03 report that Apple Local creates a diary visible in Main, while Pending Recordings says `This diary pair needs review.` Trace publication, local version checks, upload proof, and retry/relaunch before repairing the responsible boundary; retain real conflicts and private staging until both upload reports are verified.
 - Task 18 addresses the owner's report that the app becomes very slow with about six pending recordings. Trace queue callbacks, file-backed projection reads, and SwiftUI publication/redraws; prove the first responsible boundary with a focused regression before making a bounded repair.
+- Task 20 addresses installed Cohere Q4 transcription blocked by `Pending work is paused because local storage isn’t available.` in Pending Recordings. Trace the shared pause to its first failing operation before attributing it to model installation or phone storage capacity.
 
 ## Out of scope
 
 No change to accepted folder providers, iCloud identity requirements, readable-files disclosure, capture-time destinations, ordinary pending-data removal, dependencies, build tools, or the Cohere runtime/Metal and bounded-input safeguards. Task 9 is the explicit exception for its separately confirmed purge actions. No hosted models, automatic model switching, automatic destination replacement, or M16 features. These tasks do not close earlier physical-device evidence.
 
 ## Completion checklist
+
+### Task 20: Installed Cohere Q4 blocked by local-storage pause
+
+Status: Implemented and simulator validated; target-phone confirmation remains open. Plan written before implementation on 2026-11-03. The owner reports Q4 downloaded and installed but transcription does not work; Pending Recordings shows `Pending work is paused because local storage isn’t available.` This shared queue message does not establish a model or inference failure.
+
+- [x] Trace the exact pause publisher and its storage operations, including startup/reconciliation, durable claims, candidate publication, and recovery refresh; identify the first incorrect transition with a focused failing regression.
+- [x] Repair the responsible boundary while preserving installed Q4, retained audio, durable queue ownership, malformed-job isolation, protected-data handling, and approved runtime/model safeguards. Do not purge data or substitute another method.
+- [x] Verify recovery from the demonstrated failure and progress of other valid jobs; cover relevant relaunch, cancellation, or retry boundaries.
+- [x] Update affected docs with the root cause, repair, and evidence limits.
+- [x] Pass affected tests, `make lint`, and `TEST_DESTINATION=… scripts/validate.sh`; record the destination or blocker.
+- [ ] Confirm on the target iPhone that the reported pause clears and an explicit Q4 attempt creates a diary, preserving any separate upload wait. Do not infer phone acceptance from simulator tests.
+
+Implementation sequence and investigation boundaries: [Task 20 approach](milestone-20-enhancements-fixes-refactoring-architecture.md#task-20-installed-cohere-q4-blocked-by-local-storage-pause).
+
+Cause and pre-fix evidence (2026-11-03): `AppModel.refreshCaptureLists` exposes the queue's pause on Pending Recordings. `ProcessingQueueCoordinator.settle` catches rejected candidate publication and pauses the entire queue with the reported storage message, retaining the transcribing claim and private audio. Production Cohere settings emit ten fields, and successful preflight adds three. `FileTranscriptionCandidateStore.validProvenance` nevertheless required twelve for revision 2, rejecting every valid current Q4 result after successful inference. Legacy revision 1 correctly required thirteen, which explains why the existing candidate tests passed.
+
+The delegated pre-fix run compiled and passed all twelve existing candidate-store tests. All three new handoff test declarations failed, including all four Q4/Q5 × English/Korean cases; the tests reproduced `.corrupt`, the exact pause, a retained `.transcribing` claim, and blocked progress to the next recording. These tests use real production settings and file-backed queue/candidate stores with simulated successful runtime output. They prove the handoff defect matching the symptom, not the precise current state of the owner's phone or a new actual-Metal run.
+
+The repair requires thirteen fields for both approved revisions, retaining every existing value and identity check and rejecting missing or extra fields. It changes no model, runtime, queue schema, or recovery policy. After updating and reopening the app, reconciliation classifies an old transcribing claim without a candidate as interrupted; its retained recording uses explicit Retry with current Settings. Verified candidates survive reopen without transcription repeating.
+
+The real draft/Markdown round trip then exposed a second production defect: `DiaryDraftFactory` emits approved revision-2 Cohere provenance, but `DiarySnippetMarkdownCodec` required revision 1 on both encode and decode and reconstructed a hardcoded revision 1. With only the candidate fix applied, the queue/retry tests passed but all four variant/language diary round trips failed with `.invalidField`. The shared domain support policy now permits revision 1 for existing supported methods and revision 2 for Cohere, and codec decode preserves the parsed revision. Candidate/factory validation still owns trusted model/runtime authorization; the file codec does not bind historic diaries to the currently installed model. Unsupported revisions and Apple revision 2 remain rejected.
+
+The delegated focused run now passes 88 tests with zero failures/skips across handoff, candidate store, queue, Settings, draft adoption, model headroom, and Markdown codec suites. It covers both approved variant identities with English/Korean hints, draft/Markdown provenance, durable candidate reopen without retranscription, interrupted Q4 Retry and newer-job progress, every missing field, extra/crossed identities/settings, unsupported revisions, legacy revision-1 documents, and the unchanged Q5 preflight safety gate. Q5 output is simulated and does not establish production Q5 inference support. No target-phone state has been inspected or changed in this session.
+
+Full validation (2026-11-03): fresh delegated `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` pass on iPhone 18 Pro, including project generation, lint, build, and all tests. The restricted shell initially reported CoreSimulator connection refusal; the prescribed service-access retry and full gate under the same access succeeded. No simulator reset or app-code workaround was needed. Device workflows are not exposed by this session's enabled MobileBuildMCP tools; no signed phone update or phone inference confirmation is claimed.
 
 ### M20 implementation review follow-up (2026-11-03)
 

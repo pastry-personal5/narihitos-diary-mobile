@@ -99,7 +99,7 @@ Catalog refresh is generation-fenced but an internal supersession is not destina
 
 ### Local durability and launch reconciliation
 
-The proposed local staging area is file-oriented: a private folder per recording holds its audio, a small job record, and, after successful transcription, one Markdown draft. There is no second transcript file or separate text-creation job. Finish and verify each file before atomically replacing the job record that points to it. Do not advance a durable job state until its required files are readable. On launch, reconcile job records with private files before starting the worker: restore a valid earlier state, surface a recoverable capture or save failure, or identify an unreferenced private file for review. Never delete private audio merely because a queue record is missing. The exact local file format remains an implementation choice.
+Local staging is file-oriented: private capture storage holds finalized audio, a receipt and destination snapshot, a temporary verified transcription candidate, and then one managed Markdown draft with its binding evidence. The queue repository owns the durable job record. The candidate is a recovery handoff, not a separately retained original transcript or a second text-creation job; discard it only after the managed draft and queue transition verify. Finish and verify each file before atomically replacing the job record that points to it. Do not advance a durable job state until its required files are readable. On launch, reconcile job records with private files before starting work: reuse a verified candidate or draft, surface a recoverable capture or save failure, or identify an unreferenced private file for review. Never delete private audio merely because a queue record is missing. See the [M13 ordering contract](phase-1/milestone-13-diary-drafts-titles-architecture.md#durable-ordering-and-recovery).
 
 Completion verifies the referenced iCloud Markdown/audio pair against the private candidate and commit record, records success, and removes the private folder. Identity or file existence alone is insufficient evidence for cleanup. If the app closes between these operations, launch reconciliation checks the commit evidence and any later valid asset revision, preserving ambiguous candidates rather than overwriting external edits or creating another asset. No later iCloud outage can depend on a retained private copy.
 
@@ -125,26 +125,43 @@ Recording and playback share an audio-session adapter but have separate coordina
 
 ## Processing and queue lifecycle
 
-Only one worker owns a processing attempt at a time, and it runs only while the app is open. The scheduler chooses the oldest ready recording by its persisted recording order, with stable ID as a tie-breaker. Each attempt ends by durably completing, waiting, or failing its own job and releasing worker ownership; the scheduler then selects the next ready job. Waiting, failed, saving, and destination-blocked jobs are skipped when selecting transcription work. A job must not automatically reenter the ready set merely because its last attempt failed; manual retry or a changed prerequisite is required. Moving the app out of the active state stops starting new work; an in-flight operation must settle or be recoverable on relaunch. Background execution and notification delivery are not prerequisites for correctness.
+One transcription worker owns an inference attempt at a time. Draft adoption/title generation and iCloud commit have separate coordinators and can progress independently of that worker. New work starts only while the app is active. The transcription scheduler chooses the oldest ready recording by its persisted recording order, with stable ID as a tie-breaker. Successful inference publishes and reopens a verified private candidate before persisting `resultReady` and releasing the worker. Waiting or failed jobs and jobs already in the draft/save stages are skipped when selecting transcription work. A failed attempt requires manual retry; a waiting prerequisite can be reconsidered when it changes. Moving the app out of the active state stops starting new work; an in-flight operation must settle or be recoverable on relaunch. Background execution and notification delivery are not prerequisites for correctness.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> queued: finalized audio and durable job
-    queued --> waitingToProcess: local model unavailable
-    waitingToProcess --> queued: prerequisite restored
-    queued --> transcribing: effective settings captured
-    transcribing --> readyToSave: managed Markdown draft saved
-    readyToSave --> saving: destination accessible
-    readyToSave --> waitingForDestination: destination unavailable
-    waitingForDestination --> readyToSave: restored or explicitly replaced
-    saving --> completed: complete asset verified
-    saving --> saveFailed: write or validation failed
-    saveFailed --> readyToSave: iCloud access restored after recoverable save failure
-    transcribing --> failed: inference, timeout, unusable text, or draft failure
-    failed --> queued: user requests retry
+    [*] --> ready: finalized audio and durable job
+    ready --> waiting: selected method unavailable
+    waiting --> ready: prerequisite restored
+    ready --> transcribing: effective settings captured
+    transcribing --> resultReady: verified candidate and durable handoff
+    state resultReady {
+        [*] --> checkingDraft
+        checkingDraft --> draftVerified: reuse matching verified draft
+        checkingDraft --> generatingTitle: candidate and source verified
+        generatingTitle --> verifyingDraft: AI title or local fallback
+        verifyingDraft --> draftVerified: draft and binding reopened
+    }
+    resultReady --> readyToSave: verified draft and durable queue transition
+    resultReady --> failed: invalid source or mismatched claim
+    readyToSave --> saved: complete pair and both uploads verified
+    transcribing --> failed: inference, timeout, or unusable text
+    failed --> ready: user requests retry
 ```
 
-This is a conceptual state machine, not a list of Swift enum cases. State changes and the files they depend on should be stored together, or replayed safely after a crash. `waitingToProcess` carries a reason such as a missing Apple speech asset or a Cohere model that is not installed or ready; `waitingForDestination` identifies an unavailable target folder. `readyToSave` retains the audio and managed Markdown draft locally so a destination outage does not force transcription again. A recoverable `saveFailed` resumes automatically when iCloud access returns, reusing those files. Other validation failures remain visible for a separate error policy. Save and recovery attempts run independently of transcription selection and have per-job settlement bounds, so one blocked destination or stalled write cannot hold another job's transcription or save. Each error path must settle the affected job and reschedule other ready work without a tight retry loop.
+The outer states shown are implemented `QueueJobState` cases; the children inside `resultReady` describe transient adoption work, not persisted enum cases. Review/quarantine and removal branches are omitted from this processing diagram: the queue also persists `reviewRequired`, `cancelling`, and `removing`. State changes and their required files must be committed in order or safely replayed after a crash.
+
+| Durable checkpoint | Owner and work represented |
+|---|---|
+| `ready`, `waiting`, `transcribing` | `ProcessingQueueCoordinator` owns transcription selection, readiness reasons, attempt identity, and acknowledged settlement. |
+| `resultReady` | A verified transcription candidate is available, or a matching draft can be recovered. `DiaryDraftAdoptionCoordinator` reuses that draft or runs the title policy, writes the managed draft/binding, and reopens them before advancing. |
+| `readyToSave` | The verified local Markdown/audio candidate remains available. `DiaryCommitCoordinator` owns publication/version checkpoints, destination or upload waits, recovery reasons, and upload proof through the job's commit record. `saving`, `waitingForDestination`, and `saveFailed` are conceptual phases, not separate queue enum cases. |
+| `saved` | The complete destination pair and both uploads have verified. Durable cleanup/notice bookkeeping permits interrupted private-staging cleanup to resume. |
+
+A destination outage never forces retranscription or blocks local title/draft creation. A recoverable save wait resumes using the same draft when access returns; validation or ownership ambiguity stays visible for recovery. Save and recovery attempts run independently of transcription selection and retain their own ownership until settlement, so blocked destinations do not occupy the transcription worker. Each error path must preserve the affected job and reschedule other ready work without a tight retry loop. See [M13](phase-1/milestone-13-diary-drafts-titles-architecture.md) and [M14](phase-1/milestone-14-icloud-commit-reconciliation-architecture.md) for the detailed ordering and recovery contracts.
+
+Title generation therefore has a distinct **transient phase**, while the durable queue state stays `resultReady`. `DiaryTitlePolicy` chooses AI or first-sentence fallback within the approved 30-second total budget. Model unavailability, unusable output, or timeout uses fallback rather than a title-failure queue state. A timeout cancels and fences the model operation, but the fallback result can be published before that operation relinquishes work. `DiaryTitlePolicy.hasActiveWork`, included in the adoption coordinator's `hasActiveWork`, stays true until settlement; later requests use fallback instead of starting overlapping title inference. Maintenance admission must still treat that model owner as busy even if its job has reached `readyToSave` or `saved`. A late model reply cannot replace the fallback title. On reopen, reuse a verified draft; otherwise rebuild it from the verified candidate with the same reserved asset ID.
+
+Current Main notices count only `transcribing` as active transcription; `resultReady` remains in the pending count, with no dedicated title-progress label. [M21's lifecycle proposal](phase-1/milestone-21-architecture-gui-enhancement-architecture.md#recommended-enhancement-separate-checkpoints-phases-and-ownership) considers a typed read-only projection of checkpoint, current phase, and unsettled ownership. That proposal and future owner GUI requests do not add persisted states or change present notice behavior.
 
 At processing start, resolve the current method and model choices into a snapshot. Check Apple speech or local Cohere model readiness before transcription; if unavailable, explain why, offer installation when applicable, and ask the user to choose an available approved method. If none is available, keep the job waiting. There is no automatic switch from Apple to Cohere or vice versa. Save the method's effective settings and the user's original language hint separately; model language values may differ from en-US/ko-KR.
 
@@ -156,7 +173,7 @@ After user confirmation, a remove use case stops or invalidates an in-flight att
 
 Every destination mutation, including audio writes and repair, uses this barrier so removal cannot race a pre-publication write. Retargeting increments a durable destination revision and invalidates earlier save/repair attempts under the same barrier. Every asynchronous result must match the live job ID, attempt generation, destination revision, and relevant body revision before it can mutate state. Removal tombstones remain until all affected work has relinquished file access and cleanup is durable; do not delete an open file and assume its writer has stopped. A timeout is not proof that a file operation ended. Bound coordination waits and retain a recoverable state if access cannot settle; never acknowledge removal or successful publication on that basis. The [mutation controls](#mutation-and-recovery-integrity) constrain cleanup to positively identified files.
 
-Make each transition idempotent. The job record keeps an attempt ID, selected method ID, effective settings, and model/conversion identity before inference starts, then associates the Markdown draft with the successful attempt. A late result from an obsolete attempt cannot overwrite a newer manual retry. Advance from transcription only after that draft is durable. A recovered job checks whether a complete asset with its stable identity already exists before writing, and reuses the draft where valid. A process crash between inference output and the draft write may require another local inference run. Recovery derives truth from durable files and job state rather than trusting an in-flight marker alone. Reconcile jobs independently on launch: quarantine a malformed job record with its private files intact, surface a reason for review, and continue scanning and processing other valid jobs. A queue-wide storage failure that prevents durable state changes pauses processing and reports the problem rather than claiming a job was safely advanced.
+Make each transition idempotent. The job record keeps an attempt ID, selected method ID, effective settings, and model/conversion identity before inference starts, then binds the candidate and Markdown draft to that successful attempt. A late result from an obsolete attempt cannot overwrite a newer manual retry. Advance from transcription only after the candidate is verified and its `resultReady` handoff is durable; advance to `readyToSave` only after the managed draft and binding verify. A recovered job checks whether a complete asset with its stable identity already exists before writing, and reuses the draft where valid. A crash before candidate publication may require another local inference run; a crash after a verified candidate handoff can resume draft adoption without retranscribing. Recovery derives truth from durable files and job state rather than trusting an in-flight marker alone. Reconcile jobs independently on launch: quarantine a malformed job record with its private files intact, surface a reason for review, and continue scanning and processing other valid jobs. A queue-wide storage failure that prevents durable state changes pauses processing and reports the problem rather than claiming a job was safely advanced.
 
 ## Asset commit and iCloud behavior
 
@@ -210,7 +227,8 @@ Notifications are optional. When first needed, request permission and schedule `
 | Transcription fails | Audio and job remain; failure recorded | Show a failed item with manual retry. |
 | Transcription hangs or cannot finish within its bound | Invalidate the attempt and retain audio after the adapter relinquishes work | Show a failed item with a reason; continue with the next ready recording. |
 | No usable words transcribed | Audio remains in failed job; no asset | Show the reason beside its Failed Recordings entry and offer manual retry. |
-| Markdown draft write fails after transcription | Audio remains in the failed job; no published asset | Show the reason and offer manual retry; inference may run again because its output was not saved separately. |
+| Title model unavailable, unusable, or timed out | Use the approved fallback in the managed draft; a cancelled model retains ownership until settlement | Continue draft/save work without a title-failure state or late replacement of the saved fallback. |
+| Markdown draft publication or queue transition fails after candidate handoff | Retain audio and the verified candidate or matching verified draft; pause/defer adoption when storage is unavailable | Show pending-work attention and reconcile retained evidence when access returns; a valid candidate handoff avoids retranscription. |
 | Destination access lost | Continue local transcription and retain the Markdown/audio candidate, with no automatic retargeting | Ask for restored access and automatically retry the saved draft when it returns; if permanently lost, offer explicit replacement for that job. |
 | Confirmed removal of pending or failed recording | Invalidate work, then durably remove its private data and job after any in-progress write is reconciled | Entry disappears after cleanup; a late inference result cannot publish an asset. |
 | Partial iCloud write with retained candidate | Job and local candidate remain until verification | Hide the incomplete set and repair it from the retained candidate on reopen. |

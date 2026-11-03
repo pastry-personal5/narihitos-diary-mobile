@@ -388,7 +388,7 @@ final class FileTranscriptionCandidateStore: TranscriptionCandidateStore {
         && record.conversionIdentity == CohereAudioConversion.identity
         && record.payload.runtime == CohereRuntimeProvenance.identity
         && record.payload.resolvedLocale == record.language.rawValue
-        && (revision == "1" ? settings.count == 13 : settings.count == 12)
+        && settings.count == 13
         && settings["requestedLocale"] == record.language.rawValue
         && settings["resolvedLocale"] == record.payload.resolvedLocale
         && settings["languageHint"] == expectedHint

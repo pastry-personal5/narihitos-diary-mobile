@@ -183,4 +183,8 @@ enum DiarySnippetSupportPolicy {
   static let kind = "ndm.diary-snippet"
   static let transcriptionMethods = ["ndm.transcription.apple", "ndm.transcription.cohere"]
   static let titleOrigins = ["apple-ai", "first-sentence", "empty-body"]
+
+  static func supportsTranscriptionSettings(revision: Int64, method: String) -> Bool {
+    revision == 1 || (revision == 2 && method == "ndm.transcription.cohere")
+  }
 }

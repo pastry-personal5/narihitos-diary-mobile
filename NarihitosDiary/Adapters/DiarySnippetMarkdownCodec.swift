@@ -120,8 +120,10 @@ struct DiarySnippetMarkdownCodec: Sendable {
       let sampleRate = try integer("audio_sample_rate_hz", in: entries)
       let channels = try integer("audio_channels", in: entries)
       let bitrate = try integer("audio_bitrate_bps", in: entries)
+      let settingsRevision = try integer("transcription_settings_revision", in: entries)
       guard (0...301_000).contains(duration), sampleRate > 0, channels > 0, bitrate > 0,
-        try integer("transcription_settings_revision", in: entries) == 1
+        DiarySnippetSupportPolicy.supportsTranscriptionSettings(
+          revision: settingsRevision, method: method)
       else { throw DiarySnippetMalformedCode.invalidField }
 
       let titleOriginID = try TitleOriginID(origin)
@@ -177,7 +179,7 @@ struct DiarySnippetMarkdownCodec: Sendable {
           transcription: TranscriptionProvenance(
             methodID: try TranscriptionMethodID(method),
             languageHint: try string("transcription_language_hint", in: entries),
-            settingsRevision: 1,
+            settingsRevision: settingsRevision,
             modelID: optionalString("transcription_model_id", in: entries),
             modelVersion: optionalString("transcription_model_version", in: entries),
             runtimeID: optionalString("transcription_runtime_id", in: entries),
@@ -278,7 +280,9 @@ struct DiarySnippetMarkdownCodec: Sendable {
       DiarySnippetSupportPolicy.transcriptionMethods.contains(
         snippet.transcription.methodID.description),
       DiarySnippetSupportPolicy.titleOrigins.contains(snippet.titleProvenance.originID.description),
-      snippet.transcription.settingsRevision == 1,
+      DiarySnippetSupportPolicy.supportsTranscriptionSettings(
+        revision: snippet.transcription.settingsRevision,
+        method: snippet.transcription.methodID.description),
       (0...301_000).contains(snippet.recordingDurationMilliseconds),
       snippet.audioSampleRateHertz > 0, snippet.audioChannels > 0, snippet.audioBitrateBPS > 0,
       DiarySnippetLayout(id: snippet.id, createdAt: snippet.createdAt).validates(
