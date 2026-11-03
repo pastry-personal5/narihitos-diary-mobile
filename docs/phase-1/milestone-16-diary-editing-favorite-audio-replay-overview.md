@@ -42,6 +42,16 @@ No title or metadata editor, transcript sidecar, edit history, automatic merge, 
 
 ## Completion checklist
 
+### Contribution-guide follow-up: real-iPhone testing
+
+- [x] Verify the installed MobileBuildMCP device-test syntax and options against CLI help, and use the connected-iPhone evidence for troubleshooting tips.
+- [x] Document physical-device setup, MCP/CLI choices, focused test examples, result handling, and the separate simulator gate in the contribution guide; update its index description.
+- [x] Check documentation links and examples without starting a new device run or claiming additional physical scenarios passed.
+
+**Documentation evidence (2026-11-04):** the [contribution guide](../contribution-guide.md#real-iphone-testing-with-mobilebuildmcp) uses installed CLI help from `device test`, `device list`, and `device build`, plus the existing M16 phone record. Local links/anchors, shell syntax, JSON examples, suite paths, `git diff --check`, and `make lint` pass. This follow-up changes documentation only; no new device run or full simulator gate was executed, and existing milestone scenario statuses remain unchanged.
+
+### Implementation and device evidence
+
 - [x] Connected-iPhone follow-up (2026-11-04): native replay/title, edit-storage/publication/cleanup, capture-session state, and maintenance regressions ran; retained edit artifacts passed production Data Protection attribute and backup-exclusion checks. The [73 passing device checks and hosted-interface failure](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md#connected-iphone-results) are recorded without treating synthetic providers as iCloud evidence.
 - [x] Resolve the connected-iPhone completed-edit cleanup failure while preserving exact directory/file ownership and interrupted-cleanup recovery; physical edit/cleanup tests and the complete simulator gate passed after the fix. Metadata races retain the receipt for rediscovery instead of checkpointing a moved journal.
 - [x] Type-specific edit/replay ports exchange opaque capabilities and typed results. Fresh full-pair validation rejects legacy mutation, unsupported/malformed/incomplete content, duplicate-ID ambiguity, stale handles, unsafe references, and unresolved provider versions. No URL, bookmark, platform player, or provider error enters Domain/Application.

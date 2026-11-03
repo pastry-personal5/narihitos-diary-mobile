@@ -66,7 +66,7 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and implementation evidence gates. |
 | [security-review.md](security-review.md) | Architecture threat model, approved controls, prioritized findings, and pending adversarial verification. |
 | [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
-| [contribution-guide.md](contribution-guide.md) | Local setup, required validation, commit message style, and pull request conventions. |
+| [contribution-guide.md](contribution-guide.md) | Local setup, simulator validation, real-iPhone MobileBuildMCP testing and options, commit message style, and pull request conventions. |
 | [product-behavior.md](product-behavior.md) | Product scope: what the app does and what it deliberately does not do. |
 | [ux-terms.md](ux-terms.md) | Exact approved labels and canonical workflow concepts with code-facing identifiers. |
 | [ux-information-architecture.md](ux-information-architecture.md) | The Standard Layout: root hierarchy, destinations, and recovery boundaries. |
