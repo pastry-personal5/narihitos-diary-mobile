@@ -118,7 +118,12 @@ final class DiaryDraftAdoptionCoordinator {
         !Task.isCancelled
       else { return }
       let body = try DiaryBody(candidate.text)
-      let title = await titles.title(for: body)
+      let title = await titles.title(
+        for: body,
+        owner: .recording(
+          jobID: confirmed.id, attemptID: confirmed.attemptID,
+          attemptGeneration: confirmed.attemptGeneration,
+          destinationRevision: confirmed.destinationRevision, bodyRevision: confirmed.bodyRevision))
       guard let latest = try currentJob(matching: confirmed), isActive,
         !Task.isCancelled
       else { return }

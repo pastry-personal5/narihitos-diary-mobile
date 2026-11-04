@@ -51,5 +51,5 @@ The closed [decision inventory](research/p1-m1-open-decisions.md) records the P1
 ## P1-M4 design review boundaries
 
 - Main owns the active-folder Diary Snippet collection; All owns Settings, two recording-status destinations, and two recovery destinations. A recording awaiting save or retry is distinct from a completed Diary Snippet.
-- The structure in [UX information architecture](ux-information-architecture.md) does not decide the visual style of navigation. Icon art, accessibility names, and completion notice presentation need review before implementation.
+- The structure in [UX information architecture](ux-information-architecture.md) does not decide the visual style of navigation. P1-M5 subsequently approved the [icon, accessibility, heading, and completion-notice contract](phase-1/milestone-05-decisions-architecture.md#context-and-interface-contract); implementation evidence remains in the relevant UI milestones.
 

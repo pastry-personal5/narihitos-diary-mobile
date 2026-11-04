@@ -1,8 +1,8 @@
 # P1-M21: Architecture enhancement and GUI enhancement approach
 
-Status: Proposal
+Status: Active
 
-Plan architecture enhancements and owner-requested GUI enhancements within the existing application boundaries. The initial architecture review distinguishes persisted recovery checkpoints, transient title/draft work, and resource ownership that may outlive a visible result.
+Record the delivered shared title-work reporting and plan further architecture and owner-requested GUI enhancements within the existing application boundaries. The initial architecture review distinguishes persisted recovery checkpoints, transient title/draft work, and resource ownership that may outlive a visible result.
 
 ## Current-code review, 2026-11-03
 
@@ -15,7 +15,7 @@ Plan architecture enhancements and owner-requested GUI enhancements within the e
 | [`AppModel.swift`](../../NarihitosDiary/Presentation/AppModel.swift), `updateMainNotices` | Only `transcribing` contributes to the processing notice; `resultReady` contributes to the pending count. | Current GUI has no distinct title-generation progress. A new owner request is needed to choose its presentation and exact copy. |
 | [`DiaryDraftAdoptionTests.swift`](../../NarihitosDiaryTests/DiaryDraftAdoptionTests.swift), [`DiaryTitlePolicyTests.swift`](../../NarihitosDiaryTests/DiaryTitlePolicyTests.swift) | Existing tests describe candidate/draft restart, removal fencing, title deadlines, and held model ownership. | Reuse these seams for future regressions; source inspection is not a new test pass. |
 
-The previous lifecycle section was directionally correct about fallback and independent progress, but incomplete about the M11/M13 handoff and M20 settlement safeguards. The [updated architecture section](../architecture.md#processing-and-queue-lifecycle) describes existing behavior; this document's projection below is proposed work.
+The previous lifecycle section was directionally correct about fallback and independent progress, but incomplete about the M11/M13 handoff and M20 settlement safeguards. The [updated architecture section](../architecture.md#processing-and-queue-lifecycle) describes existing behavior. The broader projection below remains proposed work; the delivered title-only subset is recorded separately.
 
 ## Affected boundaries
 
@@ -31,7 +31,7 @@ No new module, target, dependency, or broad coordinator rewrite is needed for th
 
 ## Recommended enhancement: separate checkpoints, phases, and ownership
 
-At implementation entry, assess a small typed application snapshot assembled from existing owners. Prefer extending current projections over introducing a second scheduler. Proposed identifiers are illustrative and are not implemented APIs or approved user-facing labels.
+Task 2a implements the title-only subset below. Broader checkpoint/adoption/commit aggregation remains proposed; assess it against concrete reporting needs before extending the snapshot. Prefer extending current projections over introducing a second scheduler. Proposed identifiers are illustrative and are not implemented APIs or approved user-facing labels.
 
 1. **Durable checkpoint:** retain `QueueJobState` and the verified candidate/draft/commit evidence used on restart. `resultReady` already gives title/draft work a recovery point; adding durable `generatingTitle`, `titleFailed`, or `titleTimedOut` states is unnecessary for current fallback behavior.
 2. **Transient per-job phase:** if needed, expose candidate/draft checking, title generation, draft verification, and commit/upload wait through owner-supplied typed values. Bind updates to the job/attempt and relevant revisions; the durable `resultReady` value alone cannot prove that a title request is currently running. Reconstruct transient phases from live owners after launch rather than persisting them.
@@ -41,6 +41,18 @@ Use bounded snapshots and callbacks on actual changes, including the final settl
 
 Record the selected narrow implementation, or a justified no-change outcome, in the overview before changing code. Keep GUI labels and placement reserved for the owner's concrete request. If code inspection reveals a required product or mechanism change beyond approved outcomes, resolve that decision before implementation.
 
+## Delivered Task 2a: shared title-work snapshot
+
+The selected 2026-11-04 implementation extends the existing shared owner rather than introducing a scheduler. `DiaryTitleWorkSnapshot` is an immutable application value with one random operation ID, optional `DiaryTitleWorkOwner`, and `generating` or `settling` phase. `DiaryTitlePolicy.workSnapshot` is externally read-only, and `onWorkChange` emits the current value only on changes, including nil at final settlement. `hasActiveWork` derives from the same owned operation.
+
+`DiaryDraftAdoptionCoordinator` supplies recording job ID, attempt ID/generation, destination revision, and body revision after its existing current-job check. `DiaryEditCoordinator` supplies the accepted submission ID; each revision already has its own immutable journal identity. Direct policy calls can omit correlation. No body, title, coordinates, bookmark, filename, or destination capability enters the snapshot. No observer can authorize publication or removal.
+
+Normal completion reports generating → idle. A deadline reports generating → settling while returning fallback; a competing request returns fallback without emitting events or taking over the original operation's identity. The late model return reports idle and cannot replace the returned title. A subsequent request starts with a new operation ID. The deadline gate reports whether it actually resolved the continuation, preventing an expired/cancelled timer from inventing settling after completion.
+
+The projection deliberately stops at the shared title owner. Candidate and draft verification still belong to adoption; commit and upload proof still belong to commit records. No queue state, persisted schema, scheduler, maintenance admission rule, or GUI copy changes. M17–M19 have no delivered outcomes to consume yet under the revised order, and their recovery/context/adversarial work remains assigned there.
+
+Focused evidence lives in `DiaryTitlePolicyTests.completedTitleReportsGeneratingThenIdle` and the two directions of `timeoutKeepsOriginalOwnerUntilSettlement`. Existing adoption timeout/maintenance and edit acceptance/navigation regressions now assert the production callers' owner bindings and final idle state. The full gate also covers existing candidate/draft restart, removal fencing, commit/upload, and edit/replay maintenance scenarios. Simulator results do not close native model, real-provider, or physical-device evidence.
+
 ## Title lifecycle and M16 compatibility
 
 The implemented recording path is:
@@ -49,11 +61,27 @@ The implemented recording path is:
 
 During `resultReady`, adoption can reuse an already verified draft without running the title model. Otherwise the title policy chooses AI or local fallback. A deadline fences late output and lets the draft use fallback; the cancelled model remains owned until it settles. Later jobs can use fallback without starting overlapping title inference. Model readiness alone never rewrites a saved title.
 
-M16 precedes M21 and reuses the existing title policy through its independent submitted-edit journal. At M21 entry, reconcile any proposed runtime reporting seam with M16's delivered interfaces. An edit is not a recording job; do not manufacture `resultReady` queue entries to report title work. Preserve M16's body-revision fencing, stable submitted candidate, separate Favorite path, and resource/version ownership.
+M16 precedes M21 and reuses the existing title policy through its independent submitted-edit journal. The 2026-11-04 order places M21 immediately after M16; reconcile reporting with M16's delivered interfaces while its evidence remains open. An edit is not a recording job; do not manufacture `resultReady` queue entries to report title work. Preserve M16's body-revision fencing, stable submitted candidate, separate Favorite path, and resource/version ownership.
+
+## Task 2b: State and deletion documentation review
+
+The owner requested a software architecture review on 2026-11-04, emphasizing state, title generation, and deletion. This review updates the architectural description against existing contracts and source. It adds no runtime behavior, queue/edit schema, global state machine, or automatic destructive retry.
+
+| Finding | Source/contract evidence | Documentation repair |
+|---|---|---|
+| The processing diagram mixed durable queue cases with nested transient title/adoption phases. | [`QueueJobState`](../../NarihitosDiary/Application/ProcessingQueue.swift), [`DiaryDraftAdoptionCoordinator`](../../NarihitosDiary/Application/DiaryDraftAdoptionCoordinator.swift), and [`DiaryEditStage`](../../NarihitosDiary/Application/DiaryEdit.swift) | Add a state-ownership table, keep the queue diagram durable-only, and describe the independent edit journal and live title state separately. |
+| A title result can precede model settlement, including after saving; later fallback callers must not inherit the held owner. | [`DiaryTitlePolicy`](../../NarihitosDiary/Application/DiaryTitlePolicy.swift), adoption/edit `hasActiveWork`, and Task 2a tests | Add a title-owner transition diagram and result/checkpoint/ownership table; document operation correlation, late-result fencing, fallback progress, deletion admission, and purge admission. |
+| The architecture said finished-asset removal was outside v1 despite implemented owner-approved detail deletion. | [M20 Task 21](milestone-20-enhancements-fixes-refactoring-architecture.md#task-21-delete-a-diary-snippet-from-detail), [`DiaryActionsModel`](../../NarihitosDiary/Presentation/DiaryActionsModel.swift), [`DiaryDeletionPort`](../../NarihitosDiary/Application/DiaryDeletion.swift), [`AppleDiaryDeletionService`](../../NarihitosDiary/Adapters/AppleDiaryDeletionService.swift) | Separate pending-recording removal, committed-pair deletion, recovery cleanup, and purge. Record confirmation consumption, edit reservation, replay settlement, creation cleanup, exact-file checks, partial failure, and absence of automatic detail-deletion retry. |
+| Removal was described as waiting for one barrier spanning publication through completion, obscuring confirmation that invalidates an unverified save. | [`ProcessingQueueCoordinator.remove`](../../NarihitosDiary/Application/ProcessingQueue.swift), [`DiaryCommitCoordinator`](../../NarihitosDiary/Application/DiaryCommit.swift), and [approved save/removal behavior](../product-behavior.md#transcription) | Describe current owner tracking, durable cancelling/removing markers, post-suspension claim checks, and coordinated mutations. Preserve the approved already-verified completion versus removal-first outcomes and outstanding provider race evidence. |
+| A later paragraph called `waitingForDestination` a queue state, and legacy/purge wording obscured explicit deletion scopes. | `QueueJobState`, commit wait reasons, M20 Tasks 9/21, [`ApplePurgeService`](../../NarihitosDiary/Adapters/ApplePurgeService.swift) | Correct destination waiting to `readyToSave` plus reason; clarify eligible legacy deletion and the separately confirmed folder-content purge exception. |
+
+The [architecture verification matrix](../architecture.md#state-and-deletion-verification-matrix) points to existing title, adoption, edit, removal, deletion, and purge test seams. Source review is distinct from execution evidence. README and GUI behavior need no change because this task corrects architecture documentation only. M17 recovery screens and earlier physical-device/provider obligations remain open.
+
+Validation results are recorded in the [Task 2b checklist](milestone-21-architecture-gui-enhancement-overview.md#task-2b-acceptance-checklist).
 
 ## Implementation and evidence sequence
 
-1. Read the M20 and M16–M19 outcomes and recheck this source inventory; add each supplied GUI request and its completion criteria to the overview.
+1. Read the M20 and implemented M16 outcomes and recheck this source inventory; add each supplied GUI request and its completion criteria to the overview.
 2. Select the narrow lifecycle reporting change if justified. Keep durable storage and recovery semantics intact; add focused regressions only for changed behavior or identified gaps.
 3. Verify restart before/after candidate publication, draft publication, and queue replacement; title fallback and held cancellation; late callbacks after removal/supersession; maintenance busy/idle; and independent transcription/commit progress as applicable to the change.
 4. Implement the requested screens using existing view models and inward-owned ports. Capture synthetic before/after evidence and perform the relevant accessibility and target-phone checks without accessing real diary contents.

@@ -2,7 +2,7 @@
 
 Status: Active
 
-Work is organized into numbered phases and milestones. General documentation rules are in [AGENTS.md](../AGENTS.md).
+Work is organized into numbered phases and milestones. This guide owns planning, completion, and documentation rules; [AGENTS.md](../AGENTS.md) defines agent workflow and approval boundaries.
 
 ## Structure and status
 
@@ -17,7 +17,7 @@ Work is organized into numbered phases and milestones. General documentation rul
 A milestone is done when:
 
 1. Its completion checklist is checked with acceptance evidence.
-2. For milestones other than P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6, the gate passes: `swift-format lint --strict --recursive .`, `swiftlint lint --strict`, and `TBD: xcodebuild test with the generated project, scheme, and simulator`. The owner exempts P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6 from build, lint, and test gates; their completion depends on checklist evidence and updated docs, not those commands.
+2. The [required validation gate](contribution-guide.md#required-validation) passes. The owner exempts P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6 from build, lint, and test gates; their checklists and documentation remain required. For other milestones, leave unavailable required checks unchecked and report the blocker.
 3. Affected docs and its phase-doc status are updated in the same change.
 
 A phase is done when every milestone is `Done` or `Dropped` and its exit criteria hold.
@@ -56,7 +56,7 @@ Plan: [overview](milestone-01-<theme>-overview.md), [architecture](milestone-01-
 Notes: <optional decisions or links>
 ```
 
-Before implementation, create and link `milestone-NN-<theme>-overview.md` and `milestone-NN-<theme>-architecture.md`. Resolve any related "Undecided" item in `AGENTS.md` first.
+Before implementation, create and link `milestone-NN-<theme>-overview.md` and `milestone-NN-<theme>-architecture.md`, with a verifiable completion checklist in the overview. Resolve related [undecided items](../AGENTS.md#undecided--ask-before-inventing) first. Create the roadmap when planning the first phase.
 
 Record owner decisions, departures from the architecture plan, decided open questions, and reordered/dropped milestones in `changelog.md`:
 
@@ -70,8 +70,15 @@ Status: Active
 - 2026-09-28 — <who> — <what changed and why; optional link>
 ```
 
+## Documentation rules
+
+- `README.md` is user-facing; `AGENTS.md` holds agent workflow and links to contributor rules; `docs/` holds plans and design; `docs/archive/` holds inactive docs.
+- Use lowercase kebab-case filenames for new docs. Start each standalone doc with a title, `Status:` line, and a one- to three-sentence summary. Preserve conventional entry filenames such as `README.md` and `AGENTS.md`; `CLAUDE.md` remains an import of the agent instructions.
+- Add every doc to the [documentation index](README.md). Link to the owning document instead of copying facts. Keep product contracts in [product behavior](product-behavior.md), interface behavior in [UX GUI](ux-gui.md), mechanisms in [architecture](architecture.md), setup/commands in the [contribution guide](contribution-guide.md), and decisions/evidence in milestone records.
+- Update affected docs with code, including the root README for user-visible changes. Update the relevant contributor guide for tooling/commands and `AGENTS.md` when agent workflow or approval boundaries change.
+- Record resolved owner decisions in the appropriate contract and phase changelog; keep the [decision links](../AGENTS.md#decided--ask-before-changing) and undecided list current.
+
 ## Document lifecycle
 
 - Other docs use `Draft`, `Proposal`, `Active`, `Superseded by <link>`, or `Archived`. Proposals are not decisions.
-- Keep milestone plans and their research in active directories until their phase is complete. Then archive the completed phase directory and concluded research, and fix their links in `docs/roadmap.md` and the documentation index. Superseded standalone designs may be archived earlier.
-- Record resolved open questions under "Decided" in `AGENTS.md`.
+- Keep milestone plans and their research in active directories until their phase is complete, even when a milestone is done. Then update their status, use `git mv` to move the phase directory under `docs/archive/phases/` and concluded research under `docs/archive/`, and fix roadmap, index, and other affected links. Superseded standalone docs may be archived earlier. Archived docs are not maintained.

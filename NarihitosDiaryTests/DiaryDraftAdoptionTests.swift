@@ -165,12 +165,12 @@ extension DiaryDraftAdoptionTests {
   @Test func timedOutTitleRemainsBusyUntilNoncooperativeModelRelinquishesWork() async throws {
     let fixture = try makeFixture()
     let model = SuspendedAdoptionTitleModel()
+    let titles = DiaryTitlePolicy(
+      model: model, languageDetector: FixedEnglishTitleDetector(), timeout: .milliseconds(100))
     let adopter = DiaryDraftAdoptionCoordinator(
       queue: fixture.queue, receipts: MemoryReceiptSource([fixture.receipt]),
       candidates: fixture.candidates, drafts: fixture.drafts,
-      titles: DiaryTitlePolicy(
-        model: model, languageDetector: FixedEnglishTitleDetector(),
-        timeout: .milliseconds(100)))
+      titles: titles)
     adopter.activate()
     for _ in 0..<100 where model.pending == nil { await Task.yield() }
     let pending = try #require(model.pending)
@@ -180,11 +180,20 @@ extension DiaryDraftAdoptionTests {
     #expect(fixture.queue.values[fixture.job.id]?.state == .readyToSave)
     #expect(fixture.drafts.publicationCount == 1)
     #expect(adopter.hasActiveWork)
+    #expect(
+      titles.workSnapshot?.owner
+        == .recording(
+          jobID: fixture.job.id, attemptID: fixture.job.attemptID,
+          attemptGeneration: fixture.job.attemptGeneration,
+          destinationRevision: fixture.job.destinationRevision,
+          bodyRevision: fixture.job.bodyRevision))
+    #expect(titles.workSnapshot?.phase == .settling)
     adopter.suspendForMaintenance()
     #expect(adopter.hasActiveWork)
     pending.resume(returning: TitleModelReply(text: "A good day at home", outputTokens: 5))
     for _ in 0..<100 where adopter.hasActiveWork { await Task.yield() }
     #expect(!adopter.hasActiveWork)
+    #expect(titles.workSnapshot == nil)
     #expect(fixture.drafts.publicationCount == 1)
   }
 

@@ -4,7 +4,7 @@ Status: Active
 
 Phase 1 is organized into the following milestones.
 
-The owner revised the execution order to P1-M15 → P1-M20 → P1-M16 → P1-M17 → P1-M18 → P1-M19 → P1-M21. M21 is no longer a prerequisite for M16. Milestone IDs remain unchanged; earlier open evidence remains assigned to its owning milestone.
+The owner revised the execution order to P1-M15 → P1-M20 → P1-M16 → P1-M21 → P1-M17 → P1-M18 → P1-M19 on 2026-11-04. The owner authorized an M21 task now against the implemented M16 handoff, with M16 acceptance evidence still open. Milestone IDs remain unchanged; earlier open evidence remains assigned to its owning milestone.
 
 ## Milestones
 
@@ -120,19 +120,7 @@ Notes: The owner requested implementation on 2026-11-02 ahead of remaining M14 d
 Status: Active
 Goal: Correct app behavior reported by the owner, with related enhancements and refactoring.
 Plan: [overview](milestone-20-enhancements-fixes-refactoring-overview.md), [approach](milestone-20-enhancements-fixes-refactoring-architecture.md)
-Notes: Tasks 1, 3, and 4 have implemented Settings persistence, post-recording catalog, and AAC/Cohere read repairs, with target-phone confirmation still open. Task 2 implementation is complete and Cohere transcription is confirmed working on the real iPhone; broader Q5/Apple and long-input device-matrix evidence remains separate. Later reports remain unplanned until supplied by the owner. Complete this milestone before P1-M16; earlier device evidence remains open.
-
-Task 5 repairs Settings still showing `Active Folder` / `No folder selected` after Select Folder → Open. Physical-device debugging proved that dismissal cleared the request before the selected-folder callback; the repair handles either event order. Its [checklist](milestone-20-enhancements-fixes-refactoring-overview.md#task-5-settings-still-shows-no-folder-selected-after-open) records passing focused regressions and the full gate; updated-app iPhone verification remains blocked by the device connection.
-
-[Task 11 is implemented](milestone-20-enhancements-fixes-refactoring-overview.md#task-11-post-stop-catalog-change-is-reported-as-folder-unavailable): a retryable catalog `.changed` result from the app's own directory mutation now starts a bounded fresh traversal instead of becoming `Folder Unavailable`. Focused catalog tests, lint, and the full simulator gate pass; target-iPhone Stop & Transcribe/relaunch confirmation remains open.
-
-[Task 12 is implemented and target-phone validated](milestone-20-enhancements-fixes-refactoring-overview.md#task-12-cohere-q5-installation-terminates-near-completion). Main-thread whole-model verification caused the original background `0x8BADF00D` scene-update watchdog; immutable Q5 host metadata matches the existing pins, and verification now runs in a cancellable utility task with lease/readiness fencing. Later launches were jetsammed during readiness rehashing even with Q5 runtime denied, isolating repeated Foundation chunk allocation; the verifier now hashes through one reusable POSIX buffer. The final phone PID survives the full Q5 rehash and the preserved recording shows the safe choose-another-method wait. Q5 inference fails closed until exact-path certification; Q4 is unchanged. Focused tests, lint, and the complete simulator gate pass.
-
-[Task 7 is active](milestone-20-enhancements-fixes-refactoring-overview.md#task-7-cohere-recording-reported-unreadable-on-iphone-17-pro-max) for the owner's iPhone 17 Pro Max report. Receipt reads no longer rewrite audio attributes under active leases. The continuing failure was traced live to rejecting the runtime's `MTL0` backend name; both runtime guards now verify the inspected Metal kind and exact device identity. Regressions, fresh lint/full simulator validation, and signed device builds pass; the installed update now transcribes the previously failed English recording and creates a diary, confirmed by the owner. Fresh-capture/relaunch evidence remains open; the inspected pair is waiting for iCloud upload verification. The [trial knob comparison](milestone-20-enhancements-fixes-refactoring-architecture.md#trial-versus-production-settings-review) records matching native parameters and intentional production differences. Task 4's earlier AAC repair and device obligations remain separate.
-
-[Task 8 is Done](milestone-20-enhancements-fixes-refactoring-overview.md#task-8-confirm-recording-removal-in-the-screen): existing recording removal confirmation expands inline in the selected Pending/Failed row, with Remove Recording and Cancel actions and unchanged removal safeguards. Hosted interaction, existing removal regressions, lint/full simulator validation, and the signed build pass; synthetic renders were reviewed and the update installed. Physical assistive/rotation checks were not performed; Task 7's deferred scenario remains separate.
-
-[Task 10 is Done](milestone-20-enhancements-fixes-refactoring-overview.md#task-10-full-width-recording-action-buttons): Pending/Failed recovery controls are larger full-width buttons, preserving inline confirmation and existing callbacks. Synthetic layouts were visually reviewed; hosted checks, lint/full simulator validation, and the signed build pass, and the update is installed. Actual assistive/rotation checks remain unperformed as recorded in its evidence.
+Notes: Owner-requested repairs and enhancements are tracked in the linked task checklists, including folder/Settings persistence, transcription models and failures, capture/catalog performance, inline recording removal, Danger Zone purges, and Diary Snippet deletion. See the [M20 overview](milestone-20-enhancements-fixes-refactoring-overview.md) for per-task implementation, validation, owner acceptance, and remaining phone evidence. The later M16/M21 authorizations below supersede the original requirement to finish M20 first; its open evidence remains required.
 
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 
@@ -141,12 +129,19 @@ Goal: Save version-checked body and Favorite edits durably and replay verified a
 Plan: [overview](milestone-16-diary-editing-favorite-audio-replay-overview.md), [approach](milestone-16-diary-editing-favorite-audio-replay-architecture.md), [device evidence](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md)
 Notes: The owner requested completion on 2026-11-03, authorizing implementation against the current M15/M20 handoffs without waiting for M21. Body/Favorite editing now uses an independent durable journal and shared title policy, checked Markdown replacement, exact upload proof and resumable cleanup. Replay uses validated private leases and capture-priority session ownership. M20 maintenance integrates both owners. On 2026-11-04 KST, lint and the full simulator gate passed with `platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082`. The connected iPhone 17 Pro Max then passed 70 synthetic state/storage/recovery/maintenance tests, two native replay tests and one native title test; a completed-cleanup recovery fix and its final simulator gate also passed. M16 stays Active: M16-D01–D11 have partial evidence, hosted phone interaction tests remain unresolved, and the remaining human/provider/hardware acceptance criteria stay open. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence is unchanged.
 
+### P1-M21: Architecture enhancement and GUI enhancement
+
+Status: Active
+Goal: Enhance the software architecture, initially reviewing processing lifecycle reporting, and implement GUI enhancements supplied by the owner.
+Plan: [overview](milestone-21-architecture-gui-enhancement-overview.md), [approach](milestone-21-architecture-gui-enhancement-architecture.md)
+Notes: Follows M16 under the revised execution order; the owner authorized a bounded Task 2 title-lifecycle reporting change on 2026-11-04. Concrete GUI changes await owner requests. Task 2a is complete: shared title-work snapshots report recording/edit correlation and timeout settlement; focused tests, lint, and the full iPhone 18 Pro simulator gate pass. M17–M19 remain later work. Earlier implementation, validation, and phone evidence remain open.
+
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 
 Status: Planned
 Goal: Complete the four All recovery destinations with typed state, safe inspection, version-bound retry/replacement/removal, and verified conflict choice and cleanup.
 Plan: [overview](milestone-17-recovery-overview.md), [approach](milestone-17-recovery-architecture.md), [device evidence](milestone-17-recovery-device-evidence.md)
-Notes: Planning only; implementation follows M16 unless the owner authorizes a reorder. Recovery spans capture jobs, active-folder resources, and M16 submitted edits through owner-specific capabilities and journals. Confirmation never substitutes for fresh resource/version checks, cancellation settlement, or chosen-pair/upload proof. Earlier validation and target-phone evidence remain open.
+Notes: Planning only; implementation follows M21 unless the owner authorizes a reorder. Recovery spans capture jobs, active-folder resources, and M16 submitted edits through owner-specific capabilities and journals. Confirmation never substitutes for fresh resource/version checks, cancellation settlement, or chosen-pair/upload proof. Earlier validation and target-phone evidence remain open.
 
 ### P1-M18: Add Optional Context and Pending-Work Reminders
 
@@ -158,10 +153,3 @@ Notes: Planning only; implementation follows M17 unless the owner authorizes a r
 ### P1-M19: Validate the Complete V1 Experience
 
 Status: Planned
-
-### P1-M21: Architecture enhancement and GUI enhancement
-
-Status: Planned
-Goal: Enhance the software architecture, initially reviewing processing lifecycle reporting, and implement GUI enhancements supplied by the owner.
-Plan: [overview](milestone-21-architecture-gui-enhancement-overview.md), [approach](milestone-21-architecture-gui-enhancement-architecture.md)
-Notes: Planning only; follows M19 under the revised execution order. Concrete GUI changes await owner requests. Recheck the lifecycle proposal against the M16–M19 outcomes before implementation. Earlier implementation, validation, and phone evidence remain open.

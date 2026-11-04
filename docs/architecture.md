@@ -2,7 +2,7 @@
 
 Status: Approved
 
-This document defines the approved Clean Architecture boundaries, durable data flow, and recovery behavior for an iPhone app that can support multiple asset types and transcription methods. Diary Snippet is the only confirmed v1 asset type; remaining concrete Cohere selection and implementation evidence are called out explicitly.
+This document defines the approved Clean Architecture boundaries, state ownership, durable data flow, and recovery behavior for an iPhone app that can support multiple asset types and transcription methods. Diary Snippet is the only confirmed v1 asset type. Approved contracts, implemented mechanisms, and remaining platform evidence are distinguished below.
 
 ## Architectural principles
 
@@ -37,7 +37,7 @@ Arrows show source-code dependencies, not the direction of a runtime request. A 
 | Layer | Contains | May depend on | Must not import |
 |---|---|---|---|
 | Domain | Asset identity and kind, recording and diary-text value types, queue invariants, diary-specific rules | Swift value types and inward domain code | SwiftUI, persistence formats, provider SDKs, networking, device APIs |
-| Application | Capture, process, browse, edit, and retry use cases; input/output ports; orchestration policies | Domain | SwiftUI views, `AVFoundation`, `Speech`, `URLSession`, iCloud file APIs, concrete adapter types |
+| Application | Capture, process, browse, edit, retry, removal, deletion, and maintenance use cases; input/output ports; orchestration policies | Domain | SwiftUI views, `AVFoundation`, `Speech`, `URLSession`, iCloud file APIs, concrete adapter types |
 | Interface adapters | View models, domain-to-screen mapping, type-specific asset codecs, provider response mapping, port implementations | Application and domain contracts | Other adapter internals through hidden side channels |
 | Frameworks and composition | SwiftUI view construction, Apple APIs, network clients, file provider integration, dependency wiring | Any inward layer needed for wiring | Business rules that belong in domain or use cases |
 
@@ -54,6 +54,8 @@ The application owns port definitions for recording, job persistence, asset cata
 | Diary creation and editing | Shared `DiaryTitlePolicy` derives a read-only title; `DiaryEditStorePort` / `DiaryEditCoordinator` accept durable body or desired Favorite revisions independently of recording jobs | Protected edit journal and version-checked Markdown replacement |
 | Asset browsing | `AssetCatalogPort` lists minimal type-neutral summaries from the active folder, page by page | Coordinated iCloud enumeration and type-aware summary decoders |
 | Asset content | Type-specific ports own validation; `DiaryPairStorePort` commits new pairs, `DiaryEditStorePort` edits committed pairs, and `DiaryReplayPort` leases verified audio | Diary Snippet codec, coordinated writers and private replay cache; future types register their own adapters |
+| Diary deletion | `DiaryDeletionPort` accepts a current catalog handle; edit reservation, creation settlement, and replay settlement guard admission | Exact-pair coordinated deletion with resource/version checks, including eligible legacy pairs |
+| Purge maintenance | `PurgePort` owns explicit scope, durable intent, retry, and completion; admission checks actual owners | Confined staging traversal or active-folder-content traversal under a restart barrier |
 | Audio-session ownership | `AudioSessionOwnership` gives capture priority through reservation and current-owner tokens | Shared `AppleAudioSessionConfiguration` used by capture and replay |
 | Destination | `DestinationPort` resolves an opaque destination reference and reports access outcomes | iCloud-only picker, persistent access reference, security-scope lifetime |
 | Settings and readiness | Settings/model ports provide method selection, installed-model state, and download readiness | Preferences, Apple speech assets, and a local Cohere model manager; future hosted guards are separate |
@@ -81,20 +83,22 @@ Apple on-device speech and an on-device Cohere Transcribe method are the confirm
 
 ## Data ownership and identity
 
-| Datum | Durable owner | Lifetime and rule |
+| Datum | Owner | Lifetime and rule |
 |---|---|---|
 | Asset envelope and catalog summary | Selected iCloud folder; projected into a disposable local cache | Carries stable kind ID and schema version so browsing and routing work without assuming Diary Snippet fields. |
-| Recorded audio awaiting an asset | Private app storage | Created at capture; retained until a complete destination asset is verified or the user explicitly removes it. |
+| Recorded audio awaiting an asset | Private app storage | Created at capture; retained until the complete destination pair and both uploads verify, or confirmed removal/purge completes. |
 | Queue job | Private queue repository | Holds stable identity, recording order, language hint, destination reference, state, attempt count, and enough information to resume safely. |
 | Effective transcription settings | Queue job | Snapshotted when processing begins: method, model/conversion, and applicable controls actually used. A later Settings change does not rewrite that attempt's provenance. |
-| Managed diary text | Private Markdown draft until commit; then the Markdown asset | Transcription output initializes its body. User edits replace that body; every save regenerates the read-only title. No original transcript is retained separately. Favorite changes through a separate toggle. |
+| Managed diary text | Private Markdown draft until commit; then the Markdown asset | Transcription output initializes its body. User body saves regenerate the read-only title. No original transcript is retained separately. Favorite changes through a separate toggle without title generation. |
+| Submitted edit | Independent protected private edit journal until verified publication and retirement | Submission ID binds the accepted body/Favorite revision, source pair, candidate, and publication evidence; no recording job is created. |
+| Live title work | Shared `DiaryTitlePolicy`; transient, never persisted | One operation ID retains its original owner until the call settles, even after a fallback result has been returned and saved. |
 | Finished audio and Markdown | Recording's selected iCloud folder | The folder selected when recording began stays attached to that job, even if the active folder later changes. Markdown front matter explicitly names the audio file and carries a schema version. |
 | Active-folder selection | App settings | Controls which finished assets the app lists. Changing it does not move existing files or retarget pending recordings. |
 | Optional recording context | Queue job until commit; then asset metadata | Location and weather describe recording start and never block asset creation if unavailable; omit unavailable fields. Keep exact returned coordinates when place lookup fails. |
 
 Use a stable internal job ID independent of a user-editable title or folder path. Persist the recording's destination reference when capture begins and an immutable ordering key with the job. Assign the random UUID v4 asset identity before the first iCloud write and keep the job-to-asset mapping until commit and cleanup finish; a retry uses the same identity. Serialize IDs as lowercase canonical hyphenated text and instants as RFC 3339 UTC at whole-second precision with `Z`. For Diary Snippet, `created_at` is recording start and `updated_at` changes on a saved text or metadata edit, never solely on iCloud synchronization. Preserve the UTC `year/month/day` layout; use `YYYY-MM-DD_HH-mm-ss-<uuid>.md`, the sibling `YYYY-MM-DD_HH-mm-ss-<uuid>.assets`, and `<uuid>.m4a`. Use the user's current local calendar for list grouping and display. The complete flat-key schema and serialization contract is in the [P1-M5 decision record](phase-1/milestone-05-decisions-architecture.md#diary-snippet-schema-contract).
 
-The catalog uses each registered kind's validator and presents a finished asset only when its required fields, files, and references are valid. This avoids presenting a half-written Markdown/audio pair as finished. A malformed known-v1 asset without a repair copy becomes a preserved read-only recovery item. Legacy entries expose no editing or Favorite action and use their separate safe-pairing rule.
+The catalog uses each registered kind's validator and presents a finished asset only when its required fields, files, and references are valid. This avoids presenting a half-written Markdown/audio pair as finished. A malformed known-v1 asset without a repair copy becomes a preserved read-only recovery item. Legacy entries expose no editing or Favorite action and use their separate safe-pairing rule; the explicit [Diary Snippet deletion](#committed-diary-snippet-deletion) action can remove an eligible verified legacy pair without rewriting it.
 
 Catalog refresh is generation-fenced but an internal supersession is not destination failure. If an explicit post-save refresh or current file-presenter callback arrives during coordinated catalog work, the replacement traversal waits for that work to relinquish its access loan and then restarts. A callback is bound to the presenter instance that emitted it, so a removed presenter's late callback cannot invalidate the replacement session. Only current bookmark, identity, security-scope, or provider failure projects `Folder Unavailable`.
 
@@ -124,6 +128,23 @@ Cohere authorizes Metal using the actual model device's inspected kind and exact
 
 Recording and playback share an audio-session owner but have separate coordinators. The replay use case obtains only a freshly validated committed Diary Snippet's audio through `DiaryReplayPort`; its screen exposes play/pause, seeking, and elapsed/total time.
 
+## State ownership and transitions
+
+State has four distinct meanings. Durable records determine what can resume after a crash; live owners determine which resources are still in use; transient phases describe current work; presentation state records navigation and unconfirmed user intent. These values can advance at different times. A single global `processing` or `deleting` flag cannot safely replace them.
+
+| State | Authoritative owner | Persistence and interpretation |
+|---|---|---|
+| Recording checkpoint | `ProcessingQueueCoordinator` / queue repository | `QueueJobState`, attempt and revisions, candidate/draft bindings, commit evidence, and removal markers survive relaunch. The state alone does not prove file validity or owner settlement. |
+| Submitted edit checkpoint | `DiaryEditCoordinator` / edit journal | `accepted`, `ready`, `published`, `completed`, or `recovery` belongs to a submission, independent of recording jobs. Candidate and source-version evidence determine safe continuation. |
+| Title operation | Shared `DiaryTitlePolicy` | Transient `workSnapshot`: nil, `generating`, or `settling`. Correlation identifies the original recording attempt or edit submission; it grants no file capability. |
+| Resource ownership | Capture, transcription, adoption, edit, replay, and commit owners | Live reservations/tasks/accessors remain owned until settlement. Cancellation, a returned fallback, scene departure, and a displayed completion do not prove idle. |
+| Destructive operation | Queue removal marker, edit deletion reservation, or purge journal | Pending removal and purge have durable recovery intent. Detail deletion has a live reservation and exact-resource checks, with no durable automatic deletion retry. |
+| Screen and confirmation | Presentation models | Catalog handles, editor buffers, armed inline confirmation, progress, and reasons project current owner state. An old handle or confirmation cannot authorize a new mutation after invalidation. |
+
+Authorize a transition in its owning use case, validate evidence in the implementing port, and publish the screen projection afterward. Every asynchronous mutation must recheck its operation identity and relevant versions after suspension: recording work uses job/attempt and destination/body revisions; edits use submission and expected pair versions; deletion uses the confirmed catalog handle and fresh resource versions; purge uses its durable scope/destination binding. Correlation IDs and UI flags never replace those checks.
+
+On relaunch, reconcile durable records and files before admitting new work. Rebuild transient phases from current owners; never restore a timer, task, or armed confirmation as proof that work is active or authorized. The lifecycle examples below describe existing contracts, not a new shared persisted state machine.
+
 ## Processing and queue lifecycle
 
 One transcription worker owns an inference attempt at a time. Draft adoption/title generation and iCloud commit have separate coordinators and can progress independently of that worker. New work starts only while the app is active. The transcription scheduler chooses the oldest ready recording by its persisted recording order, with stable ID as a tie-breaker. Successful inference publishes and reopens a verified private candidate before persisting `resultReady` and releasing the worker. Waiting or failed jobs and jobs already in the draft/save stages are skipped when selecting transcription work. A failed attempt requires manual retry; a waiting prerequisite can be reconsidered when it changes. Moving the app out of the active state stops starting new work; an in-flight operation must settle or be recoverable on relaunch. Background execution and notification delivery are not prerequisites for correctness.
@@ -135,21 +156,14 @@ stateDiagram-v2
     waiting --> ready: prerequisite restored
     ready --> transcribing: effective settings captured
     transcribing --> resultReady: verified candidate and durable handoff
-    state resultReady {
-        [*] --> checkingDraft
-        checkingDraft --> draftVerified: reuse matching verified draft
-        checkingDraft --> generatingTitle: candidate and source verified
-        generatingTitle --> verifyingDraft: AI title or local fallback
-        verifyingDraft --> draftVerified: draft and binding reopened
-    }
-    resultReady --> readyToSave: verified draft and durable queue transition
+    resultReady --> readyToSave: title or fallback, verified draft, durable handoff
     resultReady --> failed: invalid source or mismatched claim
     readyToSave --> saved: complete pair and both uploads verified
     transcribing --> failed: inference, timeout, or unusable text
     failed --> ready: user requests retry
 ```
 
-The outer states shown are implemented `QueueJobState` cases; the children inside `resultReady` describe transient adoption work, not persisted enum cases. Review/quarantine and removal branches are omitted from this processing diagram: the queue also persists `reviewRequired`, `cancelling`, and `removing`. State changes and their required files must be committed in order or safely replayed after a crash.
+All states shown are implemented `QueueJobState` cases. Title generation is live work within `resultReady`, detailed in the [title lifecycle](#title-generation-and-resource-settlement). Review/quarantine and removal branches are omitted from this processing diagram: the queue also persists `reviewRequired`, `cancelling`, and `removing`. State changes and their required files must be committed in order or safely replayed after a crash.
 
 | Durable checkpoint | Owner and work represented |
 |---|---|
@@ -157,12 +171,15 @@ The outer states shown are implemented `QueueJobState` cases; the children insid
 | `resultReady` | A verified transcription candidate is available, or a matching draft can be recovered. `DiaryDraftAdoptionCoordinator` reuses that draft or runs the title policy, writes the managed draft/binding, and reopens them before advancing. |
 | `readyToSave` | The verified local Markdown/audio candidate remains available. `DiaryCommitCoordinator` owns publication/version checkpoints, destination or upload waits, recovery reasons, and upload proof through the job's commit record. `saving`, `waitingForDestination`, and `saveFailed` are conceptual phases, not separate queue enum cases. |
 | `saved` | The complete destination pair and both uploads have verified. Durable cleanup/notice bookkeeping permits interrupted private-staging cleanup to resume. |
+| `failed` | Retain audio and an entry-level reason. Manual Retry creates a fresh attempt with current Settings; automatic scheduling does not retry it. |
+| `reviewRequired` | Quarantine restored work until explicit Resume or Remove. Neither a verified old draft nor installed-model readiness bypasses review. |
+| `cancelling`, `removing` | Removal intent is durable. In-flight transcription/save ownership must settle before owned private files and the job are removed; see [pending-recording removal](#pending-recording-removal). |
 
 A destination outage never forces retranscription or blocks local title/draft creation. A recoverable save wait resumes using the same draft when access returns; validation or ownership ambiguity stays visible for recovery. Save and recovery attempts run independently of transcription selection and retain their own ownership until settlement, so blocked destinations do not occupy the transcription worker. Each error path must preserve the affected job and reschedule other ready work without a tight retry loop. See [M13](phase-1/milestone-13-diary-drafts-titles-architecture.md) and [M14](phase-1/milestone-14-icloud-commit-reconciliation-architecture.md) for the detailed ordering and recovery contracts.
 
-Title generation therefore has a distinct **transient phase**, while the durable queue state stays `resultReady`. `DiaryTitlePolicy` chooses AI or first-sentence fallback within the approved 30-second total budget. Model unavailability, unusable output, or timeout uses fallback rather than a title-failure queue state. A timeout cancels and fences the model operation, but the fallback result can be published before that operation relinquishes work. `DiaryTitlePolicy.hasActiveWork`, included in the adoption coordinator's `hasActiveWork`, stays true until settlement; later requests use fallback instead of starting overlapping title inference. Maintenance admission must still treat that model owner as busy even if its job has reached `readyToSave` or `saved`. A late model reply cannot replace the fallback title. On reopen, reuse a verified draft; otherwise rebuild it from the verified candidate with the same reserved asset ID.
+Title/draft adoption reuses a verified matching draft or checks the candidate, obtains a title, publishes the draft and binding, and reopens them before advancing. On reopen, reuse a verified draft; otherwise rebuild it from the verified candidate with the same reserved asset ID. Model unavailability or title failure uses fallback, with no durable `generatingTitle` or title-failure queue state.
 
-Current Main notices count only `transcribing` as active transcription; `resultReady` remains in the pending count, with no dedicated title-progress label. [M21's lifecycle proposal](phase-1/milestone-21-architecture-gui-enhancement-architecture.md#recommended-enhancement-separate-checkpoints-phases-and-ownership) considers a typed read-only projection of checkpoint, current phase, and unsettled ownership. That proposal and future owner GUI requests do not add persisted states or change present notice behavior.
+Current Main notices count only `transcribing` as active transcription; `resultReady` remains in the pending count, with no dedicated title-progress label. [M21's remaining lifecycle proposal](phase-1/milestone-21-architecture-gui-enhancement-architecture.md#recommended-enhancement-separate-checkpoints-phases-and-ownership) covers broader phase aggregation. The implemented title snapshot does not change notice behavior or add persisted states.
 
 At processing start, resolve the current method and model choices into a snapshot. Check Apple speech or local Cohere model readiness before transcription; if unavailable, explain why, offer installation when applicable, and ask the user to choose an available approved method. If none is available, keep the job waiting. There is no automatic switch from Apple to Cohere or vice versa. Save the method's effective settings and the user's original language hint separately; model language values may differ from en-US/ko-KR.
 
@@ -170,17 +187,41 @@ V1 transcription failures move to a failed state with manual retry; a missing lo
 
 A transcriber adapter must provide a bounded response or cancellable attempt so one hung inference cannot own the worker indefinitely. On timeout or cancellation, invalidate that attempt ID, retain its audio, record an entry-level failure, and release worker ownership only after the adapter has relinquished the underlying work. A late callback cannot advance the job. The runtime evaluation must demonstrate this behavior for both approved methods; if a candidate cannot settle a hung attempt, it does not meet the fail-open queue contract. Optional title, weather, and location failures use their approved fallback or omission rules and do not hold the worker.
 
-After user confirmation, a remove use case stops or invalidates an in-flight attempt, durably marks the job for removal, and deletes its private audio, Markdown draft, and job record. Late inference callbacks carrying that attempt ID are ignored. The per-job mutation barrier is held from the first destination write through verification and completion: if removal is accepted first, the writer cannot publish; if the writer reaches completion first, the item is no longer pending or failed and the UI reports that it was saved. A removal request arriving during that write waits for the barrier. The job record identifies only that job's partial files for coordinated cleanup. Removal of an already finished asset is outside v1. A crash during removal resumes cleanup on launch. The exact cancellation mechanism for each local engine remains an adapter concern.
-
-Every destination mutation, including audio writes and repair, uses this barrier so removal cannot race a pre-publication write. Retargeting increments a durable destination revision and invalidates earlier save/repair attempts under the same barrier. Every asynchronous result must match the live job ID, attempt generation, destination revision, and relevant body revision before it can mutate state. Removal tombstones remain until all affected work has relinquished file access and cleanup is durable; do not delete an open file and assume its writer has stopped. A timeout is not proof that a file operation ended. Bound coordination waits and retain a recoverable state if access cannot settle; never acknowledge removal or successful publication on that basis. The [mutation controls](#mutation-and-recovery-integrity) constrain cleanup to positively identified files.
+Confirmed pending-recording removal invalidates the attempt and uses durable `cancelling`/`removing` markers. It is separate from deleting a committed diary; the [removal and deletion contracts](#removal-and-deletion) define settlement, save races, and scope. Every destination mutation, including audio writes and repair, must honor the current job claim and coordinated resource versions. Retargeting increments a durable destination revision and invalidates earlier save/repair attempts. A timeout is not proof that a file operation ended; preserve recoverable state until access settles.
 
 Make each transition idempotent. The job record keeps an attempt ID, selected method ID, effective settings, and model/conversion identity before inference starts, then binds the candidate and Markdown draft to that successful attempt. A late result from an obsolete attempt cannot overwrite a newer manual retry. Advance from transcription only after the candidate is verified and its `resultReady` handoff is durable; advance to `readyToSave` only after the managed draft and binding verify. A recovered job checks whether a complete asset with its stable identity already exists before writing, and reuses the draft where valid. A crash before candidate publication may require another local inference run; a crash after a verified candidate handoff can resume draft adoption without retranscribing. Recovery derives truth from durable files and job state rather than trusting an in-flight marker alone. Reconcile jobs independently on launch: quarantine a malformed job record with its private files intact, surface a reason for review, and continue scanning and processing other valid jobs. A queue-wide storage failure that prevents durable state changes pauses processing and reports the problem rather than claiming a job was safely advanced.
+
+## Title generation and resource settlement
+
+Recording drafts and submitted body edits share one `DiaryTitlePolicy`. It returns the approved title and origin within the 30-second budget, using AI or first-sentence fallback; an empty edited body yields "Untitled". The body's current language drives generation, while the recording language metadata stays unchanged. Favorite bypasses title generation. Whole-body coverage, output validation, and grapheme/token limits are defined in the [title contract](product-behavior.md#transcription) and [generated-text bounds](#generated-text-and-resource-bounds).
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> generating: title request owns a new operation
+    generating --> idle: computation returns AI or fallback
+    generating --> settling: deadline returns fallback and requests cancellation
+    settling --> settling: another request uses fallback; original owner retained
+    settling --> idle: cancelled computation actually returns
+```
+
+This diagram describes `workSnapshot`, not queue or edit-journal states. `idle` means nil. `generating` includes availability/language checks and may return fallback without invoking the model. A request made while any title operation is held returns fallback without creating or replacing a snapshot. `onWorkChange` reports changes; `hasActiveWork` derives from the same held operation. Recording owners carry job/attempt and destination/body revisions; edit owners carry submission ID. Direct policy callers may omit correlation. See [M21 Task 2a](phase-1/milestone-21-architecture-gui-enhancement-architecture.md#delivered-task-2a-shared-title-work-snapshot) for the implemented API and tests.
+
+| Event | Durable content/checkpoint | Live ownership and allowed next work |
+|---|---|---|
+| AI or fallback returns normally | Adoption verifies its draft before `readyToSave`; a body edit finalizes its accepted candidate before `ready`. | Title computation has settled; the caller still owns its remaining draft/edit work. |
+| Deadline returns fallback | The same draft/edit path can advance using that fallback. | The original title operation remains `settling` until its computation returns. Transcription and commit retain independent progress; later title requests use fallback. |
+| Job removed or claim changes while awaiting title | Current-job/revision checks reject publication for the obsolete recording claim. Accepted edits retain their independent journal identity. | Invalidate the caller's mutation authority without pretending the model or file accessor has settled. |
+| Model returns after deadline | The already-returned fallback cannot be replaced by the late output. | Clear only the original held operation when it settles; a competing fallback request never becomes its owner. |
+| Relaunch | Reconcile recording candidate/draft or edit journal and reuse verified finalized content. | No old live model task survives process termination. Start fresh work only if durable evidence requires it; model readiness alone never regenerates a saved fallback. |
+
+For example, recording A can reach `readyToSave` or `saved` with fallback while A's title snapshot still says `settling`. Recording B can then use fallback and save without taking over A's title identity. Both adoption and edit `hasActiveWork` include the shared title owner. Exact-pair deletion admission and purge admission must consult those owners; a job's `saved` checkpoint or a screen with no spinner does not establish that title resources are idle.
 
 ## Asset commit and iCloud behavior
 
 `DestinationAccess` stores a persistent reference to each selected iCloud folder and resolves it when needed. It must validate that a newly chosen folder is in iCloud, balance security-scope access, and report revocation, provider unavailability, or missing files distinctly. Selecting or creating arbitrary iCloud folders needs a device prototype. The first recording requires a folder selection. The app lists only the active folder; it does not merge old folders into the current list.
 
-The proposed commit protocol is:
+The commit protocol is:
 
 1. Keep the complete local candidate in the recording's private folder: finalized audio, one managed Markdown draft, and a job record with recording-time metadata and effective transcription provenance.
 2. Resolve the job's original destination and validate its current access and revision. Under the per-job mutation barrier, coordinate file operations and write audio before publishing the Markdown entry. Use exclusive creation or a checked expected version for replacement; repeated writes use the same job-to-asset mapping and must not replace a different asset. Validate containment and file identity at the actual operation, not only when building a URL.
@@ -195,17 +236,51 @@ The adapter revalidates the complete pair and replaces only Markdown against bot
 
 Replay exchanges a fresh catalog handle for a bounded protected audio lease, validates the full source pair, and keeps platform players behind `DiaryReplayPort`. Its private cache is disposable; it grants no repair authority. Capture and replay share token-based session ownership, with capture reservation before waiting for replay to settle. Background/detail/scope departure stops playback, and reentry requires explicit Play. Edit/title/file/replay owners participate in M20 maintenance admission; its restart barrier precedes edit/cache reconciliation.
 
-When a job finishes in a folder that is no longer active, show a nonblocking in-app completion banner naming that destination. If access to that folder is temporarily lost, continue local transcription and keep the Markdown/audio candidate in `waitingForDestination`; retry saving when access returns. Ordinary provider/network failures remain temporary. Only after the user confirms removal of the folder or revocation of access may the app offer explicit replacement for that pending job; record the destination change durably, then retry saving. A general active-folder change never silently redirects the job.
+When a job finishes in a folder that is no longer active, show a nonblocking in-app completion banner naming that destination. If access to that folder is temporarily lost, continue local transcription and draft creation; a verified draft stays `readyToSave` with a destination-wait reason until saving can retry. `waitingForDestination` describes that conceptual phase, not a persisted queue case. Ordinary provider/network failures remain temporary. Only after the user confirms removal of the folder or revocation of access may the app offer explicit replacement for that pending job; record the destination change durably, then retry saving. A general active-folder change never silently redirects the job.
 
 ### Catalog consistency
 
-The catalog lists validated summaries from the active folder and sorts them by `created_at` descending with a stable ID tie-breaker, loading 50 candidates per page without a total cap. It exposes incomplete, malformed, unsupported, and ambiguous legacy resources as separate read-only recovery items. Legacy items use an ephemeral path-based identity and are never written. A folder change invalidates outstanding page requests and cursors. External changes invalidate affected pages and snapshots, and the presentation layer deduplicates repeated observations of the same validated resource/version. Different resources claiming the same asset ID remain separate ambiguous items; an external ID cannot hide an entry. A file that becomes unavailable or incomplete during a read is reported as unavailable or recovery, never as a deletion request. Completion into a former folder does not enter the active list.
+The catalog lists validated summaries from the active folder and sorts them by `created_at` descending with a stable ID tie-breaker, loading 50 candidates per page without a total cap. It exposes incomplete, malformed, unsupported, and ambiguous legacy resources as separate read-only recovery items. Legacy items use an ephemeral path-based identity and are never rewritten; eligible complete legacy pairs may be explicitly deleted. A folder change invalidates outstanding page requests and cursors. External changes invalidate affected pages and snapshots, and the presentation layer deduplicates repeated observations of the same validated resource/version. Different resources claiming the same asset ID remain separate ambiguous items; an external ID cannot hide an entry. A file that becomes unavailable or incomplete during a read is reported as unavailable or recovery, never as a deletion request. Completion into a former folder does not enter the active list.
+
+## Removal and deletion
+
+| Operation | Authority and scope | Settlement/recovery rule |
+|---|---|---|
+| Remove Recording | Current inline confirmation for a pending/failed job; validated private audio, candidate/draft, and queue record | Persist invalidation/removal intent, wait for relevant accessors, then clean owned files. Resume interrupted cleanup on launch. Preserve an already verified completed asset. |
+| Delete Diary Snippet | Current detail confirmation and exact catalog/resource binding; verified Markdown/audio pair, including eligible legacy pairs | Reserve against edits, settle replay, require creation cleanup, then coordinate exact-file removal. A failed or partial deletion needs fresh confirmation/recovery; no automatic destructive retry. |
+| Remove incomplete/obsolete version | Recovery-specific confirmation or the approved automatic later-version rule; exact validated resources | Preserve survivors or alternatives until chosen-pair verification and required upload evidence permit cleanup. M17 owns complete recovery interfaces. |
+| Purge Active Folder Contents / Purge Internal Staging | Separate scope-specific confirmation plus durable purge intent | Admit only after actual owners are idle; retain a restart barrier after interruption and resume deletion only on explicit reconfirmed retry. See [purge maintenance](#explicit-purge-maintenance). |
+
+Deletion authority never comes from a title, front-matter ID, path spelling, missing file, or presentation count. The [mutation controls](#mutation-and-recovery-integrity) apply to each scope. Active-folder purge is the explicitly confirmed exception to exact-pair scope: it removes all contents of the bound folder, including unrelated files, while preserving the folder itself.
+
+### Pending-recording removal
+
+The screen first arms inline Remove Recording / Cancel for the current entry. Unconfirmed intent changes no job or file. Confirmation invalidates the attempt generation; active transcription is cancelled, and an active save is fenced from advancing its stale claim. The implemented queue persists `cancelling` while transcription or save access remains held, otherwise `removing` before private cleanup. Cancelling is an unsettled ownership condition, not a successful-removal acknowledgement. On actual settlement the queue finishes private cleanup and removes the job; launch reconciliation resumes persisted removal work. A failed durable write must preserve files and report the queue storage problem.
+
+Removal during title generation changes the current job so adoption's post-title check cannot publish a draft. The model can still hold its copied body until settlement; its result carries no filesystem capability. Do not confuse this invalidation with an immediate return of shared title resources. Private file cleanup must still respect any actual file accessor, and purge remains blocked by unsettled title ownership.
+
+Save races have two outcomes under the approved contract: if complete-pair/upload verification and durable `saved` win before confirmation, preserve the asset and explain completion; if removal wins first, cancel the unverified save and reject its subsequent progress. `DiaryCommitCoordinator` holds per-job active ownership until its accessors return, and checks the current expected job/commit after each suspension. The queue waits for its settlement before private cleanup. Coordinated destination writes must revalidate claims and exact resources at the mutation boundary. This is implemented through owner tracking, revision checks, and coordinated I/O, not a single global deletion flag or a timeout-based unlock. Never reinterpret pending-recording removal as permission to delete an already committed diary.
+
+### Committed Diary Snippet deletion
+
+[M20 Task 21](phase-1/milestone-20-enhancements-fixes-refactoring-architecture.md#task-21-delete-a-diary-snippet-from-detail) implements full-width Delete Diary Snippet below Metadata, with inline Delete Diary Snippet / Cancel. The following stages describe existing control flow; they are not new queue enum cases or a persisted deletion journal.
+
+| Stage | Guard and effect |
+|---|---|
+| Confirmation armed | Bind intent to the visible catalog handle. Cancel, detail/handle/scope departure, editor/Favorite action, or scene inactivity clears unconfirmed intent. |
+| Confirmation consumed | Clear the armed handle before asynchronous work so duplicate taps cannot delete twice. `DiaryEditCoordinator.beginDeletion()` requires active, reconciled, unsuspended edit state, no active work (including shared title work), and no pending, isolated, uncertain, or undiscovered edit state. |
+| Reservation held | Block new edit submissions/sessions, stop the target's replay and wait for its lease to settle, then recheck the visible-action generation before calling the deletion port. Keep the reservation until the port returns, including on failure. Maintenance sees this reservation as active work. |
+| Pair admitted | `AppleDiaryDeletionService` exchanges the handle for fresh destination/resource evidence, checking complete discovery and duplicate claims. Matching creation jobs must be `saved` with `commitCleanupDone == true`, and their capture workspaces must be absent. Unreadable state fails closed. Unrelated recordings retain normal scheduling. |
+| Coordinated removal | Revalidate root attachment, both exact versions, audio digest/reference, supported schema or eligible legacy pairing, and unresolved conflicts inside coordination. Unlink audio first, then Markdown with descriptor-relative no-follow checks. Remove the sibling assets directory only if empty; preserve extra files, ancestor directories, other diaries, Settings, and models. |
+| Settlement | Successful local deletion refreshes the catalog and returns to Main. Busy, changed, unavailable, or unsafe outcomes show typed inline reasons and require a new confirmation; no success is inferred from hiding the detail view. |
+
+The pair is not a filesystem transaction. If audio removal succeeds but Markdown removal fails, report incomplete deletion and preserve the surviving text for Incomplete Diary Snippets. A process exit mid-deletion similarly leaves surviving resources for discovery; there is no persisted intent that silently retries detail deletion at launch. M17 retains the complete recovery/removal flow. Once a coordinated delete has started, clearing navigation/confirmation cannot undo it or release the reservation early. Local completion does not prove iCloud propagation to another device.
 
 ## Explicit purge maintenance
 
 [P1-M20 Task 9](phase-1/milestone-20-enhancements-fixes-refactoring-architecture.md#task-9-danger-zone-purge-actions-in-settings) adds an application-owned `PurgePort`. `DangerZoneModel` consumes single-use confirmation IDs and admits maintenance only when actual capture entry, recorder, inference, title adoption and save/conflict claims are idle. Queue/adoption/commit maintenance fences prevent new claims; generation cancellation rejects late readiness results. AppModel checks the purge journal before capture recovery or queue activation on every foreground entry. Deactivation alone never proves work has relinquished its resources. A title timeout also leaves the model owner busy until its cancelled call settles, even after fallback draft publication.
 
-`ApplePurgeService` owns an explicit staging allowlist and a protected, backup-excluded intent outside those roots. The four roots are Captures (audio, receipts, destination snapshots, candidates and drafts), ProcessingQueue, ConflictSnapshots and PrivateWorkspaces. It preserves roots retained by live adapters and does not delete model/Settings/Keychain data or unrelated temporary files. Folder deletion additionally requires staging to finish; only validated completed queue history may remain and is preserved. Admission checks inspect bounded, stable, nonlinked records on a utility task and reject all unfinished or unrecognized contents. Folder deletion binds the committed destination ID and root resource identity, borrows balanced active-destination access, and uses bounded file coordination. `PurgeFileTree` streams descriptor-relative non-following traversal with bounded depth, identity/attachment rechecks, final-empty verification and sanitized counts. Links are unlinked without following targets.
+`ApplePurgeService` owns an explicit staging allowlist and a protected, backup-excluded intent outside those roots. The four roots are Captures (audio, receipts, destination snapshots, candidates and drafts), ProcessingQueue, ConflictSnapshots and PrivateWorkspaces. PrivateWorkspaces includes the independent DiaryEdits journal/retirement data and disposable DiaryReplay cache; unfinished edit artifacts block folder purge, while empty edit/replay namespaces do not. It preserves roots retained by live adapters and does not delete model/Settings/Keychain data or unrelated temporary files. Folder deletion additionally requires staging to finish; only validated completed queue history may remain and is preserved. Admission checks inspect bounded, stable, nonlinked records on a utility task and reject all unfinished or unrecognized contents. Folder deletion binds the committed destination ID and root resource identity, borrows balanced active-destination access, and uses bounded file coordination. `PurgeFileTree` streams descriptor-relative non-following traversal with bounded depth, identity/attachment rechecks, final-empty verification and sanitized counts. Links are unlinked without following targets.
 
 A partial failure retains the journal and maintenance fence. Reopening reads the intent without automatically repeating deletion; only reconfirmed retry of the same transaction can resume. A malformed or protected journal fails closed. Journal deletion is the final commit point permitting reconciliation and new work. Success reflects the coordinated local traversal; other iCloud clients may later add content. Physical provider/lock/VoiceOver evidence remains in the Task 9 checklist.
 
@@ -235,7 +310,10 @@ Notifications are optional. When first needed, request permission and schedule `
 | Title model unavailable, unusable, or timed out | Use the approved fallback in the managed draft; a cancelled model retains ownership until settlement | Continue draft/save work without a title-failure state or late replacement of the saved fallback. |
 | Markdown draft publication or queue transition fails after candidate handoff | Retain audio and the verified candidate or matching verified draft; pause/defer adoption when storage is unavailable | Show pending-work attention and reconcile retained evidence when access returns; a valid candidate handoff avoids retranscription. |
 | Destination access lost | Continue local transcription and retain the Markdown/audio candidate, with no automatic retargeting | Ask for restored access and automatically retry the saved draft when it returns; if permanently lost, offer explicit replacement for that job. |
-| Confirmed removal of pending or failed recording | Invalidate work, then durably remove its private data and job after any in-progress write is reconciled | Entry disappears after cleanup; a late inference result cannot publish an asset. |
+| Confirmed removal of pending or failed recording | Invalidate work and retain cancellation/removal markers until relevant accessors settle and private cleanup completes | Show Cancelling while unsettled; preserve an already verified saved asset and explain completion. |
+| Committed diary deletion blocked by title, edit, replay, or creation ownership | Preserve the pair; withhold deletion until admission/settlement checks pass | Show a typed reason; require fresh confirmation after a failed attempt. |
+| Only part of a committed diary pair deleted | Preserve surviving files; no automatic destructive retry | Report incomplete deletion and rediscover surviving content in Incomplete Diary Snippets. |
+| Purge interrupted or its journal unavailable | Retain durable intent/maintenance barrier; block new recording and processing | Reconcile the intent and require explicit reconfirmed retry before further deletion. |
 | Partial iCloud write with retained candidate | Job and local candidate remain until verification | Hide the incomplete set and repair it from the retained candidate on reopen. |
 | Incomplete iCloud pair without local candidate | Preserve surviving files until explicit removal | Flag the pair; show available content read-only and a missing-file reason; offer confirmed removal. |
 | Conflicting iCloud versions | Use iCloud modification time when values are comparable; preserve both if equal or missing | For equal or missing times, let the user open two separate versions and choose one. |
@@ -299,7 +377,7 @@ Bound decoding, inference, title work, enumeration, and downloads by bytes, time
 
 ### Mutation and recovery integrity
 
-Use private job-to-file ownership and commit evidence for cleanup; an external asset ID, timestamp, filename, or front-matter flag is never deletion authority. Confirmed removal of an incomplete external pair is limited to the exact validated resources shown to the user and must recheck their identities/versions. Refuse deletion if references are unsafe, files changed, or another asset shares a referenced file; never recursively remove a user-selected directory. Private job cleanup is confined to its validated private subtree. A malformed job or restored tombstone cannot supply an arbitrary deletion path.
+Use private job-to-file ownership and commit evidence for cleanup; an external asset ID, timestamp, filename, or front-matter flag is never deletion authority. Confirmed deletion of a complete or incomplete external pair is limited to the exact validated resources shown to the user and must recheck their identities/versions. Refuse pair deletion if references are unsafe, files changed, or another asset shares a referenced file; pair deletion never recursively removes a user-selected directory. Only the separately confirmed [active-folder purge](#explicit-purge-maintenance) authorizes recursive removal of its bound folder contents. Private job cleanup is confined to its validated private subtree. A malformed job or restored tombstone cannot supply an arbitrary deletion path.
 
 The [commit protocol](#asset-commit-and-icloud-behavior) verifies expected contents before releasing staging. Recovery must distinguish an uncommitted partial write from a later external edit; never repair solely because IDs match. All write, repair, retarget, and removal callbacks are fenced by current revisions, including title results for body edits. Duplicate IDs in separate external resources remain separate ambiguous items until reconciled; catalog deduplication applies only to repeated observations of the same validated resource/version. A forged ID must not hide another file or authorize overwriting it.
 
@@ -312,6 +390,22 @@ Use protocol-driven fakes for the recorder, transcriber, destination access, ass
 The most valuable workflow tests exercise durable boundaries: relaunch after every queue transition, changed Settings before processing starts, changed active folder after recording starts, missing or not-ready local model, manual retry, offline recovery, unavailable destination, partial asset write, and external asset edits. Add a three-job queue with a waiting oldest job, a failed or timed-out next job, and a ready newest job; verify that the newest completes, each prior job retains its files and reason, and no failed job spins. A malformed job record must not prevent reconciliation of valid jobs. A simulated queue-store write failure must preserve files without reporting false progress. Device checks must cover microphone interruptions, Apple readiness for both languages, bounded cancellation of hung inference, iCloud folder creation and revocation, coordinated file behavior, and model input compatibility. P1-M6 supplied short English/Korean Q4_K_M and Q5_K_M target-phone latency and footprint observations; it did not establish five-minute quality, energy, cancellation settlement, or reference-scored accuracy. P1-M12 and P1-M19 retain those production evidence duties. These checks are implementation evidence for the approved contracts.
 
 The [adversarial verification matrix](security-review.md#adversarial-verification-matrix) adds containment, parser, model-integrity, disclosure, lock-state, and race tests with observable pass criteria. These are required evidence for the implementing milestones, not claims that this documentation review ran an app or passed a security gate.
+
+### State and deletion verification matrix
+
+The following existing seams make the state contracts reviewable. Source references identify coverage to maintain, not new test or device-pass claims. M21's [review evidence](phase-1/milestone-21-architecture-gui-enhancement-architecture.md#task-2b-state-and-deletion-documentation-review) records validation for this documentation change.
+
+| Scenario and required invariant | Existing test seam |
+|---|---|
+| Deadline returns fallback while the original title owner stays busy; competing requests do not replace it; late output cannot rewrite the title | `DiaryTitlePolicyTests`, `DiaryDraftAdoptionTests` |
+| Candidate/draft handoff survives restart and a removal marker fences a late title result | `DiaryDraftAdoptionTests`, `ProcessingQueueTests` |
+| Body edit has stable submission identity, regenerates title, and survives uncertain acceptance; Favorite preserves title | `DiaryEditTests` |
+| Pending removal during transcription/save waits for accessors and survives failed removal writes | `ProcessingQueueTests`, `RecordingRemovalPresentationTests` |
+| Detail confirmation is current and single-use, replay settles, retained/uncertain edits and title ownership block admission | `DiaryDeletionTests`, `DiaryDeletionPresentationTests`, shared edit/title ownership checks |
+| Exact selected pair only, including eligible legacy; changed/symlinked files are preserved; creation cleanup required; partial deletion retains text | `DiaryDeletionStorageTests` |
+| Purge requires idle owners and a durable restart barrier; scope exclusions and completed history survive | `PurgeTests`, `PurgeCompletedHistoryTests`, `DiaryPurgeNamespaceTests` |
+
+Target-iPhone/native-model settlement, real-provider coordination/upload/version behavior, iCloud deletion propagation, lock/protection, and assistive-technology evidence remain with M12–M20 and M19 as applicable. Documentation and simulator checks do not close those obligations.
 
 ## Remaining implementation evidence
 

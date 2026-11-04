@@ -2,22 +2,21 @@
 
 Status: Active
 
-How to set up `Narihito's Diary Mobile`, validate changes on Simulator and a real iPhone, write commit messages, and open a pull request.
+How to set up `Narihito's Diary Mobile`, validate changes on Simulator and a real iPhone, and follow code, repository, and commit conventions.
 
 ## Setup and development
 
 - macOS with Xcode 27.2 or later and the iOS SDK.
 - SwiftLint installed and available on PATH.
+- swift-format installed and available on PATH.
 - XcodeGen installed and available on PATH.
 - Python 3 available on PATH for simulator destination selection.
 - An iPhone simulator suitable for the target device.
 
 ```sh
-make lint                                     # check Swift formatting and lint
 make generate                                 # generate the Xcode project
 make build                                    # generate and build for the iOS Simulator
 make open                                     # generate and open the project in Xcode
-TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh
 ```
 
 The root Makefile is a convenience wrapper around XcodeGen and `xcodebuild`;
@@ -31,14 +30,27 @@ available team; no machine-specific Team ID is committed to the repository.
 
 ## Required validation
 
-For milestones other than P1-M1, P1-M2, P1-M4, P1-M5, and P1-M6, run the full checks from the repository root before opening a pull request. The owner exempted those milestones from build, lint, and test gates; see the [Phase 1 changelog](phase-1/changelog.md).
+Run the full checks from the repository root before opening a pull request, subject to the milestone exemptions in the [definition of done](development-process.md#definition-of-done).
 
 ```sh
 make lint
 TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh
 ```
 
-The lint script checks tracked and unignored new Swift files, including trial sources, while excluding ignored build and dependency output. It requires Git, swift-format, and SwiftLint; run it independently with `make lint`. The validation script selects a booted iPhone when exactly one is available. Otherwise, set `TEST_DESTINATION` to an available iPhone simulator ID; the script lists candidates when selection is ambiguous. It checks CoreSimulator access before generation, then builds and tests on the same destination. Successful command output stays quiet; failures print a short log tail and retain the full logs at the reported temporary path. Simulator destination resolution fails after 60 seconds, and each test receives at most 120 seconds. Positive-integer `SIMULATOR_DESTINATION_TIMEOUT_SECONDS` and `TEST_EXECUTION_TIMEOUT_SECONDS` overrides are available for slower machines or explicitly long-running tests. If CoreSimulator reports a connection or permission error under a restricted shell, run the gate in a shell with simulator service access.
+The lint script checks tracked and unignored new Swift files, including trial sources, while excluding ignored build and dependency output. It requires Git, swift-format, and SwiftLint. The validation script selects a booted iPhone when exactly one is available. Otherwise, set `TEST_DESTINATION` to an available iPhone simulator ID; the script lists candidates when selection is ambiguous. It checks CoreSimulator access before generation, then builds and tests on the same destination. Successful command output stays quiet; failures print a short log tail and retain the full logs at the reported temporary path. Simulator destination resolution fails after 60 seconds, and each test receives at most 120 seconds. Positive-integer `SIMULATOR_DESTINATION_TIMEOUT_SECONDS` and `TEST_EXECUTION_TIMEOUT_SECONDS` overrides are available for slower machines or explicitly long-running tests.
+
+### CoreSimulator access in restricted shells
+
+If `xcrun simctl list devices available` or `scripts/validate.sh` reports `CoreSimulatorService connection became invalid`, `Connection refused`, or a permission error for CoreSimulator logs, first suspect restricted-shell access to the simulator service. Retry discovery with simulator service access (request command escalation in an agent sandbox), then run the gate with an explicit available iPhone simulator ID under the same access. A successful retry identifies an environment restriction; do not change app code or reset simulators to address it. If access cannot be granted or the retry still fails, leave the validation checklist item unchecked and report the blocker. A generic build or lint pass alone does not satisfy the simulator test gate.
+
+## Code and repository conventions
+
+- Use Swift and SwiftUI, following the [inward source-dependency rule](architecture.md#clean-architecture-layers-and-dependency-rule). Format Swift with swift-format and resolve SwiftLint warnings.
+- Use UTC for asset file/directory names and local time for display, following the [asset contract](product-behavior.md#assets-and-metadata).
+- Use XcodeGen for project generation. Set the deployment target to iOS 27.0 and enforce iOS 27.0.1 at launch; see the [P1-M3 approach](phase-1/milestone-03-scaffolding-architecture.md).
+- Project-owned code is Apache-2.0. Dependency license compatibility is not an approval or milestone gate; changes to dependencies or build tools still require owner approval.
+- Do not place Git worktrees under the project root's `tmp/` directory, including `tmp/worktree/`; they cause SwiftLint to fail.
+- Keep implementation, tests, and affected docs in the same change. Follow the [documentation rules](development-process.md#documentation-rules).
 
 ## Real-iPhone testing with MobileBuildMCP
 
@@ -155,7 +167,3 @@ Keep each commit focused. Example:
 
     Nested list items were flattened into a single level. Keep the nesting
     so the parsed document matches the source.
-
-## Pull requests
-
-TBD

@@ -74,16 +74,22 @@ struct DiaryEditTests {
     let store = MemoryDiaryEditStore()
     let model = EditTitleModel()
     model.hold = true
-    let editor = await coordinator(store, model: model)
+    let titles = DiaryTitlePolicy(model: model, languageDetector: EditLanguageDetector())
+    let editor = DiaryEditCoordinator(store: store, titles: titles)
+    editor.activate()
+    await settle(editor)
     let session = try DiaryEditFixture.session()
     let intent = DiaryEditSubmission(id: UUID(), sessionID: session.id, change: .body("Submitted."))
     #expect(await editor.submit(intent, session: session) == .accepted(intent.id))
     for _ in 0..<1_000 where model.continuation == nil { await Task.yield() }
     #expect(store.records[intent.id]?.stage == .accepted)
+    #expect(titles.workSnapshot?.owner == .edit(submissionID: intent.id))
+    #expect(titles.workSnapshot?.phase == .generating)
     editor.deactivate()
     model.continuation?.resume(
       returning: TitleModelReply(text: "A peaceful afternoon", outputTokens: 5))
     await settle(editor)
+    #expect(titles.workSnapshot == nil)
     #expect(store.records[intent.id]?.stage == .ready)
     #expect(store.publishCount == 0)
     editor.activate()

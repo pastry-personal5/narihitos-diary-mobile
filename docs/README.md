@@ -2,11 +2,28 @@
 
 Status: Active
 
-This index lists the design and process docs, one line each. Read only the doc you need. The rules for writing docs are in [AGENTS.md](../AGENTS.md) under "Documentation".
+Start with the guides below, then read only the relevant milestone or research record. Follow the [documentation rules](development-process.md#documentation-rules) when editing or adding docs.
+
+## Guides
 
 | Doc | What it covers |
-|-----|----------------|
+|---|---|
+| [../README.md](../README.md) | User overview and known issues. |
+| [../AGENTS.md](../AGENTS.md) | Agent workflow, approval boundaries, and decision links; imported by `CLAUDE.md`. |
 | [roadmap.md](roadmap.md) | Project phases and the active phase. |
+| [architecture.md](architecture.md) | Clean Architecture boundaries, state ownership, title settlement, recording removal, diary deletion, purge recovery, and implementation evidence gates. |
+| [security-review.md](security-review.md) | Architecture threat model, approved controls, prioritized findings, and pending adversarial verification. |
+| [development-process.md](development-process.md) | Phases, milestones, definition of done, validation exemptions, documentation rules, and archival. |
+| [contribution-guide.md](contribution-guide.md) | Setup, commands, code/repository conventions, simulator access, real-iPhone testing, and commit messages. |
+| [product-behavior.md](product-behavior.md) | Product scope: what the app does and what it deliberately does not do. |
+| [ux-terms.md](ux-terms.md) | Exact approved labels and canonical workflow concepts with code-facing identifiers. |
+| [ux-information-architecture.md](ux-information-architecture.md) | The Standard Layout: root hierarchy, destinations, and recovery boundaries. |
+| [ux-gui.md](ux-gui.md) | Current interface and owner-approved GUI behavior, with planned behavior kept separate. |
+
+## Phase 1 plans and evidence
+
+| Doc | What it covers |
+|---|---|
 | [phase-1/phase-1.md](phase-1/phase-1.md) | Phase 1 milestones. |
 | [phase-1/milestone-01-research-overview.md](phase-1/milestone-01-research-overview.md) | Completed P1-M1 research scope, evidence checklist, and Cohere device-trial handoff. |
 | [phase-1/milestone-01-research-architecture.md](phase-1/milestone-01-research-architecture.md) | P1-M1 research approach. |
@@ -61,16 +78,14 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [phase-1/milestone-15-legacy-format.md](phase-1/milestone-15-legacy-format.md) | Owner-evidenced pre-v1 timestamp/header/audio layout and synthetic-fixture contract. |
 | [phase-1/milestone-20-enhancements-fixes-refactoring-overview.md](phase-1/milestone-20-enhancements-fixes-refactoring-overview.md) | Active P1-M20 checklists, Settings and transcription repairs, installed-Q4 false storage pause, phone/runtime evidence, recording controls, Danger Zone purges, Diary Snippet deletion, and implementation-review fixes. |
 | [phase-1/milestone-20-enhancements-fixes-refactoring-architecture.md](phase-1/milestone-20-enhancements-fixes-refactoring-architecture.md) | P1-M20 repair approaches, folder-picker, Settings, Q4 result handoff/storage pause, Korean Q4/Q5 recovery, Apple Local diagnosis, pair metadata, responsiveness, exact-pair deletion, and purge/interaction safeguards. |
-| [phase-1/milestone-21-architecture-gui-enhancement-overview.md](phase-1/milestone-21-architecture-gui-enhancement-overview.md) | Planned post-M19 architecture enhancement and owner-requested GUI enhancement scope and completion checklist. |
-| [phase-1/milestone-21-architecture-gui-enhancement-architecture.md](phase-1/milestone-21-architecture-gui-enhancement-architecture.md) | Current queue/title/draft/commit evidence, proposed lifecycle reporting, ownership settlement, and M16 compatibility. |
-| [architecture.md](architecture.md) | Clean Architecture boundaries, asset and transcription extensions, recovery, and implementation evidence gates. |
-| [security-review.md](security-review.md) | Architecture threat model, approved controls, prioritized findings, and pending adversarial verification. |
-| [development-process.md](development-process.md) | Phases, milestones, IDs (`P1-M2`), definition of done, where plans live, and doc status values. |
-| [contribution-guide.md](contribution-guide.md) | Local setup, simulator validation, real-iPhone MobileBuildMCP testing and options, commit message style, and pull request conventions. |
-| [product-behavior.md](product-behavior.md) | Product scope: what the app does and what it deliberately does not do. |
-| [ux-terms.md](ux-terms.md) | Exact approved labels and canonical workflow concepts with code-facing identifiers. |
-| [ux-information-architecture.md](ux-information-architecture.md) | The Standard Layout: root hierarchy, destinations, and recovery boundaries. |
-| [ux-gui.md](ux-gui.md) | Current interface and owner-approved GUI behavior, with planned behavior kept separate. |
+| [phase-1/milestone-21-architecture-gui-enhancement-overview.md](phase-1/milestone-21-architecture-gui-enhancement-overview.md) | Active post-M16 architecture enhancement, title/state/deletion reviews, documentation consolidation, and remaining GUI checklist. |
+| [phase-1/milestone-21-architecture-gui-enhancement-architecture.md](phase-1/milestone-21-architecture-gui-enhancement-architecture.md) | Queue/title/draft/commit evidence, shared title-work snapshots, state/deletion review findings, remaining lifecycle proposal, and M16 compatibility. |
+| [phase-1/changelog.md](phase-1/changelog.md) | Phase 1 owner decisions and plan changes. |
+
+## Research
+
+| Doc | What it covers |
+|---|---|
 | [research/initial-ideas-from-owner.md](research/initial-ideas-from-owner.md) | Narihito's Diary Mobile, in short, NDM, or ndm is an app that creates assets. |
 | [research/p1-m1-qwen-transcription.md](research/p1-m1-qwen-transcription.md) | Qwen transcription research for English and Korean diary recordings. |
 | [research/p1-m1-audio-format.md](research/p1-m1-audio-format.md) | iPhone recording format research and provisional codec/bitrate recommendation. |
@@ -81,4 +96,3 @@ This index lists the design and process docs, one line each. Read only the doc y
 | [research/p1-m1-cohere-transcribe-iphone.md](research/p1-m1-cohere-transcribe-iphone.md) | ASR-only Cohere Transcribe en-US/ko-KR iPhone paths across Core ML, GGUF, and Swift/MLX, with measured evidence and efficient device-trial design. |
 | [research/p1-m1-platform-decision-evidence.md](research/p1-m1-platform-decision-evidence.md) | Apple platform evidence and device-trial gaps for iCloud commits, speech readiness, titles, context, private staging, and reminders. |
 | [research/p1-m1-open-decisions.md](research/p1-m1-open-decisions.md) | Closed P1-M1/P1-M5 decision inventory with remaining implementation-evidence and P1-M6 handoffs. |
-| [phase-1/changelog.md](phase-1/changelog.md) | Phase 1 owner decisions and plan changes. |

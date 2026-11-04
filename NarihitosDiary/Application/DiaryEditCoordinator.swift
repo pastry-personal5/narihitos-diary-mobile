@@ -333,7 +333,7 @@ extension DiaryEditCoordinator {
     guard record.stage == .accepted else { return record }
     var candidate = try await store.candidate(for: record)
     if record.regeneratesTitle {
-      let title = await titles.title(for: candidate.body)
+      let title = await titles.title(for: candidate.body, owner: .edit(submissionID: record.id))
       candidate.title = title.text
       candidate.titleProvenance = title.provenance
     }

@@ -244,6 +244,76 @@ struct DiaryTitlePolicyTests {
     #expect(model.calls == 1)
     model.pending?.resume(returning: TitleModelReply(text: "Late title", outputTokens: 2))
   }
+
+  @Test func completedTitleReportsGeneratingThenIdle() async throws {
+    let model = StubTitleModel()
+    model.replies = [TitleModelReply(text: "A day of writing", outputTokens: 5)]
+    let policy = policy(model)
+    let owner = DiaryTitleWorkOwner.edit(submissionID: UUID())
+    var changes: [DiaryTitleWorkSnapshot?] = []
+    policy.onWorkChange = { changes.append($0) }
+    #expect(policy.workSnapshot == nil)
+    let result = await policy.title(for: try DiaryBody("I wrote about my day."), owner: owner)
+    #expect(result.text == "A day of writing")
+    #expect(changes.count == 2)
+    #expect(changes.first??.owner == owner)
+    #expect(changes.first??.phase == .generating)
+    #expect(changes.last! == nil)
+    #expect(policy.workSnapshot == nil)
+    #expect(!policy.hasActiveWork)
+  }
+
+  @Test(arguments: [true, false])
+  func timeoutKeepsOriginalOwnerUntilSettlement(recordingFirst: Bool) async throws {
+    let model = SuspendedTitleModel()
+    let policy = policy(model, timeout: .milliseconds(300))
+    let recording = DiaryTitleWorkOwner.recording(
+      jobID: UUID().uuidString.lowercased(), attemptID: UUID(), attemptGeneration: 3,
+      destinationRevision: 2, bodyRevision: 1)
+    let edit = DiaryTitleWorkOwner.edit(submissionID: UUID())
+    let owner = recordingFirst ? recording : edit
+    let competitor = recordingFirst ? edit : recording
+    var changes: [DiaryTitleWorkSnapshot?] = []
+    policy.onWorkChange = { changes.append($0) }
+    let body = try DiaryBody("I wrote about my day. Another sentence.")
+    let operation = Task { await policy.title(for: body, owner: owner) }
+    for _ in 0..<1_000 where model.pending == nil { await Task.yield() }
+    let pending = try #require(model.pending)
+    let started = try #require(policy.workSnapshot)
+    #expect(started.owner == owner)
+    #expect(started.phase == .generating)
+    let fallback = await operation.value
+    #expect(fallback.provenance.originID.description == "first-sentence")
+    let settling = try #require(policy.workSnapshot)
+    #expect(settling.operationID == started.operationID)
+    #expect(settling.owner == owner)
+    #expect(settling.phase == .settling)
+    #expect(policy.hasActiveWork)
+
+    let competing = await policy.title(for: body, owner: competitor)
+    #expect(competing == fallback)
+    #expect(policy.workSnapshot == settling)
+    #expect(model.calls == 1)
+    #expect(changes.count == 2)
+    model.pending = nil
+    pending.resume(returning: TitleModelReply(text: "Late model title", outputTokens: 3))
+    for _ in 0..<1_000 where policy.hasActiveWork { await Task.yield() }
+    #expect(policy.workSnapshot == nil)
+    #expect(changes.count == 3)
+    #expect(changes.last! == nil)
+    #expect(fallback.text == "I wrote about my day.")
+
+    let next = Task { await policy.title(for: body, owner: competitor) }
+    for _ in 0..<1_000 where model.pending == nil { await Task.yield() }
+    let nextPending = try #require(model.pending)
+    #expect(policy.workSnapshot?.operationID != started.operationID)
+    #expect(policy.workSnapshot?.owner == competitor)
+    #expect(policy.workSnapshot?.phase == .generating)
+    nextPending.resume(returning: TitleModelReply(text: "A day of writing", outputTokens: 5))
+    #expect(await next.value.text == "A day of writing")
+    #expect(policy.workSnapshot == nil)
+    #expect(changes.count == 5)
+  }
 }
 
 // swiftlint:enable trailing_comma

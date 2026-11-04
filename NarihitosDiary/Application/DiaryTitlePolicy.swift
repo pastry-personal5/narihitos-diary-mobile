@@ -16,6 +16,25 @@ struct TitleLanguageAssessment: Equatable, Sendable {
   let confidence: Double
 }
 
+/// Correlation only; these values grant no authority to publish or remove data.
+enum DiaryTitleWorkOwner: Equatable, Sendable {
+  case recording(
+    jobID: String, attemptID: UUID?, attemptGeneration: Int,
+    destinationRevision: Int, bodyRevision: Int)
+  case edit(submissionID: UUID)
+}
+
+struct DiaryTitleWorkSnapshot: Equatable, Sendable {
+  enum Phase: Equatable, Sendable {
+    case generating
+    case settling
+  }
+
+  let operationID: UUID
+  let owner: DiaryTitleWorkOwner?
+  let phase: Phase
+}
+
 @MainActor
 protocol DiaryTitleLanguageDetector {
   func assess(_ text: String) -> TitleLanguageAssessment?
@@ -39,10 +58,11 @@ final class DiaryTitlePolicy {
   private let languageDetector: any DiaryTitleLanguageDetector
   private let clock = ContinuousClock()
   private let timeout: Duration
-  private var modelOperationInFlight = false
+  private(set) var workSnapshot: DiaryTitleWorkSnapshot?
+  var onWorkChange: (@MainActor (DiaryTitleWorkSnapshot?) -> Void)?
 
   /// A deadline can return a fallback before a cancelled model call relinquishes work.
-  var hasActiveWork: Bool { modelOperationInFlight }
+  var hasActiveWork: Bool { workSnapshot != nil }
 
   init(
     model: any DiaryTitleModelPort, languageDetector: any DiaryTitleLanguageDetector,
@@ -53,23 +73,33 @@ final class DiaryTitlePolicy {
     self.timeout = timeout
   }
 
-  func title(for body: DiaryBody) async -> GeneratedDiaryTitle {
+  func title(for body: DiaryBody, owner: DiaryTitleWorkOwner? = nil) async -> GeneratedDiaryTitle {
     let fallback = Self.fallback(body.text)
-    guard !modelOperationInFlight else { return fallback }
-    modelOperationInFlight = true
+    guard !hasActiveWork else { return fallback }
+    let operationID = UUID()
+    updateWork(DiaryTitleWorkSnapshot(operationID: operationID, owner: owner, phase: .generating))
     let result = await withCheckedContinuation { continuation in
       let gate = TitleDeadlineGate(continuation)
       gate.inference = Task { [self] in
         let result = await computeTitle(for: body)
-        modelOperationInFlight = false
+        updateWork(nil)
         gate.resolve(result, fromTimeout: false)
       }
       gate.timer = Task { [self] in
         do { try await Task.sleep(for: timeout) } catch { return }
-        gate.resolve(nil, fromTimeout: true)
+        if gate.resolve(nil, fromTimeout: true) {
+          updateWork(
+            DiaryTitleWorkSnapshot(operationID: operationID, owner: owner, phase: .settling))
+        }
       }
     }
     return result ?? fallback
+  }
+
+  private func updateWork(_ snapshot: DiaryTitleWorkSnapshot?) {
+    guard workSnapshot != snapshot else { return }
+    workSnapshot = snapshot
+    onWorkChange?(snapshot)
   }
 
   // swiftlint:disable:next cyclomatic_complexity
@@ -211,10 +241,12 @@ private final class TitleDeadlineGate {
     self.continuation = continuation
   }
 
-  func resolve(_ result: GeneratedDiaryTitle?, fromTimeout: Bool) {
-    guard let continuation else { return }
+  @discardableResult
+  func resolve(_ result: GeneratedDiaryTitle?, fromTimeout: Bool) -> Bool {
+    guard let continuation else { return false }
     self.continuation = nil
     if fromTimeout { inference?.cancel() } else { timer?.cancel() }
     continuation.resume(returning: result)
+    return true
   }
 }

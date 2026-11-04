@@ -6,7 +6,7 @@ Complete the four All recovery destinations with truthful state, safe inspection
 
 ## Entry and locked inputs
 
-- Implementation follows P1-M16 under [Phase 1 order](phase-1.md), unless the owner authorizes a reorder. This request plans M17 only; it does not start implementation or close earlier checklist, simulator, or device evidence.
+- Implementation follows P1-M21 under [Phase 1 order](phase-1.md), unless the owner authorizes a reorder. This request plans M17 only; it does not start implementation or close earlier checklist, simulator, or device evidence.
 - Follow the approved [product behavior](../product-behavior.md), [recovery architecture](../architecture.md#failure-and-recovery-contract), [mutation controls](../architecture.md#mutation-and-recovery-integrity), [GUI](../ux-gui.md#planned-owner-approved-behavior), and [P1-M5 contracts](milestone-05-decisions-architecture.md). No new product decision, dependency, build tool, schema for finished assets, or transcription method is proposed.
 - Consume M9 capture recovery, M10 durable queue/quarantine, M11/M12 method readiness, M13 managed drafts, M14 commit/repair/conflict proof, M15 exact-version recovery discovery, and M16 independent submitted-edit journals and replay/session ownership. Earlier platform evidence remains open where its milestone records say so.
 - M18 retains context acquisition and notification permission/scheduling. M19 retains complete-experience validation and the full adversarial matrix. M17 supplies reliable pending/recovery projections for those milestones.
@@ -52,7 +52,7 @@ No finished-asset deletion, automatic text merge, edit history, legacy migration
 - [ ] English/Korean, largest Dynamic Type, VoiceOver, Reduce Motion, light/dark, small/large iPhone layouts, custom bitmap semantics, 44-point targets, inert rendering, and privacy/diagnostic checks pass for recovery views, tabs, confirmations, and replay.
 - [ ] Focused state-machine, adapter, race, confinement, fault/relaunch, and presentation checks cover the [approach](milestone-17-recovery-architecture.md), including relevant [V-01–V-04, V-08–V-12](../security-review.md#adversarial-verification-matrix) scenarios. Command execution and first-pass failure analysis are delegated to `test_runner`.
 - [ ] `make lint` passes for the implementation; record date/revision and concise result.
-- [ ] `TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh` passes for the implementation; record destination/date/revision. If CoreSimulator is restricted, follow [the access-retry rule](../../AGENTS.md#coresimulator-access-in-restricted-shells); an unavailable gate stays unchecked.
+- [ ] `TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh` passes for the implementation; record destination/date/revision. If CoreSimulator is restricted, follow [the access-retry rule](../contribution-guide.md#coresimulator-access-in-restricted-shells); an unavailable gate stays unchecked.
 - [ ] Target-iPhone [M17-D01–D10](milestone-17-recovery-device-evidence.md) have redacted passing observations; provider/version deletion, restore, protected storage, audio-session, and privacy behavior are not inferred from simulator results.
 - [ ] Update affected product/UX/architecture/user docs and Phase 1 status with actual implementation evidence and inherited blockers. Do not mark the milestone Done while required checklist or gate evidence is missing.
 
