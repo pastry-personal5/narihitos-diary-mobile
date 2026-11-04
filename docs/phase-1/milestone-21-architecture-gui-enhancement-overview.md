@@ -65,6 +65,22 @@ Requested on 2026-11-04: remove repeated documentation, shorten `AGENTS.md` with
 
 Task 2c completed, 2026-11-04 KST: reduced `AGENTS.md` from 2,498 to 418 words and replaced repeated README/phase-plan repair history and schema detail with links to their owning records. Contributor setup, conventions, and simulator recovery now live in the contribution guide; documentation rules and exemptions live in the development process. Repaired stale architecture/agent anchors and UX decision references; the index covers every active `docs/` Markdown file. Local project-document link/fragment checks and `git diff --check` pass. `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` pass (generation, lint, build, tests; iPhone 18 Pro, iOS 27.0). Restricted-shell simulator discovery failed initially; discovery and validation succeeded with service access. This documentation task adds no runtime or physical-device acceptance; existing implementation edits and open GUI/device evidence are preserved.
 
+## Task 3: Narrow iCloud identity decoding classes
+
+Requested on 2026-11-04: reduce the runtime `NSKeyedUnarchiver` warning caused by allowing `NSObject` while comparing saved iCloud identity tokens. Preserve opaque `isEqual` comparison, existing archives, account-change fencing, and folder data. Derive the expected archive class only from the live system token's public coding metadata; never trust a class named by stored bytes or hard-code a private class name.
+
+### Task 3 acceptance checklist
+
+- [x] Replace the `NSObject` decoding allowance with the live token's coding class; fail closed when the identity or a suitably narrow class is unavailable.
+- [x] Verify matching and different identities, existing non-secure archive compatibility, malformed input, unexpected root/nested classes, missing identity, and refusal of an `NSObject` coding class using synthetic tokens.
+- [x] Run `make lint` and the required full simulator validation gate; record results and remaining target-iPhone warning/relaunch limitations.
+- [x] Reconcile the implementation approach and owning identity-round-trip documentation without closing earlier physical-device evidence.
+- [ ] Confirm warning disappearance and saved-folder access after relaunch on the target iPhone. This session has synthetic simulator evidence only; the M8-D04 physical-token round trip remains open.
+
+Task 3 focused evidence, 2026-11-04 KST: MobileBuildMCP reports 44 passed, zero failed/skipped across `UbiquityIdentityDecodingTests`, `DestinationTransactionTests`, and `FirstLaunchAndDestinationTests` on iPhone 18 Pro / iOS 27.0. The focused test log contains no `allowed classes list contains` warning. `make lint`, 35 local Markdown links/fragments, and `git diff --check` pass. The [implementation approach](milestone-21-architecture-gui-enhancement-architecture.md#task-3-icloud-identity-decoding-class-restriction) records compatibility and remaining device limits. No GUI or user-data changes are involved.
+
+Task 3 final gate, 2026-11-04 KST: `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` passes project generation, lint, build, and all simulator tests. Restricted-shell CoreSimulator discovery initially failed with connection refusal; service-access discovery and the full gate succeeded using the documented retry procedure. This closes simulator validation only; target-iPhone console/relaunch evidence remains unchecked above.
+
 ## Out of scope
 
 An unsolicited GUI redesign, new exact progress copy, a title editor, automatic regeneration when a model becomes ready, new durable queue states or schema migrations, a global replacement state machine, broad repository restructuring, dependencies/build-tool changes, and M16–M19 implementation. M21 does not waive earlier phone or adversarial evidence.

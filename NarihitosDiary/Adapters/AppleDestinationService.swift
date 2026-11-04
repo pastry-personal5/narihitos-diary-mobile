@@ -453,7 +453,17 @@ final class AppleDestinationPlatform: DestinationPlatform {
   }
 
   func identitiesMatch(_ stored: Data, _ current: Data) throws -> Bool {
-    let allowedClasses: [AnyClass] = [NSObject.self]
+    guard let token = fileManager.ubiquityIdentityToken as? NSObject else {
+      throw DestinationValidationError.identityUnavailable
+    }
+    // Trust only the live system token's archive class, never a class from stored bytes.
+    // Coding classes also handle Foundation class clusters without private class names.
+    let tokenClass: AnyClass = token.classForKeyedArchiver ?? token.classForCoder
+    guard tokenClass != NSObject.self,
+      let secureClass = tokenClass as? any NSSecureCoding.Type,
+      secureClass.supportsSecureCoding
+    else { throw DestinationValidationError.invalidReference }
+    let allowedClasses: [AnyClass] = [tokenClass]
     guard
       let storedToken = try NSKeyedUnarchiver.unarchivedObject(
         ofClasses: allowedClasses, from: stored) as? NSObject,

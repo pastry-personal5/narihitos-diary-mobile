@@ -53,6 +53,14 @@ The projection deliberately stops at the shared title owner. Candidate and draft
 
 Focused evidence lives in `DiaryTitlePolicyTests.completedTitleReportsGeneratingThenIdle` and the two directions of `timeoutKeepsOriginalOwnerUntilSettlement`. Existing adoption timeout/maintenance and edit acceptance/navigation regressions now assert the production callers' owner bindings and final idle state. The full gate also covers existing candidate/draft restart, removal fencing, commit/upload, and edit/replay maintenance scenarios. Simulator results do not close native model, real-provider, or physical-device evidence.
 
+## Task 3: iCloud identity decoding class restriction
+
+`AppleDestinationPlatform.identitiesMatch` previously supplied `[NSObject.self]` to both secure unarchive calls. That admits every Objective-C subclass and produces the owner's runtime warning. The replacement obtains a fresh `FileManager.ubiquityIdentityToken`, then uses its public `classForKeyedArchiver` (falling back to `classForCoder`) as the sole allowed class. This supports Foundation class clusters without naming private implementation classes or deriving identity from reflection. Missing identity requires restoration; an `NSObject` coding class or a class without secure-coding support fails closed. Stored bytes never select the allowed class.
+
+Both archived snapshots still decode and compare with `isEqual`, preserving existing account-change and transaction checks. Archive bytes, persistence formats, bounds, bookmark ownership, and folder contents are unchanged. Existing non-secure archives remain readable when their encoded objects support secure decoding; the adapter does not disable secure decoding to silence diagnostics. A changed platform coding representation may fail closed and require access restoration rather than broaden the allowance.
+
+`UbiquityIdentityDecodingTests` exercises the actual adapter through an injected `FileManager` with synthetic tokens: existing archive round trips, account mismatch, unexpected roots in either argument, malformed/truncated archives, absent identity, rejected `NSObject` coding metadata, and secure custom tokens with allowed/rejected nested values. The focused run passes all 44 tests across that suite, `DestinationTransactionTests`, and `FirstLaunchAndDestinationTests` on iPhone 18 Pro / iOS 27.0. The overview records the final gate. These synthetic tokens do not establish the current iPhone token's restart round trip or prove all framework-originated warnings absent; M8-D04 and the owner's physical-device console/relaunch verification remain open.
+
 ## Title lifecycle and M16 compatibility
 
 The implemented recording path is:
