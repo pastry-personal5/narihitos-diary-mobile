@@ -81,6 +81,23 @@ Task 3 focused evidence, 2026-11-04 KST: MobileBuildMCP reports 44 passed, zero 
 
 Task 3 final gate, 2026-11-04 KST: `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` passes project generation, lint, build, and all simulator tests. Restricted-shell CoreSimulator discovery initially failed with connection refusal; service-access discovery and the full gate succeeded using the documented retry procedure. This closes simulator validation only; target-iPhone console/relaunch evidence remains unchecked above.
 
+## Task 4: Automatically resume iCloud upload verification
+
+Requested on 2026-11-04: recordings repeatedly reach Pending with iCloud verification needed; tapping Retry Verification then makes the Diary Snippet appear in Main. Find the cause and automatically retry transient verification, adding scheduling/state fixes as needed. Preserve the M14 requirement for separate exact-version upload proof and final unchanged-pair verification before durable `saved` or staging cleanup.
+
+### Task 4 acceptance checklist
+
+- [x] Reproduce delayed upload followed by successful verification and document the scheduling root cause with a failing regression before the repair.
+- [x] Automatically retry transient upload/destination/protected-data waits with bounded backoff and fresh verification; avoid immediate loops, duplicate attempts, retranscription, and automatic recovery/conflict actions.
+- [x] Fence scheduling on inactivity, maintenance, queue pause, removal, and job replacement; resume pending verification on foreground/relaunch and retain immediate manual Retry.
+- [x] Verify delayed success, repeated waits/backoff, independent jobs, changed versions, recovery stops, suspension/resumption, and removal/maintenance races with deterministic synthetic tests.
+- [x] Update architecture, behavior, GUI, README, and milestone evidence; run lint and the required full simulator gate.
+- [ ] Verify the record → Pending → automatic Main transition against real iCloud on the target iPhone, including offline/foreground recovery. Simulator evidence alone cannot close this item.
+
+Task 4 focused evidence, 2026-11-04 KST: the pre-fix delayed-upload regression failed with the job still `readyToSave`, one upload check, no scheduled retry, and no cleanup; the other 13 commit tests passed. After repair, MobileBuildMCP reports 39 tests passed, zero failed/skipped across `DiarySaveSchedulerTests`, `DiaryCommitTests`, and `AppleDiaryPairStoreTests` on iPhone 18 Pro / iOS 27.0. The strengthened completion regression starts with only one file's upload proof, obtains both on retry, then observes exactly one saved event and cleanup. `make lint`, 392 local Markdown links/fragments, and `git diff --check` pass. The [implementation approach](milestone-21-architecture-gui-enhancement-architecture.md#task-4-automatic-icloud-verification-retries) records the root cause, scheduling/ownership boundaries, and the app-active execution limit. No target-phone Files/upload timing or suspended-app execution is claimed.
+
+Task 4 final gate, 2026-11-04 KST: `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` passes generation, lint, build, and all simulator tests. Initial restricted-shell discovery failed with CoreSimulator connection refusal; service-access discovery and the complete gate then succeeded using the documented retry. Earlier M14/M16 evidence remains open, as does Task 4's physical-iCloud acceptance above.
+
 ## Out of scope
 
 An unsolicited GUI redesign, new exact progress copy, a title editor, automatic regeneration when a model becomes ready, new durable queue states or schema migrations, a global replacement state machine, broad repository restructuring, dependencies/build-tool changes, and M16–M19 implementation. M21 does not waive earlier phone or adversarial evidence.

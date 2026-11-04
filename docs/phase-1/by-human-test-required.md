@@ -4,6 +4,10 @@ Status: Active
 
 This tracker lists physical-device scenarios that still need human observations. Record redacted results in the linked milestone evidence records.
 
+## P1-M21
+
+- [ ] Task 4: record a synthetic diary against the selected iCloud folder and confirm Pending verification completes automatically into Main without tapping Retry Verification. Repeat with initially unavailable uploads, app departure/return, and relaunch; confirm no duplicate pair or lost staging. Record only redacted state/timing and keep M14's exact-version upload evidence separate. See the [Task 4 checklist](milestone-21-architecture-gui-enhancement-overview.md#task-4-automatically-resume-icloud-upload-verification).
+
 ## P1-M16
 
 The [M16 connected-iPhone record](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md#connected-iphone-results) now contains passing synthetic storage/recovery/maintenance, native replay, and native Apple title checks. No complete M16-D01–D11 row is closed. Use disposable English/Korean fixtures and record the following remaining observations in that record:

@@ -88,8 +88,7 @@ final class AppModel: ObservableObject {
   private var editCoordinator: DiaryEditCoordinator?
   private var replayCoordinator: DiaryReplayCoordinator?
   private var audioOwnership: AudioSessionOwnership?
-  private var saveTasks: [String: Task<Void, Never>] = [:]
-  private var saveAttempted: Set<String> = []
+  private var saveScheduler: DiarySaveScheduler?
   private var savedFolderBannerTask: Task<Void, Never>?
   private var transcriptionSettings: PrivateSettingsRepository?
   private var appleReadiness: AppleTranscriptionReadiness?
@@ -233,6 +232,10 @@ final class AppModel: ObservableObject {
       conflicts: conflictInspector,
       conflictPairs: conflictPairs)
     commitCoordinator = commit
+    saveScheduler = DiarySaveScheduler(queue: queueStore) { [weak commit] id in
+      await commit?.attempt(jobID: id)
+    }
+    saveScheduler?.onChange = { [weak self] in self?.refreshCaptureLists() }
     processingQueue?.saveWork = commit
     commit.onChange = { [weak self] in self?.refreshCaptureLists() }
     commit.onSettled = { [weak self] jobID in
@@ -294,7 +297,7 @@ final class AppModel: ObservableObject {
 
   func becameActive() async {
     isAppActive = true
-    saveAttempted.removeAll()
+    saveScheduler?.reset()
     firstLaunch.refresh()
     microphoneState = microphone.currentState()
     locationState = location.currentState()
@@ -325,6 +328,7 @@ final class AppModel: ObservableObject {
 
   func becameInactive() {
     isAppActive = false
+    pumpSaves()
     dangerZone.disarm()
     catalog.stop()
     notices.setEnvironment(visible: false, paused: true)
@@ -363,7 +367,7 @@ final class AppModel: ObservableObject {
       editCoordinator?.activate()
       diaryActions.activate()
     }
-    saveAttempted.removeAll()
+    saveScheduler?.reset()
     pumpSaves()
   }
 
@@ -955,8 +959,7 @@ final class AppModel: ObservableObject {
   func retryQueueJob(_ id: String) {
     guard !dangerZone.blocksWork else { return }
     if processingQueue?.projections().first(where: { $0.id == id })?.state == .readyToSave {
-      saveAttempted.remove(id)
-      pumpSaves()
+      saveScheduler?.retry(id)
       return
     }
     processingQueue?.manualRetry(jobID: id)
@@ -964,20 +967,8 @@ final class AppModel: ObservableObject {
   }
 
   private func pumpSaves() {
-    guard !dangerZone.blocksWork, isAppActive, let commitCoordinator else { return }
-    let ready =
-      processingQueue?.projections().filter {
-        $0.state == .readyToSave && !saveAttempted.contains($0.id)
-      } ?? []
-    for job in ready {
-      saveAttempted.insert(job.id)
-      saveTasks[job.id] = Task { [weak self] in
-        await commitCoordinator.attempt(jobID: job.id)
-        self?.saveTasks.removeValue(forKey: job.id)
-        self?.refreshCaptureLists()
-        self?.pumpSaves()
-      }
-    }
+    saveScheduler?.pump(
+      enabled: !dangerZone.blocksWork && isAppActive && processingQueue?.pausedReason == nil)
   }
 
   func resumeQueueJob(_ id: String) {
@@ -989,7 +980,7 @@ final class AppModel: ObservableObject {
   func removeQueueJob(_ id: String) {
     guard !dangerZone.blocksWork else { return }
     processingQueue?.remove(jobID: id)
-    saveTasks[id]?.cancel()
+    saveScheduler?.cancel(id)
     refreshCaptureLists()
   }
 
@@ -997,13 +988,14 @@ final class AppModel: ObservableObject {
     guard !captureEntryInProgress, !isCapturePresented,
       processingQueue?.hasActiveWork != true, draftAdoption?.hasActiveWork != true,
       commitCoordinator?.hasActiveWork != true, editCoordinator?.hasActiveWork != true,
-      replayCoordinator?.hasActiveWork != true, saveTasks.isEmpty
+      replayCoordinator?.hasActiveWork != true, saveScheduler?.hasActiveWork != true
     else { return false }
     suspendPurgeWork()
     return true
   }
 
   private func suspendPurgeWork() {
+    saveScheduler?.pump(enabled: false)
     processingQueue?.suspendForMaintenance()
     draftAdoption?.suspendForMaintenance()
     commitCoordinator?.suspendForMaintenance()
@@ -1019,7 +1011,7 @@ final class AppModel: ObservableObject {
     commitCoordinator?.endMaintenance()
     editCoordinator?.endMaintenance()
     replayCoordinator?.endMaintenance()
-    saveAttempted.removeAll()
+    saveScheduler?.reset()
     refreshCaptureLists()
     if isAppActive {
       processingQueue?.activate()

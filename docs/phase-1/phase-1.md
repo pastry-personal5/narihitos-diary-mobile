@@ -134,7 +134,7 @@ Notes: The owner requested completion on 2026-11-03, authorizing implementation 
 Status: Active
 Goal: Enhance the software architecture, initially reviewing processing lifecycle reporting, and implement GUI enhancements supplied by the owner.
 Plan: [overview](milestone-21-architecture-gui-enhancement-overview.md), [approach](milestone-21-architecture-gui-enhancement-architecture.md)
-Notes: Follows M16 under the revised execution order; the owner authorized a bounded Task 2 title-lifecycle reporting change on 2026-11-04. Concrete GUI changes await owner requests. Task 2a is complete: shared title-work snapshots report recording/edit correlation and timeout settlement; focused tests, lint, and the full iPhone 18 Pro simulator gate pass. M17–M19 remain later work. Earlier implementation, validation, and phone evidence remain open.
+Notes: Follows M16 under the revised execution order. Shared title-work reporting, architecture/documentation reviews, iCloud identity decoding, and automatic iCloud verification retries are tracked in the M21 task checklists. M17–M19 remain later work; earlier implementation and physical-device evidence stay open.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 

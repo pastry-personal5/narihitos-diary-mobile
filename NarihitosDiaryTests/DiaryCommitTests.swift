@@ -171,6 +171,35 @@ private struct CommitFixture {
 @MainActor
 // swiftlint:disable:next type_body_length
 struct DiaryCommitTests {
+  @Test func delayedUploadCompletesWithoutManualRetry() async throws {
+    let fixture = try makeFixture()
+    fixture.pairs.result = .verified(fixture.version)
+    fixture.pairs.observation = DiaryPairUploadObservation(
+      markdown: completeObservation(fixture.version).markdown, audio: nil)
+    var savedNotices = 0
+    fixture.coordinator.onSaved = { _ in savedNotices += 1 }
+    var delays: [Duration] = []
+    let scheduler = DiarySaveScheduler(
+      queue: fixture.queue,
+      sleep: { delay in
+        delays.append(delay)
+        #expect(fixture.queue.values[fixture.job.id]?.state == .readyToSave)
+        #expect(fixture.cleanup.calls == 0)
+        fixture.pairs.observation = completeObservation(fixture.version)
+      },
+      attempt: { await fixture.coordinator.attempt(jobID: $0) })
+    defer { scheduler.pump(enabled: false) }
+    scheduler.pump(enabled: true)
+    for _ in 0..<1_000 where fixture.queue.values[fixture.job.id]?.state != .saved {
+      await Task.yield()
+    }
+    #expect(fixture.queue.values[fixture.job.id]?.state == .saved)
+    #expect(delays == [.seconds(2)])
+    #expect(fixture.pairs.uploadChecks == 2)
+    #expect(fixture.cleanup.calls == 1)
+    #expect(savedNotices == 1)
+  }
+
   @Test func providerOwnershipRemainsBusyAndMaintenanceBlocksNewAttempts() async throws {
     let fixture = try makeFixture()
     fixture.pairs.suspendAudio = true

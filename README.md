@@ -16,6 +16,8 @@ Transcription initializes one diary body and a read-only title, using Apple's on
 
 Pending and Failed Recordings are separate destinations in All. Retry uses current Settings; Remove opens inline Remove Recording/Cancel confirmation. Diary detail has a separate Delete Diary Snippet action below Metadata for permanently deleting its verified text/audio pair after confirmation.
 
+Pending iCloud verification now retries automatically with increasing delays while the app is open, and resumes when you return. Retry Verification requests an immediate check. The app retains private staging until both diary files are verified and report successful upload.
+
 Settings → Danger Zone separately confirms purging all active-folder contents, including non-app files, or internal staging, including pending audio and unsaved drafts. Purges require idle app work; folder purge also requires staging to finish or be purged separately. An interrupted purge pauses recording and processing until explicitly retried. See the [purge contract](docs/product-behavior.md#confirmed-v1-behavior) for scope and exclusions.
 
 ## Implementation and known issues
