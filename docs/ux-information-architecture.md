@@ -13,8 +13,11 @@ Root tabs (ordered)
 │  ├─ Active-folder Diary Snippet collection (paged, local-date groups)
 │  │  └─ Diary Snippet detail
 │  │     ├─ Title + Favorite
-│  │     ├─ Diary body → Diary editor
-│  │     └─ Metadata (bottom) → Audio replay + read-only details
+│  │     ├─ Diary body
+│  │     ├─ Edit Diary (full width) → Diary editor
+│  │     ├─ Delete Diary Snippet (full width) → inline confirmation
+│  │     ├─ Audio replay
+│  │     └─ Metadata (bottom) → read-only details
 │  └─ Floating Record → recording path → Stop & Transcribe
 ├─ Benefits → “Benefits are coming later.”
 ├─ Calendar → “Calendar is coming later.”
@@ -40,7 +43,7 @@ Arrows indicate destinations or actions, not an approved navigation presentation
 - All is a utility and recovery hub in v1. It has no Diary Snippet snippets or duplicate collection. A top-right icon-only `Settings` button opens Settings; the former bottom Settings menu item is not present. Pending Recordings, Failed Recordings, Incomplete Diary Snippets, and Conflicting Versions are separate destinations reached from All. Main's one-line notice bar sits above its collection and can report queued recordings, transcription running while the app is open, or recovery items. It shows one message at a time, rotating every 10 seconds in the order processing, queued, recovery. Rotation pauses for VoiceOver or Reduce Motion. A queued or processing notice opens Pending Recordings; a recovery message opens its relevant recovery screen. The pending and recovery items remain in their All destinations.
 - A **recording** remains pending or failed until its complete Diary Snippet bundle is verified. A pending item can contain a locally prepared draft while its destination is unavailable. A failed item retains audio and an entry-level reason. These entries are not saved Diary Snippets.
 - Recording removal confirmation belongs inside the selected Pending/Failed Recordings entry: its context, confirmation question, Remove Recording, and Cancel remain in the list screen. It does not open an overlay dialog or a new destination.
-- Normal Diary Snippet detail puts Title and Diary body before bottom Metadata. Favorite sits beside Title. Metadata contains Audio replay plus read-only recording start date/time, duration, recording language, and available place and weather. Omit unavailable place and weather rather than showing empty fields. The editor changes only Diary body; saving regenerates Title. Legacy pairs open read-only without file changes.
+- Normal Diary Snippet detail puts Title and Diary body before bottom Metadata. Favorite sits beside Title. Full-width Edit Diary and Delete Diary Snippet actions follow the body, in that order; Audio replay follows the actions. Metadata appears below Audio and contains read-only recording start date/time, duration, recording language, and available place and weather. Omit unavailable place and weather rather than showing empty fields. The editor changes only Diary body; saving regenerates Title. Legacy pairs open read-only without file changes.
 - An incomplete Diary Snippet without a repair copy appears in Incomplete Diary Snippets with surviving text or playable audio read-only, a missing-file explanation, and confirmed removal. A conflict pair appears in Conflicting Versions with one version per tab. Both tabs scroll vertically; after the user chooses one, confirmation is required before removing the other version.
 
 ## Cross-cutting flows
@@ -53,7 +56,7 @@ Arrows indicate destinations or actions, not an approved navigation presentation
 | All → Failed Recordings | Reason, manual retry, or confirmed removal | Retry uses current Settings while audio remains. Confirmed removal includes private audio and invalidates in-flight work; an in-flight item shows Cancelling until work stops and removal completes. |
 | All → Incomplete Diary Snippets | Inspect surviving content or confirm removal | Text or playable audio opens read-only; explain the missing file. |
 | All → Conflicting Versions | Inspect vertically scrollable version tabs and choose one | Do not silently choose when iCloud times are equal or missing. Confirm before removing the unchosen version. |
-| Main → Diary Snippet detail | Read, edit body, Favorite, replay | Title is read-only. Metadata is below the body. |
+| Main → Diary Snippet detail | Read, edit body, Favorite, replay | Title is read-only. Edit Diary and Delete Diary Snippet precede Audio; Metadata follows Audio. |
 | All → Settings | Method readiness and selection, model installation, location control, Danger Zone | No hosted Qwen controls in v1. |
 | Settings → Danger Zone | Separately confirmed folder-content or internal-staging purge | Require idle app work; folder purge also requires staging to finish (completed queue history is allowed). Preserve each scope's exclusions. An interrupted purge pauses processing until an explicit retry. |
 

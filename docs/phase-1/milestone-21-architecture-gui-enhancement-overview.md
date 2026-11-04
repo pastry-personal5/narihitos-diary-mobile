@@ -2,12 +2,12 @@
 
 Status: Active
 
-Enhance the software architecture and implement GUI enhancements requested by the owner. The initial architecture task reviews processing stages and active resource ownership. M21 follows M16 under the revised execution order; specific GUI changes will be supplied by the owner.
+Enhance the software architecture and implement GUI enhancements requested by the owner. The initial architecture task reviews processing stages and active resource ownership. M21 follows M16 under the revised execution order; specific GUI requests are tracked below.
 
 ## Entry and locked inputs
 
 - The owner revised the order on 2026-11-04 to M20 → M16 → M21 → M17 → M18 → M19 and requested an M21 task now against the implemented M16 handoff. Follow the [Phase 1 execution order](phase-1.md). This authorizes the bounded Task 2 work below; M16, M20, and earlier evidence remain open.
-- Preserve the approved [product behavior](../product-behavior.md), [GUI](../ux-gui.md), [containment](../ux-information-architecture.md), [terms](../ux-terms.md), and [P1-M5 contracts](milestone-05-decisions-architecture.md). No particular new layout, control, label, or title-progress display is requested yet.
+- Preserve the approved [product behavior](../product-behavior.md), [GUI](../ux-gui.md), [containment](../ux-information-architecture.md), [terms](../ux-terms.md), and [P1-M5 contracts](milestone-05-decisions-architecture.md), as amended by the owner's numbered GUI requests below. No title-progress display is requested.
 - Use the implemented M10 queue, M13 draft/title stage, M14 commit, M15 catalog, and M20 maintenance/interaction repairs. Recheck the source inventory against the implemented M16 handoff; M17–M19 remain later work. M16 continues to own body editing, Favorite mutation, and audio replay; M17 owns complete recovery flows.
 - Related undecided items remain unchanged: no new inference provider, runtime, quantization, hosted controls, dependency, build tool, or relaxation of approved safeguards.
 
@@ -16,6 +16,18 @@ Enhance the software architecture and implement GUI enhancements requested by th
 Reserve this task for concrete owner requests. Before each implementation, add a numbered request with the affected screen, intended behavior, relevant existing contract, and verifiable acceptance checklist. Do not infer a redesign from the milestone title or the lifecycle review.
 
 Each request should identify applicable navigation, accessibility, interaction, and state-restoration checks. Update the GUI/terms/containment docs and README when the delivered behavior changes them. Changes to an existing owner decision need the owner's direction before implementation.
+
+### Request 1: Diary Snippet detail action and metadata layout
+
+Requested on 2026-11-04: make Edit Diary full width, move the existing removal action (Delete Diary Snippet) directly below it, and put Metadata below the Audio controls. Preserve the M16 editor/replay behavior and M20 inline deletion confirmation, eligibility, and lifecycle fences. Legacy entries retain deletion and replay without Edit Diary.
+
+- [x] Stack full-width Edit Diary and Delete Diary Snippet beneath the body, then Audio, then read-only Metadata.
+- [x] Run the existing synthetic hosted detail/editor/replay/legacy and inline deletion activation checks; review small portrait, landscape, dark largest-Dynamic-Type detail, and light inline confirmation screenshots.
+- [x] Update the owning GUI, containment, terms, README, and milestone approach; run lint and the full required simulator gate.
+- [ ] Review large portrait and dark inline confirmation at largest Dynamic Type. Existing previews use 375 × 812 and 812 × 375 points; the dark confirmation preview scrolls past the relocated warning to bottom Metadata.
+- [ ] Check physical-iPhone VoiceOver focus/reading order, Reduce Motion, and foreground/relaunch interaction. Simulator rendering and programmatic activation alone do not establish this evidence.
+
+Request 1 implementation evidence, 2026-11-04 KST: `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` pass generation, lint, build, and all simulator tests on iPhone 18 Pro / iOS 27.0 using the `NarihitosDiary` project/scheme. The existing hosted suites exercise editing, Favorite, replay, legacy read-only behavior, full-width deletion, inline confirmation/Cancel, and scene disarming. Reviewed synthetic `m16-detail-light.png`, `m16-delete-button.png`, `m16-detail-dark-large.png`, `m16-detail-landscape.png`, and `m16-delete-confirmation-light.png`: Edit and Delete share the content width, Delete follows Edit, and Audio precedes Metadata. Restricted-shell CoreSimulator discovery failed with connection refusal; service-access discovery and the required gate then succeeded. No physical interaction or earlier milestone acceptance is closed.
 
 ## Task 2: Processing lifecycle architecture review
 

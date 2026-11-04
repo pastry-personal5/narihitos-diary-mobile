@@ -36,8 +36,8 @@ The five root tab labels retain the order Main, Benefits, Calendar, Plugins, All
 | Diary Snippet detail | diarySnippetDetail | Screen opening a saved entry, with title and body before metadata. |
 | Diary body | diaryBody | Single managed text body, initialized from transcription and replaced by user edits. |
 | Title | title | Generated, read-only Diary Snippet heading; regenerated on body save. |
-| Metadata | metadata | Bottom detail section containing Audio replay and read-only recording details. |
-| Audio replay | audioReplay | Playback inside Metadata, with play/pause, seek, elapsed time, and total time. |
+| Metadata | metadata | Bottom detail section below Audio containing read-only recording details. |
+| Audio replay | audioReplay | Playback above Metadata, with play/pause, seek, elapsed time, and total time. |
 | Diary editor | diaryEditor | Body-only editing destination; it does not edit Title. |
 | Pending recording | pendingRecording | Retained recording waiting for method readiness, processing, destination access, or save. |
 | Failed recording | failedRecording | Retained recording whose attempt failed or whose interrupted audio is unplayable. |

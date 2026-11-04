@@ -211,21 +211,28 @@ private struct DiaryCatalogDetailView: View {
             .font(.body).frame(maxWidth: .infinity, alignment: .leading)
             .textSelection(.enabled)
           if !diary.isLegacy {
-            Button("Edit Diary") { Task { await actions.openEditor(handle) } }
-              .frame(minHeight: 44)
-              .accessibilityIdentifier("diary-edit")
-              .disabled(
-                actions.edits == nil || actions.isOpening || actions.isDeleting || pending != nil)
+            Button {
+              Task { await actions.openEditor(handle) }
+            } label: {
+              Text("Edit Diary").font(.headline).multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("diary-edit")
+            .disabled(
+              actions.edits == nil || actions.isOpening || actions.isDeleting || pending != nil)
           }
+          deletion
           if let pending {
             Text(pending.issue?.message ?? "Saving changes.").foregroundStyle(.secondary)
           }
           if let message = actions.message { Text(message).foregroundStyle(.secondary) }
         }
         Divider()
-        metadata
+        audio
         Divider()
-        deletion
+        metadata
       }
       .padding(20)
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -273,6 +280,14 @@ private struct DiaryCatalogDetailView: View {
     }
   }
 
+  @ViewBuilder private var audio: some View {
+    if diary.audioAvailable {
+      DiaryReplayControls(actions: actions, handle: handle)
+    } else {
+      field("Audio", value: "Unavailable")
+    }
+  }
+
   private var metadata: some View {
     VStack(alignment: .leading, spacing: 14) {
       Text("Metadata").font(.headline).accessibilityAddTraits(.isHeader)
@@ -287,11 +302,6 @@ private struct DiaryCatalogDetailView: View {
         field(
           "Recording language",
           value: Locale.current.localizedString(forIdentifier: language) ?? language)
-      }
-      if diary.audioAvailable {
-        DiaryReplayControls(actions: actions, handle: handle)
-      } else {
-        field("Audio", value: "Unavailable")
       }
       if let location = diary.location {
         field("Place", value: location.placeName ?? "\(location.latitude), \(location.longitude)")

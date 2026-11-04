@@ -12,9 +12,9 @@ Main shows the active folder's diary collection. Its English and Korean recordin
 
 All → Settings → Transcription offers None, Apple Local, Cohere Q4, and Cohere Q5. Transcription runs locally after the selected method is ready; the app never switches methods automatically. Q4 and Q5 have separate pinned installations. Q5 inference currently waits for device certification; see the [M20 Q5 evidence](docs/phase-1/milestone-20-enhancements-fixes-refactoring-overview.md#task-12-cohere-q5-installation-terminates-near-completion). Hosted Qwen is future work.
 
-Transcription initializes one diary body and a read-only title, using Apple's on-device model when available or a shortened first sentence. Supported diaries offer body editing with title regeneration, Favorite, and audio replay inside Metadata. Legacy text stays read-only, with replay for safely validated audio.
+Transcription initializes one diary body and a read-only title, using Apple's on-device model when available or a shortened first sentence. Supported diaries offer body editing with title regeneration, Favorite, a full-width Edit Diary button with Delete Diary Snippet directly below, and audio replay above Metadata. Legacy text stays read-only, with replay for safely validated audio.
 
-Pending and Failed Recordings are separate destinations in All. Retry uses current Settings; Remove opens inline Remove Recording/Cancel confirmation. Diary detail has a separate Delete Diary Snippet action below Metadata for permanently deleting its verified text/audio pair after confirmation.
+Pending and Failed Recordings are separate destinations in All. Retry uses current Settings; Remove opens inline Remove Recording/Cancel confirmation. Diary detail has a separate Delete Diary Snippet action below Edit Diary for permanently deleting its verified text/audio pair after confirmation.
 
 Pending iCloud verification now retries automatically with increasing delays while the app is open, and resumes when you return. Retry Verification requests an immediate check. The app retains private staging until both diary files are verified and report successful upload.
 

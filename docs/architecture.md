@@ -265,7 +265,7 @@ Save races have two outcomes under the approved contract: if complete-pair/uploa
 
 ### Committed Diary Snippet deletion
 
-[M20 Task 21](phase-1/milestone-20-enhancements-fixes-refactoring-architecture.md#task-21-delete-a-diary-snippet-from-detail) implements full-width Delete Diary Snippet below Metadata, with inline Delete Diary Snippet / Cancel. The following stages describe existing control flow; they are not new queue enum cases or a persisted deletion journal.
+[M20 Task 21](phase-1/milestone-20-enhancements-fixes-refactoring-architecture.md#task-21-delete-a-diary-snippet-from-detail) implements full-width Delete Diary Snippet with inline Delete Diary Snippet / Cancel. [M21's detail layout request](phase-1/milestone-21-architecture-gui-enhancement-overview.md#request-1-diary-snippet-detail-action-and-metadata-layout) places it directly below full-width Edit Diary, before Audio and Metadata. The following stages describe existing control flow; they are not new queue enum cases or a persisted deletion journal.
 
 | Stage | Guard and effect |
 |---|---|
@@ -292,7 +292,7 @@ M20's folder-selection presentation prepares the scoped URL during the picker ca
 
 The private Settings repository rereads the bounded current record for each update, treats only a missing file as new settings, and retains unreadable/corrupt bytes rather than overwriting them with defaults. Atomic protected writes create the private directory as needed. Activation reloads persisted method selection and monotonically merges recovered onboarding progress. See the [M20 persistence task and evidence](phase-1/milestone-20-enhancements-fixes-refactoring-overview.md#task-1-folder-selection-and-persistent-settings).
 
-The root presents Main, Benefits, Calendar, Plugins, and All. Main owns the active-folder collection and floating Record entry. All owns Settings plus Pending Recordings, Failed Recordings, Incomplete Diary Snippets, and Conflicting Versions. Asset detail presents title and body first, Favorite beside title, and bottom Metadata with replay and approved recording/context fields. View models consume navigation intents rather than storage assumptions.
+The root presents Main, Benefits, Calendar, Plugins, and All. Main owns the active-folder collection and floating Record entry. All owns Settings plus Pending Recordings, Failed Recordings, Incomplete Diary Snippets, and Conflicting Versions. Asset detail presents title and body first, Favorite beside title, full-width Edit Diary followed by Delete Diary Snippet, Audio replay, then bottom Metadata with approved recording/context fields. Legacy detail omits Edit Diary and Favorite. View models consume navigation intents rather than storage assumptions.
 
 The UI subscribes to queue and asset projections on the main actor. Queue progress derives from durable state, not a view-local timer. The asset list groups by local creation date and displays the saved title. Use the approved monochrome template icon variants, sizes, targets, labels, and state/value semantics. The root-presented editor holds only a body buffer, protects dirty dismissal and covers its content while inactive. Save submits through `DiaryEditCoordinator`; Favorite sends a separate desired-state intent. Replay controls are bound to the visible handle and expose continuous touch seeking plus 15-second accessibility adjustment.
 
