@@ -9,7 +9,7 @@ private enum RecoveryResourceState {
 }
 
 /// Classifies a canonical layout in the current selected folder, including
-/// pairs that originated on another device and have no local M13 candidate.
+/// pairs that originated on another device and have no local diary-draft candidate.
 @MainActor
 final class AppleDiaryRecoveryInspector: DiaryRecoveryInspectionPort {
   private let destination: AppleDestinationService

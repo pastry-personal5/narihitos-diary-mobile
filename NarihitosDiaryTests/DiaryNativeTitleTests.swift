@@ -51,7 +51,7 @@ struct DiaryNativeTitleTests {
       #expect(decoded.preservedScalars.map(\.key) == source.preservedScalars.map(\.key))
       #expect(decoded.preservedScalars.map(\.rawValue) == source.preservedScalars.map(\.rawValue))
       print(
-        "M16 native title: ready=\(model.isAvailable), language=\(language), "
+        "Diary native title: ready=\(model.isAvailable), language=\(language), "
           + "origin=\(generated.provenance.originID), graphemes=\(generated.text.count)")
     }
   }

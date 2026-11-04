@@ -168,9 +168,10 @@ final class DiaryPresentationFixture {
     let image = UIGraphicsImageRenderer(bounds: view.bounds).image { _ in
       view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
     }
-    let url = FileManager.default.temporaryDirectory.appending(path: "m16-\(name).png")
+    let url = FileManager.default.temporaryDirectory
+      .appending(path: "diary-presentation-\(name).png")
     try image.pngData()?.write(to: url)
-    print("M16 synthetic preview: \(url.path)")
+    print("Diary presentation synthetic preview: \(url.path)")
   }
 
   func close() {

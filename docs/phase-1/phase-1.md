@@ -134,7 +134,7 @@ Notes: The owner requested completion on 2026-11-03, authorizing implementation 
 Status: Active
 Goal: Enhance the software architecture, initially reviewing processing lifecycle reporting, and implement GUI enhancements supplied by the owner.
 Plan: [overview](milestone-21-architecture-gui-enhancement-overview.md), [approach](milestone-21-architecture-gui-enhancement-architecture.md)
-Notes: Follows M16 under the revised execution order. Shared title-work reporting, architecture/documentation reviews, iCloud identity decoding, and automatic iCloud verification retries are tracked in the M21 task checklists. M17–M19 remain later work; earlier implementation and physical-device evidence stay open.
+Notes: Follows M16 under the revised execution order. Delivered lifecycle/identity/save work and open GUI/device acceptance are tracked in the M21 checklists. The upcoming-task review refines the unselected Main-loading proposal into baseline, demand, ordered-discovery/action, cache, and device stages; broader lifecycle aggregation still needs a concrete consumer. M17–M19 remain later work; earlier evidence stays open.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 

@@ -573,7 +573,7 @@ extension DiaryCommitCoordinator {
     }
   }
 
-  /// M17 calls this only after the user chooses an ambiguous complete pair.
+  /// Recovery calls this only after the user chooses an ambiguous complete pair.
   /// Selection is durable; publication must recheck the same external versions.
   func chooseConflict(jobID: String, snapshotID: String) async -> Bool {
     guard !maintenanceSuspended, activeJobIDs.insert(jobID).inserted else { return false }
@@ -601,7 +601,7 @@ extension DiaryCommitCoordinator {
     } catch { return false }
   }
 
-  /// M17 calls this after the user confirms removal of the unchosen version.
+  /// Recovery calls this after the user confirms removal of the unchosen version.
   /// The provider adapter still requires verified publication and fresh checks.
   func confirmConflictRemoval(jobID: String) -> Bool {
     guard !maintenanceSuspended, !activeJobIDs.contains(jobID),

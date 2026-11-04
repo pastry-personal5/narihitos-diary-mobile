@@ -61,9 +61,9 @@ struct QueueJob: Codable, Equatable, Sendable {
   var conversionIdentity: String?
   var destinationRevision: Int
   var bodyRevision: Int
-  /// Assigned once before the first draft write; nil in queue records made before M13.
+  /// Assigned once before the first draft write; nil in older queue records without draft-asset identity.
   var draftAssetID: String?
-  /// Absent in records written before M14. An intent never implies upload success.
+  /// Absent in older records without commit tracking. An intent never implies upload success.
   var commit: DiaryCommitRecord?
   var commitCleanupDone: Bool?
   var commitNoticeDelivered: Bool?

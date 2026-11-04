@@ -475,7 +475,7 @@ extension DiaryDraftAdoptionTests {
       runtime: "apple-speech-analyzer",
       conversion: "ndm.apple-speech.av-audio-file-v1", operatingSystemVersion: "27.0")
     let root = FileManager.default.temporaryDirectory.appending(
-      path: "m13-draft-\(UUID().uuidString)", directoryHint: .isDirectory)
+      path: "diary-draft-\(UUID().uuidString)", directoryHint: .isDirectory)
     defer { try? FileManager.default.removeItem(at: root) }
     let workspace = try LocalPrivateWorkspace(
       root: root, protectionPolicy: TestDraftProtectionPolicy())
@@ -543,7 +543,7 @@ extension DiaryDraftAdoptionTests {
         runtime: "apple-speech-analyzer",
         conversion: "ndm.apple-speech.av-audio-file-v1", operatingSystemVersion: "27.0")
       let root = FileManager.default.temporaryDirectory.appending(
-        path: "m13-fault-\(UUID().uuidString)", directoryHint: .isDirectory)
+        path: "diary-draft-fault-\(UUID().uuidString)", directoryHint: .isDirectory)
       defer { try? FileManager.default.removeItem(at: root) }
       let base = try LocalPrivateWorkspace(
         root: root, protectionPolicy: TestDraftProtectionPolicy())

@@ -46,6 +46,7 @@ If `xcrun simctl list devices available` or `scripts/validate.sh` reports `CoreS
 ## Code and repository conventions
 
 - Use Swift and SwiftUI, following the [inward source-dependency rule](architecture.md#clean-architecture-layers-and-dependency-rule). Format Swift with swift-format and resolve SwiftLint warnings.
+- Prefer Apple's SF Symbols (system icons) and related Apple design materials when creating icons, where suitable and permitted by their usage terms. Use custom artwork when no suitable Apple symbol or material is available.
 - Use UTC for asset file/directory names and local time for display, following the [asset contract](product-behavior.md#assets-and-metadata).
 - Use XcodeGen for project generation. Set the deployment target to iOS 27.0 and enforce iOS 27.0.1 at launch; see the [P1-M3 approach](phase-1/milestone-03-scaffolding-architecture.md).
 - Project-owned code is Apache-2.0. Dependency license compatibility is not an approval or milestone gate; changes to dependencies or build tools still require owner approval.

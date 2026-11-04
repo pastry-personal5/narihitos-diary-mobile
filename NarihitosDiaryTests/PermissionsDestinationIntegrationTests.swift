@@ -4,7 +4,7 @@ import Testing
 @testable import NarihitosDiary
 
 @MainActor
-struct M8ImplementationReviewTests {
+struct PermissionsDestinationIntegrationTests {
   @Test func oversizedPrivateSettingsInputFailsClosed() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }

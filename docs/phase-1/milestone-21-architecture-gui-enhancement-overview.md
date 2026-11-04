@@ -11,6 +11,20 @@ Enhance the software architecture and implement GUI enhancements requested by th
 - Use the implemented M10 queue, M13 draft/title stage, M14 commit, M15 catalog, and M20 maintenance/interaction repairs. Recheck the source inventory against the implemented M16 handoff; M17–M19 remain later work. M16 continues to own body editing, Favorite mutation, and audio replay; M17 owns complete recovery flows.
 - Related undecided items remain unchanged: no new inference provider, runtime, quantization, hosted controls, dependency, build tool, or relaxation of approved safeguards.
 
+## Remaining work and proposed order
+
+M21 is Active. The checked implementation items below retain their recorded evidence; they do not close the unchecked visual, physical-device, or future implementation items. This plan review does not expand the owner's earlier implementation selections.
+
+| Work | Status and bounded next step | Completion evidence |
+|---|---|---|
+| Task 1, Request 1 | Finish the two missing visual cases, then the physical interaction checks. Keep the inline warning visible in the confirmation capture rather than scrolling to Metadata. | Large portrait and dark largest-Dynamic-Type confirmation captures; physical VoiceOver, Reduce Motion, foreground/relaunch observations for current and legacy detail. |
+| Task 3 | Implementation/simulator gate recorded; verify the actual system identity token on the target phone. | Sanitized console observation and saved-folder access after relaunch; record the round trip with M8-D04 without closing the rest of M8. |
+| Task 4 | Implementation/simulator gate recorded; verify automatic save completion with real iCloud. | Record the app-active Pending → Main transition without manual Retry, offline → online and foreground/relaunch recovery, and preservation of pending work while verification is unavailable. Link M14 evidence; visible Files content alone is not upload proof. |
+| Task 2 beyond 2a | Proposed only. Identify a concrete consumer before selecting broader lifecycle aggregation. | A bounded read-only reporting requirement, or an explicit deferral; existing owners remain authoritative. No new progress UI is selected. |
+| Task 6 | Planning only. Start with baseline/design selection, then consider the staged implementation below. Evidence collection can proceed independently of the open GUI/device checks. | Per-stage checklists, source regression evidence, and comparable performance measurements; select implementation before changing code. |
+
+After Task 6 selection, follow baseline → demand policy → ordered discovery/action prerequisites → validation reuse → device acceptance. Do not start cache work as a prerequisite for measuring the current bottleneck. Keep M16 and M20 evidence in their owning records; M17–M19 retain their assigned implementation scope and execution order.
+
 ## Task 1: Owner-requested GUI enhancements
 
 Reserve this task for concrete owner requests. Before each implementation, add a numbered request with the affected screen, intended behavior, relevant existing contract, and verifiable acceptance checklist. Do not infer a redesign from the milestone title or the lifecycle review.
@@ -110,6 +124,54 @@ Task 4 focused evidence, 2026-11-04 KST: the pre-fix delayed-upload regression f
 
 Task 4 final gate, 2026-11-04 KST: `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` passes generation, lint, build, and all simulator tests. Initial restricted-shell discovery failed with CoreSimulator connection refusal; service-access discovery and the complete gate then succeeded using the documented retry. Earlier M14/M16 evidence remains open, as does Task 4's physical-iCloud acceptance above.
 
+## Task 5: Icon contribution rule
+
+Requested on 2026-11-04: document a preference for Apple's SF Symbols and related Apple design materials when creating icons, where suitable.
+
+### Task 5 acceptance checklist
+
+- [x] Add the icon rule to the contribution guide's code and repository conventions, allowing custom artwork when suitable Apple materials are unavailable.
+- [x] Review the documentation change and check whitespace; record evidence without claiming runtime or device validation.
+
+Task 5 documentation evidence, 2026-11-04 KST: the [contribution conventions](../contribution-guide.md#code-and-repository-conventions) now prefer Apple's SF Symbols and related Apple design materials where suitable and permitted, with custom artwork as the fallback. The test runner reviewed the wording and confirmed `git diff --check` passes. No lint, build, simulator, or device checks were run for this documentation-only task; this does not close the milestone's runtime or device gates.
+
+## Task 6: Main Diary Snippet loading architecture plan
+
+Requested on 2026-11-04: brainstorm and plan faster Main loading, considering the latest 10 entries followed by infinite scroll. The owner also suggested an in-memory database and caching. This task prepares the [catalog performance proposal](milestone-21-architecture-gui-enhancement-architecture.md#task-6-main-catalog-performance-proposal); implementation and any changes to approved Main eligibility remain unselected.
+
+### Task 6 planning checklist
+
+- [x] Trace discovery, classification/audio inspection, pagination, refresh, and mutation binding against current source; distinguish suspected costs from measured bottlenecks.
+- [x] Compare smaller pages, ordered discovery, an in-memory indexed catalog/cache, deferred validation, and persistent indexing; recommend a staged approach with explicit cold/warm behavior.
+- [x] Specify proposed boundaries, cache invalidation/lifetime, continuation, recovery, and unchanged mutation authority; record decision gates and acceptance criteria before implementation.
+- [x] Delegate documentation link/fragment and whitespace checks and record their results.
+
+### Task 6 future implementation acceptance
+
+- [ ] Stage 0: record a reproducible baseline and select the implementation subset, latency/memory targets, cache budget, and existing-behavior constraints before coding; no database dependency or deferred-validation UX is selected by this plan.
+- [ ] Stage 1: fill initial and subsequent demand in increments of 10 eligible summaries, including partial/recovery-only slices after some rows already exist. Stop at satisfied demand/end/typed wait; coalesce viewport events and provide accessible continuation without a footer-driven drain.
+- [ ] Stage 2: introduce a scoped ordered catalog/frontier; prove latest-range ordering across handlers, bounded discovery/classification work, no older content reads when unnecessary, and resumable large-day/legacy-sibling discovery.
+- [ ] Stage 2: retain complete-index action admission for the first delivery; finish any needed metadata discovery on demand without decoding intervening audio. Prove duplicate claims, fresh detail/action bindings, exact-resource old-entry edit/reopen, cursor invalidation, and external-change fences.
+- [ ] Stage 3: prove exact-content validation reuse, retryable-outcome handling, source/conflict/sibling invalidation, settled access ownership, foreground/account/folder/maintenance fences, and memory-pressure rebuild without truncating the collection.
+- [ ] Stage 4: compare identical baseline/final fixtures and cache states; record target-iPhone latency, memory, real-iCloud availability, recording/transcription responsiveness, Dynamic Type, VoiceOver and scroll/navigation evidence. Run affected regressions, lint, and the full required simulator gate for delivered code.
+
+Planning only: no app code, file schema, dependency, Main eligibility, or existing validation result changes. Source inspection does not establish actual load times. The broader M21 and earlier milestone gates remain open.
+
+Task 6 planning evidence, 2026-11-04 KST: the test runner checked 336 local Markdown links/fragments across the changed documentation with zero errors, confirmed title/status structure and Task 6 sections, and reported that `git diff --check` passes. Its contract review found no contradictions with the current 50-visit bound, Main eligibility, action gates, or disposable cache semantics. No Swift lint, build, simulator tests, phone measurements, or runtime acceptance was performed for this documentation-only proposal. Pre-existing Task 5/contribution-guide edits remain preserved.
+
+## Task 7: Upcoming-task plan review
+
+Requested on 2026-11-04: review M21 and fix or enhance the remaining task plans. This task updates planning documents against current source and approved contracts; it does not select Task 6 implementation or approve new product behavior.
+
+### Task 7 acceptance checklist
+
+- [x] Recheck open GUI, identity, upload-verification, and lifecycle work; give each a bounded next step and preserve earlier evidence ownership.
+- [x] Correct Task 6 demand, ordering, work-budget, retry, action-binding, cache, and memory-pressure gaps using current source references.
+- [x] Split future implementation into verifiable stages with selection gates, regression scenarios, and reproducible performance evidence.
+- [x] Check affected documentation links, status/checklist consistency, and whitespace; run required lint/simulator validation and record any blockers separately from planning completion.
+
+Task 7 review evidence, 2026-11-04 KST: the approach's review findings trace the corrected plan to the catalog source and M15 contract. Checks resolve 352 local Markdown links/fragments across the five affected documents, verify title/status structure and Task 6/7 coverage, and confirm future implementation items remain unchecked. `git diff --check` and `make lint` pass. The first full simulator gate passed generation/lint/build but reported `CatalogModelTests.hiddenCollectionDoesNotPrefetchAndExhaustedEmptyPageBecomesEnd` terminated by a signal; its result bundle reports no assertion failure. All eight `CatalogModelTests` then passed in isolation through MobileBuildMCP. A fresh full `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` run passed generation, lint, build and tests on iPhone 18 Pro / iOS 27.0. The termination's cause remains unestablished. Restricted-shell CoreSimulator discovery initially failed; service-access validation succeeded using the documented retry procedure. This review changes documentation only; independent workspace edits were preserved. No phone measurements, new runtime behavior, or Task 6 implementation acceptance is claimed.
+
 ## Out of scope
 
 An unsolicited GUI redesign, new exact progress copy, a title editor, automatic regeneration when a model becomes ready, new durable queue states or schema migrations, a global replacement state machine, broad repository restructuring, dependencies/build-tool changes, and M16–M19 implementation. M21 does not waive earlier phone or adversarial evidence.
@@ -128,7 +190,8 @@ An unsolicited GUI redesign, new exact progress copy, a title editor, automatic 
 - [x] Review Task 2's proposed lifecycle projection at implementation entry and record the selected bounded change, or an evidence-backed decision to retain existing interfaces. Any selected change separates durable job state, transient phase, and unsettled ownership without adding persisted title states or mutation authority.
 - [x] For lifecycle changes, verify durable candidate handoff, restart from candidate or verified draft, fallback within the title budget, late-result fencing, no overlapping title inference, and busy ownership until actual settlement. Other ready transcription and save work must retain independent progress.
 - [ ] Verify affected GUI behavior with synthetic data, including applicable small/large iPhones, landscape, largest Dynamic Type, VoiceOver, Reduce Motion, foreground/relaunch, and processing/recovery states. Record required target-iPhone evidence separately; unavailable evidence stays unchecked.
+- [ ] Complete Task 3's physical-token and Task 4's real-iCloud acceptance; record Task 6's selected/delivered subset or explicit deferral and the broader Task 2 disposition before marking M21 Done. Checked historical gates do not complete future code or device work.
 - [x] Reconcile affected architecture, UX, README, milestone, and index docs with delivered behavior; record compatibility with M16's edit/title boundaries and any remaining evidence in its owning milestone.
 - [x] Run `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh` on the implemented changes and record the destination/results. Unavailable required checks remain unchecked with the observed blocker.
 
-Planning evidence (2026-11-03): the [source inventory](milestone-21-architecture-gui-enhancement-architecture.md#current-code-review-2026-11-03) records the inspected boundaries. Local links across the seven affected/new planning documents resolve, their referenced Markdown headings exist, both new documents have title/status headers, and `git diff --check` passes. At that planning checkpoint no new runtime, simulator, or physical-device acceptance was claimed. The 2026-11-04 Task 2a work and gate are recorded separately below.
+Planning evidence (2026-11-03): the [source inventory](milestone-21-architecture-gui-enhancement-architecture.md#current-code-review-2026-11-03) records the inspected boundaries. Local links across the seven affected/new planning documents resolve, their referenced Markdown headings exist, both new documents have title/status headers, and `git diff --check` passes. At that planning checkpoint no new runtime, simulator, or physical-device acceptance was claimed. The 2026-11-04 Task 2a work and gate are recorded in its task section above.

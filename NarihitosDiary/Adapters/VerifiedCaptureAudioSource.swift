@@ -6,7 +6,7 @@ import UIKit
 
 // swiftlint:disable opening_brace
 
-/// Adapter-private lease for the positively identified M9 audio file.
+/// Adapter-private lease for the positively identified captured audio file.
 @MainActor
 final class VerifiedCaptureAudio: AppleSpeechAudioLease, CohereAudioLease {
   let url: URL

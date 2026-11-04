@@ -102,7 +102,7 @@ private struct StoredTranscriptionCandidate: Codable, Equatable {
   }
 }
 
-/// Stores a single intermediate inside the validated M9 workspace; no path comes from a record.
+/// Stores a single intermediate inside the validated capture workspace; no path comes from a record.
 @MainActor
 // swiftlint:disable:next type_body_length
 final class FileTranscriptionCandidateStore: TranscriptionCandidateStore {

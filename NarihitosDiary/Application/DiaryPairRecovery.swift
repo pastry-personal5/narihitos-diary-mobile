@@ -32,7 +32,7 @@ enum DiaryIncompleteComponent: String, Equatable, Sendable {
 }
 
 /// No provider URL or deletion path crosses into the application layer.
-/// M15 can enumerate these records; M17 owns choice and removal presentation.
+/// The diary catalog can enumerate these records; recovery owns choice and removal presentation.
 struct DiaryIncompletePairRecovery: Equatable, Sendable {
   let assetID: String
   let missing: DiaryIncompleteComponent

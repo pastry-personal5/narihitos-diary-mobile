@@ -88,7 +88,7 @@ struct AppleDraftProtectionPolicy: DraftFileProtectionPolicy {
   }
 }
 
-/// The Markdown and small binding record are confined to the M9 workspace.
+/// The Markdown and small binding record are confined to the capture workspace.
 /// A draft is usable only after both are reopened and the audio digest matches.
 @MainActor
 final class FileDiaryDraftStore: DiaryDraftStore {

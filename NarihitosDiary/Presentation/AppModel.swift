@@ -5,7 +5,7 @@ import OSLog
 import SwiftUI
 import UIKit
 
-// Capture presentation adds the M9 lifecycle to the M8 root model.
+// Capture presentation integrates recording lifecycle with permissions and destination settings.
 // swiftlint:disable type_body_length file_length
 
 enum RootTab: Hashable {

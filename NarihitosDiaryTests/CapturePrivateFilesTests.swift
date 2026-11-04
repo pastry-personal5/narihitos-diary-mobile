@@ -131,7 +131,7 @@ struct CapturePrivateFilesTests {
         atPath: unknown.deletingLastPathComponent().appending(path: "capture.json").path))
   }
 
-  @Test func removalAcceptsOwnedM13DraftAndRecoveryFiles() throws {
+  @Test func removalAcceptsOwnedDiaryDraftAndRecoveryFiles() throws {
     let root = FileManager.default.temporaryDirectory.appending(
       path: "capture-test-\(UUID().uuidString)", directoryHint: .isDirectory)
     defer { try? FileManager.default.removeItem(at: root) }
