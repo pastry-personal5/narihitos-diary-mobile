@@ -24,17 +24,20 @@ enum DiaryEditPublicationAdapter {
     guard CommittedDiaryResource.digest(expectedData) == record.candidateDigest else {
       throw DiaryEditIssue.invalidCandidate
     }
-    let intents = [
+    var intents = [
       NSFileAccessIntent.readingIntent(with: root, options: .immediatelyAvailableMetadataOnly),
       NSFileAccessIntent.writingIntent(with: markdownURL, options: .forReplacing),
-      NSFileAccessIntent.readingIntent(with: audioURL, options: []),
     ]
+    if !binding.audioComponents.isEmpty {
+      intents.append(NSFileAccessIntent.readingIntent(with: audioURL, options: []))
+    }
     return try await BoundedFileCoordinator().perform(intents: intents, timeout: .seconds(120)) {
       urls in
-      guard urls.count == 3, urls[0].standardizedFileURL == root.standardizedFileURL,
-        urls[1].standardizedFileURL == markdownURL.standardizedFileURL,
-        urls[2].standardizedFileURL == audioURL.standardizedFileURL
-      else { throw DiaryEditIssue.changed }
+      guard
+        matchesAccess(urls, binding: binding, root: root, markdown: markdownURL, audio: audioURL)
+      else {
+        throw DiaryEditIssue.changed
+      }
       try assertUniqueClaim(binding, root: root)
       let current = try observedPair(binding, root: root)
       if current.markdownDigest == record.candidateDigest {
@@ -64,6 +67,16 @@ enum DiaryEditPublicationAdapter {
       else { throw DiaryEditIssue.changed }
       return .verified(published)
     }
+  }
+
+  private static func matchesAccess(
+    _ urls: [URL], binding: DiaryEditBinding, root: URL, markdown: URL, audio: URL
+  ) -> Bool {
+    urls.count == (binding.audioComponents.isEmpty ? 2 : 3)
+      && urls[0].standardizedFileURL == root.standardizedFileURL
+      && urls[1].standardizedFileURL == markdown.standardizedFileURL
+      && (binding.audioComponents.isEmpty
+        || urls[2].standardizedFileURL == audio.standardizedFileURL)
   }
 
   static func verify(
@@ -99,16 +112,21 @@ enum DiaryEditPublicationAdapter {
     let audio = binding.audioComponents.reduce(root) { $0.appendingPathComponent($1) }
     let text = try await observer.observeBounded(
       markdown, maximumBytes: 1_114_122, timeout: .seconds(15))
-    let sound = try await observer.observeBounded(
-      audio, maximumBytes: CatalogAudioInspector.maximumBytes, timeout: .seconds(15))
+    let sound =
+      binding.audioComponents.isEmpty
+      ? nil
+      : try await observer.observeBounded(
+        audio, maximumBytes: CatalogAudioInspector.maximumBytes, timeout: .seconds(15))
     guard try await verify(record, binding: binding, root: root, files: files) else {
       throw DiaryEditIssue.changed
     }
     return DiaryPairUploadObservation(
       markdown: text.uploaded && !text.hasUnresolvedConflict
         ? DiaryFileUploadProof(identity: text.identity, digest: text.digest) : nil,
-      audio: sound.uploaded && !sound.hasUnresolvedConflict
-        ? DiaryFileUploadProof(identity: sound.identity, digest: sound.digest) : nil)
+      audio: sound.flatMap { sound in
+        sound.uploaded && !sound.hasUnresolvedConflict
+          ? DiaryFileUploadProof(identity: sound.identity, digest: sound.digest) : nil
+      })
   }
 
   private static func paths(_ binding: DiaryEditBinding, root: URL) throws -> (
@@ -121,7 +139,8 @@ enum DiaryEditPublicationAdapter {
     let parent = Array(binding.candidate.components.dropLast())
     let parsed = try requiredLayout(stem)
     guard parent == parsed.directoryComponents,
-      binding.audioComponents == parent + [parsed.assetsDirectoryName, parsed.audioFilename]
+      binding.audioComponents.isEmpty
+        || binding.audioComponents == parent + [parsed.assetsDirectoryName, parsed.audioFilename]
     else { throw DiaryEditIssue.changed }
     return (parent + [stem + ".md"], parent)
   }
@@ -143,6 +162,22 @@ enum DiaryEditPublicationAdapter {
         == paths.markdown.last,
       snippet.audioFilename == binding.audioComponents.last
     else { throw DiaryEditIssue.unsupported }
+    if binding.audioComponents.isEmpty {
+      guard snippet.creationMethod == .manual, !binding.sourceVersion.requiresAudio,
+        try !DiaryCatalogHandler.assetsExist(
+          root: root, parent: paths.parent,
+          name: String(paths.markdown.last!.dropLast(3)) + ".assets"),
+        !DiaryCatalogHandler.hasConflict(
+          paths.markdown.reduce(root) { $0.appendingPathComponent($1) })
+      else { throw DiaryEditIssue.changed }
+      let parts = text.1.split(separator: ":").map(String.init)
+      guard parts.count == 2 else { throw DiaryEditIssue.changed }
+      return DiaryPairVersion(
+        markdownIdentity: parts[0], audioIdentity: CommittedDiaryResource.absentAudio,
+        markdownDigest: parts[1], audioDigest: CommittedDiaryResource.absentAudio,
+        audioRequired: false)
+    }
+    guard snippet.creationMethod == .recording else { throw DiaryEditIssue.changed }
     let sound = try CatalogAudioInspector.inspect(
       root: root, components: binding.audioComponents, maximumDuration: 301,
       control: CatalogReadControl())
@@ -178,6 +213,9 @@ enum DiaryEditPublicationAdapter {
       && DiaryFileCreationMarker.matches(binding.publicationToken, at: url)
   }
 
+}
+
+extension DiaryEditPublicationAdapter {
   private static func replace(
     _ bytes: Data, record: DiaryEditRecord, binding: DiaryEditBinding, root: URL,
     files: DiaryEditPrivateFiles
@@ -257,7 +295,8 @@ enum DiaryEditPublicationAdapter {
   }
 
   private static func matchesAudioContent(_ binding: DiaryEditBinding, root: URL) throws -> Bool {
-    try matchesContent(
+    if binding.audioComponents.isEmpty { return !binding.sourceVersion.requiresAudio }
+    return try matchesContent(
       root: root, components: binding.audioComponents, identity: binding.audioContentIdentity)
   }
 

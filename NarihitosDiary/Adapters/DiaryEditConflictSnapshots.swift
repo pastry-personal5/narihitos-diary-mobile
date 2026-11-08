@@ -37,6 +37,14 @@ struct DiaryEditConflictSnapshots: Sendable {
         + ".md",
       snippet.audioFilename == binding.audioComponents.last
     else { throw DiaryEditIssue.unsupported }
+    if binding.audioComponents.isEmpty {
+      guard snippet.creationMethod == .manual, !binding.sourceVersion.requiresAudio else {
+        throw DiaryEditIssue.unsupported
+      }
+      return try retainManual(
+        record, binding: binding, root: root, markdown: markdown,
+        version: textVersion)
+    }
     let audio = try CatalogAudioInspector.inspect(
       root: root, components: binding.audioComponents, maximumDuration: 301, control: control)
     let version = try pairVersion(markdown: textVersion, audio: audio.version)
@@ -56,6 +64,42 @@ struct DiaryEditConflictSnapshots: Sendable {
       hasAdditionalProviderVersions: DiaryCatalogHandler.hasConflict(markdownURL)
         || DiaryCatalogHandler.hasConflict(audioURL))
     return try retain(value, binding: binding, markdown: markdown, root: root, control: control)
+  }
+
+  private func retainManual(
+    _ record: DiaryEditRecord, binding: DiaryEditBinding, root: URL, markdown: Data,
+    version: String
+  ) throws -> DiaryEditRecoverySnapshot {
+    let stem = try CommittedDiaryResource.requiredStem(binding.candidate)
+    let path = Array(binding.candidate.components.dropLast()) + [stem + ".md"]
+    let parts = version.split(separator: ":").map(String.init)
+    guard parts.count == 2 else { throw DiaryEditIssue.changed }
+    let url = path.reduce(root) { $0.appendingPathComponent($1) }
+    let value = DiaryEditRecoverySnapshot(
+      id: UUID(), transactionID: record.id, assetID: record.assetID,
+      version: DiaryPairVersion(
+        markdownIdentity: parts[0], audioIdentity: CommittedDiaryResource.absentAudio,
+        markdownDigest: parts[1], audioDigest: CommittedDiaryResource.absentAudio,
+        audioRequired: false),
+      modifiedAt: DiaryPairModificationTimes(
+        markdown: NSFileVersion.currentVersionOfItem(at: url)?.modificationDate, audio: nil),
+      sharesSubmittedAudio: false,
+      hasAdditionalProviderVersions: DiaryCatalogHandler.hasConflict(url))
+    let snapshots = try snapshotFiles(record)
+    try FileManager.default.createDirectory(at: snapshots.root, withIntermediateDirectories: true)
+    try snapshots.protect(snapshots.root)
+    let directory = try snapshots.directory(value.id)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+    try snapshots.protect(directory)
+    try snapshots.write(markdown, named: "external.md", id: value.id)
+    let (_, reopened) = try CatalogSafeFiles.read(root: root, components: path, maximum: 1_114_122)
+    guard reopened == version else { throw DiaryEditIssue.changed }
+    let metadata = EditSnapshotBinding(
+      schema: 1, editBindingID: binding.id, value: value,
+      markdownBytes: Int64(markdown.count), audioBytes: 0)
+    try snapshots.write(try JSONEncoder().encode(metadata), named: "snapshot.json", id: value.id)
+    _ = try preview(record, snapshotID: value.id)
+    return value
   }
 
   private func retain(
@@ -142,6 +186,13 @@ struct DiaryEditConflictSnapshots: Sendable {
       case .supported(let snippet) = DiarySnippetMarkdownCodec().decode(markdown),
       snippet.id.description == record.assetID
     else { throw DiaryEditIssue.invalidCandidate }
+    if !metadata.value.version.requiresAudio {
+      guard snippet.creationMethod == .manual, metadata.audioBytes == 0 else {
+        throw DiaryEditIssue.invalidCandidate
+      }
+      return snippet
+    }
+    guard snippet.creationMethod == .recording else { throw DiaryEditIssue.invalidCandidate }
     let audioRoot =
       metadata.value.sharesSubmittedAudio
       ? try files.directory(record.id) : try snapshots.directory(snapshotID)
@@ -165,8 +216,10 @@ struct DiaryEditConflictSnapshots: Sendable {
     guard metadata.schema == 1, metadata.editBindingID == record.bindingID,
       metadata.value.id == snapshotID, metadata.value.transactionID == record.id,
       metadata.value.assetID == record.assetID, metadata.markdownBytes > 0,
-      metadata.markdownBytes <= 1_114_122, metadata.audioBytes > 0,
-      metadata.audioBytes <= CatalogAudioInspector.maximumBytes
+      metadata.markdownBytes <= 1_114_122,
+      metadata.value.version.requiresAudio
+        ? metadata.audioBytes > 0 && metadata.audioBytes <= CatalogAudioInspector.maximumBytes
+        : metadata.audioBytes == 0
     else { throw DiaryEditIssue.changed }
     return metadata
   }

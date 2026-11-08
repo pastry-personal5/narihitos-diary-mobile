@@ -85,11 +85,31 @@ struct ContentView: View {
     }
     .animation(nil, value: scenePhase)
     .modifier(DiaryEditorPresentation(actions: model.diaryActions))
+    .sheet(item: $model.manualEditor, onDismiss: model.manualEditorDismissed) { editor in
+      ManualDiaryEditorView(
+        editor: editor, cancel: model.cancelManualDiary,
+        chooseFolder: model.chooseManualDiaryFolder)
+    }
     .onChange(of: model.selectedRoot) { _, root in model.catalog.setVisible(root == .main) }
     .onReceive(
       NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
     ) { _ in
       model.catalog.discard()
+    }
+    .onReceive(
+      NotificationCenter.default.publisher(
+        for: UIApplication.protectedDataWillBecomeUnavailableNotification)
+    ) { _ in
+      model.catalog.stop()
+      model.diaryActions.invalidateVisibleActions()
+    }
+    .onReceive(
+      NotificationCenter.default.publisher(
+        for: UIApplication.protectedDataDidBecomeAvailableNotification)
+    ) { _ in
+      if scenePhase == .active {
+        model.catalog.activate(destinationID: model.destination.summary?.id)
+      }
     }
     .task { await model.becameActive() }
     .onChange(of: scenePhase) { _, phase in
@@ -191,6 +211,15 @@ private struct MainView: View {
       .safeAreaInset(edge: .bottom) {
         HStack {
           Spacer()
+          Button(action: model.handleWrite) {
+            InterfaceIcon(.write)
+              .foregroundStyle(.white).frame(width: 56, height: 56)
+              .background(Color.accentColor, in: Circle())
+              .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Write Diary Snippet")
+          .accessibilityIdentifier("manual-diary-write")
           recordButton(
             language: .english, shortLabel: "en", accessibilityLabel: "Record in English",
             backgroundColor: Color(red: 0.08, green: 0.35, blue: 0.70))
@@ -240,6 +269,7 @@ private struct AllView: View {
   var body: some View {
     NavigationStack {
       List {
+        NavigationLink("Pending Diary Snippets") { ManualDiaryPendingView(model: model) }
         NavigationLink("Pending Recordings") {
           CaptureListView(
             title: "Pending Recordings", captures: model.pendingCaptures,
@@ -310,6 +340,8 @@ private struct AllView: View {
   @ViewBuilder
   private func recoveryDestination(_ destination: CatalogRecoveryDestination) -> some View {
     switch destination {
+    case .manualPending:
+      ManualDiaryPendingView(model: model)
     case .pending:
       CaptureListView(
         title: destination.rawValue, captures: model.pendingCaptures,

@@ -29,6 +29,7 @@ struct CatalogSummary: Equatable, Sendable, Identifiable {
 }
 
 enum CatalogRecoveryDestination: String, CaseIterable, Hashable, Sendable, Identifiable {
+  case manualPending = "Pending Diary Snippets"
   case pending = "Pending Recordings"
   case failed = "Failed Recordings"
   case incomplete = "Incomplete Diary Snippets"
@@ -109,6 +110,7 @@ struct DiaryCatalogDetail: CatalogDetailPayload, Equatable {
   let audioAvailable: Bool
   let isLegacy: Bool
   var assetID: String?
+  var isManual = false
 }
 
 struct CatalogDetail: Sendable {
@@ -134,6 +136,8 @@ enum CatalogStart: Sendable {
 enum CatalogEvent: Sendable {
   case invalidated
   case accessChanged
+  case projectionChanged
+  case bindingsInvalidated
 }
 
 @MainActor

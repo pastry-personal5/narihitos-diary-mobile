@@ -4,6 +4,14 @@ import Foundation
 
 /// Descriptor-relative traversal never resolves an external document's link components.
 enum CatalogSafeFiles {
+  static func directoryVersion(root: URL, components: [String]) throws -> String {
+    let descriptor = try descriptor(root: root, components: components, directory: true)
+    defer { close(descriptor) }
+    var info = stat()
+    guard fstat(descriptor, &info) == 0 else { throw CatalogIssue.unavailable }
+    return DiaryFileIdentity.versionIdentity(info)
+  }
+
   static func descriptor(root: URL, components: [String], directory: Bool) throws -> Int32 {
     var descriptor = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
     guard descriptor >= 0 else { throw CatalogIssue.unavailable }

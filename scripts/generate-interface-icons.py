@@ -31,6 +31,12 @@ def shapes(name):
         return [([(x, y), (x+6, y), (x+6, y+6), (x, y+6), (x, y)], True) for x in (4, 14) for y in (4, 14)]
     if name == 'record':
         return [(circle(12, 8, 4), True), ([(8, 7), (8, 12), (16, 12), (16, 7)], True), ([(5, 10), (5, 13), (8, 17), (16, 17), (19, 13), (19, 10)], False), ([(12, 17), (12, 22)], False), ([(8, 22), (16, 22)], False)]
+    if name == 'write':
+        return [([(4, 16), (4, 21), (9, 20), (21, 8), (16, 3), (4, 16)], False), ([(13, 6), (18, 11)], False)]
+    if name == 'save':
+        return [([(4, 4), (17, 4), (21, 8), (21, 21), (3, 21), (3, 4), (4, 4)], False), ([(7, 4), (7, 10), (16, 10), (16, 4)], False), ([(7, 21), (7, 14), (17, 14), (17, 21)], False)]
+    if name == 'cancel':
+        return [([(5, 5), (19, 19)], False), ([(19, 5), (5, 19)], False)]
     if name == 'stop':
         return [([(5, 5), (19, 5), (19, 19), (5, 19), (5, 5)], True)]
     if name == 'settings':
@@ -92,7 +98,7 @@ def png(path, name, size, filled):
 
 
 if __name__ == '__main__':
-    for name in ('main', 'benefits', 'calendar', 'plugins', 'all', 'record', 'stop', 'settings', 'pending', 'warning', 'incomplete', 'conflicts', 'favorite', 'play', 'pause', 'seekBack', 'seekForward'):
+    for name in ('main', 'benefits', 'calendar', 'plugins', 'all', 'record', 'stop', 'settings', 'pending', 'warning', 'incomplete', 'conflicts', 'favorite', 'play', 'pause', 'seekBack', 'seekForward', 'write', 'save', 'cancel'):
         points = 25 if name in ('main', 'benefits', 'calendar', 'plugins', 'all') else 32 if name in ('record', 'stop') else 24
         for filled in (False, True):
             asset = 'ndm-' + name + ('-selected' if filled else '')

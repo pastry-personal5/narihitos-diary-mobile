@@ -33,8 +33,8 @@ struct CohereCandidateHandoffTests {
     #expect(try fixture.candidates.readVerified(job: job) == payload)
     let snippet = try fixture.draft(for: job, payload: payload)
     #expect(snippet.language == language.rawValue)
-    #expect(snippet.transcription.languageHint == language.rawValue)
-    #expect(snippet.transcription.settingsRevision == 2)
+    #expect(snippet.transcription?.languageHint == language.rawValue)
+    #expect(snippet.transcription?.settingsRevision == 2)
     let codec = DiarySnippetMarkdownCodec()
     #expect(try codec.decode(codec.encode(snippet)) == .supported(snippet))
 

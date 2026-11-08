@@ -55,6 +55,14 @@ extension DiaryCatalogHandler {
   func legacySibling(
     root: URL, assets: [String], control: CatalogReadControl
   ) throws -> (name: String, version: String) {
+    if let proof = preparedLegacy {
+      guard proof.rootIdentity == (try PurgeFileTree.identity(root)), proof.components == assets,
+        proof.version == (try CatalogSafeFiles.directoryVersion(root: root, components: assets))
+      else { throw CatalogIssue.changed }
+      if let issue = proof.issue { throw issue }
+      guard let name = proof.name else { throw CatalogIssue.missingAudio }
+      return (name, proof.version)
+    }
     let cursor = try CatalogDirectoryCursor(root: root, components: assets)
     var siblings: [String] = []
     var version = ""

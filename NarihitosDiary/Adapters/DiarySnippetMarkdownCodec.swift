@@ -86,6 +86,9 @@ struct DiarySnippetMarkdownCodec: Sendable {
       let parsed = try parse(data)
       let entries = parsed.entries
 
+      if try integer("schema_version", in: entries) == 2 {
+        return .supported(try decodeManual(entries, body: parsed.body))
+      }
       guard try integer("schema_version", in: entries) == DiarySnippetSupportPolicy.schemaVersion
       else {
         return .unsupported(reason: .schemaVersion, original: data)
@@ -197,6 +200,7 @@ struct DiarySnippetMarkdownCodec: Sendable {
 
   // swiftlint:disable:next function_body_length
   func encode(_ snippet: DiarySnippetV1) throws -> Data {
+    if snippet.creationMethod == .manual { return try encodeManual(snippet) }
     try validateForEncoding(snippet)
     var lines: [String] = ["---"]
     func quoted(_ key: String, _ value: String) { lines.append("\(key): \(Self.quote(value))") }
@@ -210,21 +214,21 @@ struct DiarySnippetMarkdownCodec: Sendable {
     quoted("title", snippet.title)
     quoted("title_origin", snippet.titleProvenance.originID.description)
     lines.append("favorite: \(snippet.favorite ? "true" : "false")")
-    quoted("language", snippet.language)
-    quoted("audio_filename", snippet.audioFilename)
+    quoted("language", snippet.language!)
+    quoted("audio_filename", snippet.audioFilename!)
     appendOptional("audio_sha256", snippet.audioSHA256, to: &lines)
-    integer("recording_duration_ms", snippet.recordingDurationMilliseconds)
-    quoted("audio_codec", snippet.audioCodec)
-    integer("audio_sample_rate_hz", snippet.audioSampleRateHertz)
-    integer("audio_channels", snippet.audioChannels)
-    integer("audio_bitrate_bps", snippet.audioBitrateBPS)
-    quoted("transcription_method_id", snippet.transcription.methodID.description)
-    quoted("transcription_language_hint", snippet.transcription.languageHint)
-    integer("transcription_settings_revision", snippet.transcription.settingsRevision)
-    appendOptional("transcription_model_id", snippet.transcription.modelID, to: &lines)
-    appendOptional("transcription_model_version", snippet.transcription.modelVersion, to: &lines)
-    appendOptional("transcription_runtime_id", snippet.transcription.runtimeID, to: &lines)
-    appendOptional("transcription_conversion_id", snippet.transcription.conversionID, to: &lines)
+    integer("recording_duration_ms", snippet.recordingDurationMilliseconds!)
+    quoted("audio_codec", snippet.audioCodec!)
+    integer("audio_sample_rate_hz", snippet.audioSampleRateHertz!)
+    integer("audio_channels", snippet.audioChannels!)
+    integer("audio_bitrate_bps", snippet.audioBitrateBPS!)
+    quoted("transcription_method_id", snippet.transcription!.methodID.description)
+    quoted("transcription_language_hint", snippet.transcription!.languageHint)
+    integer("transcription_settings_revision", snippet.transcription!.settingsRevision)
+    appendOptional("transcription_model_id", snippet.transcription!.modelID, to: &lines)
+    appendOptional("transcription_model_version", snippet.transcription!.modelVersion, to: &lines)
+    appendOptional("transcription_runtime_id", snippet.transcription!.runtimeID, to: &lines)
+    appendOptional("transcription_conversion_id", snippet.transcription!.conversionID, to: &lines)
     appendOptional("title_prompt_revision", snippet.titleProvenance.promptRevision, to: &lines)
     appendOptional("title_os_version", snippet.titleProvenance.osVersion, to: &lines)
     appendOptional("title_model_id", snippet.titleProvenance.modelID, to: &lines)
@@ -265,12 +269,19 @@ struct DiarySnippetMarkdownCodec: Sendable {
   }
 
   private func validateForEncoding(_ snippet: DiarySnippetV1) throws {
+    guard snippet.creationMethod == .recording,
+      let audioFilename = snippet.audioFilename,
+      let duration = snippet.recordingDurationMilliseconds,
+      let sampleRate = snippet.audioSampleRateHertz, let channels = snippet.audioChannels,
+      let bitrate = snippet.audioBitrateBPS, snippet.audioCodec != nil, snippet.language != nil,
+      snippet.transcription != nil
+    else { throw DiarySnippetMalformedCode.invalidField }
     let strings = [
       snippet.title, snippet.language, snippet.audioFilename, snippet.audioSHA256,
       snippet.audioCodec,
-      snippet.transcription.methodID.description, snippet.transcription.languageHint,
-      snippet.transcription.modelID, snippet.transcription.modelVersion,
-      snippet.transcription.runtimeID, snippet.transcription.conversionID,
+      snippet.transcription!.methodID.description, snippet.transcription!.languageHint,
+      snippet.transcription!.modelID, snippet.transcription!.modelVersion,
+      snippet.transcription!.runtimeID, snippet.transcription!.conversionID,
       snippet.titleProvenance.originID.description, snippet.titleProvenance.promptRevision,
       snippet.titleProvenance.osVersion, snippet.titleProvenance.modelID,
       snippet.location?.placeName, snippet.weather?.summary,
@@ -278,17 +289,95 @@ struct DiarySnippetMarkdownCodec: Sendable {
     guard strings.allSatisfy({ Self.quote($0).utf8.count <= Self.maximumScalarBytes }),
       snippet.title.count <= 30,
       DiarySnippetSupportPolicy.transcriptionMethods.contains(
-        snippet.transcription.methodID.description),
+        snippet.transcription!.methodID.description),
       DiarySnippetSupportPolicy.titleOrigins.contains(snippet.titleProvenance.originID.description),
       DiarySnippetSupportPolicy.supportsTranscriptionSettings(
-        revision: snippet.transcription.settingsRevision,
-        method: snippet.transcription.methodID.description),
-      (0...301_000).contains(snippet.recordingDurationMilliseconds),
-      snippet.audioSampleRateHertz > 0, snippet.audioChannels > 0, snippet.audioBitrateBPS > 0,
+        revision: snippet.transcription!.settingsRevision,
+        method: snippet.transcription!.methodID.description),
+      (0...301_000).contains(duration),
+      sampleRate > 0, channels > 0, bitrate > 0,
       DiarySnippetLayout(id: snippet.id, createdAt: snippet.createdAt).validates(
-        audioReference: snippet.audioFilename),
+        audioReference: audioFilename),
       snippet.audioSHA256.map(Self.validSHA256) ?? true
     else { throw DiarySnippetMalformedCode.invalidField }
+  }
+
+  private func decodeManual(_ entries: [String: Entry], body: String) throws -> DiarySnippetV1 {
+    guard try string("kind", in: entries) == DiarySnippetSupportPolicy.kind,
+      try string("creation_method", in: entries) == "manual"
+    else { throw DiarySnippetMalformedCode.invalidField }
+    let forbidden = Set(
+      Self.requiredKeys.dropFirst(8) + ["audio_sha256"]
+        + Self.conditionalKeys.filter { $0.hasPrefix("transcription_") }
+        + Self.locationKeys + Self.weatherKeys)
+    guard forbidden.allSatisfy({ entries[$0] == nil }) else {
+      throw DiarySnippetMalformedCode.invalidField
+    }
+    let origin = try string("title_origin", in: entries)
+    let title = try string("title", in: entries)
+    guard DiarySnippetSupportPolicy.titleOrigins.contains(origin), title.count <= 30 else {
+      throw DiarySnippetMalformedCode.invalidField
+    }
+    let titleKeys = ["title_prompt_revision", "title_os_version", "title_model_id"]
+    for key in titleKeys where entries[key] != nil {
+      guard optionalString(key, in: entries) != nil else {
+        throw DiarySnippetMalformedCode.invalidField
+      }
+    }
+    let prompt = optionalString("title_prompt_revision", in: entries)
+    let osVersion = optionalString("title_os_version", in: entries)
+    let model = optionalString("title_model_id", in: entries)
+    guard
+      origin == "apple-ai"
+        ? prompt != nil && osVersion != nil : prompt == nil && osVersion == nil && model == nil
+    else { throw DiarySnippetMalformedCode.invalidField }
+    var result = DiarySnippetV1.manual(
+      id: try AssetID(string("id", in: entries)),
+      createdAt: try SchemaInstant(string("created_at", in: entries)), body: try DiaryBody(body),
+      title: title,
+      provenance: TitleProvenance(
+        originID: try TitleOriginID(origin), promptRevision: prompt, osVersion: osVersion,
+        modelID: model))
+    result.updatedAt = try SchemaInstant(string("updated_at", in: entries))
+    result.favorite = try boolean("favorite", in: entries)
+    return result.withPreservedScalars(
+      entries.values.filter {
+        !Self.recognizedKeys.contains($0.key) && $0.key != "creation_method"
+      }.sorted { $0.order < $1.order }.map {
+        PreservedScalar(key: $0.key, rawValue: $0.raw, sourceOrder: $0.order)
+      })
+  }
+
+  private func encodeManual(_ snippet: DiarySnippetV1) throws -> Data {
+    guard snippet.audioFilename == nil, snippet.audioSHA256 == nil,
+      snippet.transcription == nil, snippet.language == nil, snippet.location == nil,
+      snippet.weather == nil, snippet.recordingDurationMilliseconds == nil,
+      snippet.audioCodec == nil, snippet.audioSampleRateHertz == nil,
+      snippet.audioChannels == nil, snippet.audioBitrateBPS == nil
+    else { throw DiarySnippetMalformedCode.invalidField }
+    var lines = [
+      "---", "schema_version: 2", "kind: \(Self.quote(DiarySnippetSupportPolicy.kind))",
+      "creation_method: \"manual\"", "id: \(Self.quote(snippet.id.description))",
+      "created_at: \(Self.quote(snippet.createdAt.description))",
+      "updated_at: \(Self.quote(snippet.updatedAt.description))",
+      "title: \(Self.quote(snippet.title))",
+      "title_origin: \(Self.quote(snippet.titleProvenance.originID.description))",
+      "favorite: \(snippet.favorite ? "true" : "false")",
+    ]
+    appendOptional("title_prompt_revision", snippet.titleProvenance.promptRevision, to: &lines)
+    appendOptional("title_os_version", snippet.titleProvenance.osVersion, to: &lines)
+    appendOptional("title_model_id", snippet.titleProvenance.modelID, to: &lines)
+    for scalar in snippet.preservedScalars.sorted(by: { $0.sourceOrder < $1.sourceOrder }) {
+      guard !Self.recognizedKeys.contains(scalar.key), scalar.key != "creation_method" else {
+        throw DiarySnippetMalformedCode.invalidField
+      }
+      lines.append("\(scalar.key): \(scalar.rawValue)")
+    }
+    let data = Data((lines.joined(separator: "\n") + "\n---\n\n" + snippet.body.text).utf8)
+    guard case .supported = decode(data) else {
+      throw DiarySnippetMalformedCode.invalidField
+    }
+    return data
   }
 
   private static func validSHA256(_ value: String) -> Bool {
@@ -296,22 +385,27 @@ struct DiarySnippetMarkdownCodec: Sendable {
       && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
   }
 
-  // swiftlint:disable:next cyclomatic_complexity
   private func parse(_ data: Data) throws -> (entries: [String: Entry], body: String) {
     let delimiterBytes = 10  // opening `---\n` plus closing `\n---\n\n`
     let maximumDocumentBytes =
       Self.maximumFrontMatterBytes + DiaryBody.maximumBytes + delimiterBytes
     guard data.count <= maximumDocumentBytes else { throw DiarySnippetMalformedCode.bodyTooLarge }
-    guard !data.contains(13) else { throw DiarySnippetMalformedCode.invalidLineEnding }
     guard let source = String(data: data, encoding: .utf8) else {
       throw DiarySnippetMalformedCode.malformedUTF8
     }
-    guard source.hasPrefix("---\n") else { throw DiarySnippetMalformedCode.missingDelimiter }
+    guard source.hasPrefix("---\n") else {
+      throw data.contains(13)
+        ? DiarySnippetMalformedCode.invalidLineEnding : DiarySnippetMalformedCode.missingDelimiter
+    }
     guard
       let close = source.range(
         of: "\n---\n\n", range: source.index(source.startIndex, offsetBy: 3)..<source.endIndex)
-    else { throw DiarySnippetMalformedCode.missingDelimiter }
+    else {
+      throw data.contains(13)
+        ? DiarySnippetMalformedCode.invalidLineEnding : DiarySnippetMalformedCode.missingDelimiter
+    }
     let front = String(source[source.index(source.startIndex, offsetBy: 4)..<close.lowerBound])
+    guard !front.contains("\r") else { throw DiarySnippetMalformedCode.invalidLineEnding }
     guard front.utf8.count <= Self.maximumFrontMatterBytes else {
       throw DiarySnippetMalformedCode.frontMatterTooLarge
     }
@@ -322,6 +416,21 @@ struct DiarySnippetMarkdownCodec: Sendable {
     }
     let lines = front.isEmpty ? [] : front.split(separator: "\n", omittingEmptySubsequences: false)
     guard lines.count <= Self.maximumKeys else { throw DiarySnippetMalformedCode.tooManyKeys }
+    let entries = try parseEntries(lines)
+    if (try? integer("schema_version", in: entries)) != 2, data.contains(13) {
+      throw DiarySnippetMalformedCode.invalidLineEnding
+    }
+    let baseKeys = Array(Self.requiredKeys.prefix(8))
+    let required =
+      (try? integer("schema_version", in: entries)) == 2
+      ? baseKeys + ["creation_method"] : Self.requiredKeys
+    guard required.allSatisfy({ entries[$0] != nil }) else {
+      throw DiarySnippetMalformedCode.missingRequiredField
+    }
+    return (entries, body)
+  }
+
+  private func parseEntries(_ lines: [Substring]) throws -> [String: Entry] {
     var entries: [String: Entry] = [:]
     for (order, lineSlice) in lines.enumerated() {
       let line = String(lineSlice)
@@ -337,10 +446,7 @@ struct DiarySnippetMarkdownCodec: Sendable {
       }
       entries[key] = Entry(key: key, raw: raw, value: try Self.parseScalar(raw), order: order)
     }
-    guard Self.requiredKeys.allSatisfy({ entries[$0] != nil }) else {
-      throw DiarySnippetMalformedCode.missingRequiredField
-    }
-    return (entries, body)
+    return entries
   }
 
   private static func validKey(_ key: String) -> Bool {

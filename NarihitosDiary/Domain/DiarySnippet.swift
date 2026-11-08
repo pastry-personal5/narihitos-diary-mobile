@@ -156,6 +156,11 @@ struct PreservedScalar: Equatable, Sendable {
   let sourceOrder: Int
 }
 
+enum DiaryCreationMethod: String, Sendable {
+  case recording
+  case manual
+}
+
 struct DiarySnippetV1: Equatable, Sendable {
   let id: AssetID
   let createdAt: SchemaInstant
@@ -163,19 +168,39 @@ struct DiarySnippetV1: Equatable, Sendable {
   var title: String
   var titleProvenance: TitleProvenance
   var favorite: Bool
-  let language: String
-  let audioFilename: String
+  let language: String?
+  let audioFilename: String?
   var audioSHA256: String?
-  let recordingDurationMilliseconds: Int64
-  let audioCodec: String
-  let audioSampleRateHertz: Int64
-  let audioChannels: Int64
-  let audioBitrateBPS: Int64
-  let transcription: TranscriptionProvenance
+  let recordingDurationMilliseconds: Int64?
+  let audioCodec: String?
+  let audioSampleRateHertz: Int64?
+  let audioChannels: Int64?
+  let audioBitrateBPS: Int64?
+  let transcription: TranscriptionProvenance?
   let location: LocationContext?
   let weather: WeatherContext?
   var body: DiaryBody
-  let preservedScalars: [PreservedScalar]
+  var preservedScalars: [PreservedScalar]
+  var creationMethod: DiaryCreationMethod = .recording
+
+  func withPreservedScalars(_ scalars: [PreservedScalar]) -> Self {
+    var result = self
+    result.preservedScalars = scalars
+    return result
+  }
+
+  static func manual(
+    id: AssetID, createdAt: SchemaInstant, body: DiaryBody, title: String,
+    provenance: TitleProvenance
+  ) -> Self {
+    return Self(
+      id: id, createdAt: createdAt, updatedAt: createdAt, title: title,
+      titleProvenance: provenance,
+      favorite: false, language: nil, audioFilename: nil, audioSHA256: nil,
+      recordingDurationMilliseconds: nil, audioCodec: nil, audioSampleRateHertz: nil,
+      audioChannels: nil, audioBitrateBPS: nil, transcription: nil, location: nil, weather: nil,
+      body: body, preservedScalars: [], creationMethod: .manual)
+  }
 }
 
 enum DiarySnippetSupportPolicy {

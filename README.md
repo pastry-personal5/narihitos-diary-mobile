@@ -2,7 +2,7 @@
 
 Status: Active
 
-An iPhone app that turns recordings into personal Markdown diaries paired with their audio in a user-selected iCloud Drive folder. It uses Swift and SwiftUI and requires iOS 27.0.1 or later.
+An iPhone app for writing personal Markdown diaries or creating them from recordings paired with their audio in a user-selected iCloud Drive folder. It uses Swift and SwiftUI and requires iOS 27.0.1 or later.
 
 ## Using the app
 
@@ -10,13 +10,15 @@ First launch requests microphone access and optional location access. Denial lea
 
 Main shows the active folder's diary collection. Its English and Korean recording buttons start capture with the corresponding language hint; Stop & Transcribe queues the audio for automatic processing while the app is open. Capture also stops automatically at five minutes.
 
+To write directly, tap the writing button to the left of English Record on Main. Enter text, then use the compact custom bitmap Save or Cancel button at the editor's top right. Save retains the submitted text locally before closing and saves a text-only Diary Snippet to the selected iCloud folder. All → Pending Diary Snippets shows save waits and Retry. Writing needs no microphone permission or transcription model. Manual snippets support editing, Favorite and deletion, with no Audio or recording Metadata.
+
 All → Settings → Transcription offers None, Apple Local, Cohere Q4, and Cohere Q5. Transcription runs locally after the selected method is ready; the app never switches methods automatically. Q4 and Q5 have separate pinned installations. Q5 inference currently waits for device certification; see the [M20 Q5 evidence](docs/phase-1/milestone-20-enhancements-fixes-refactoring-overview.md#task-12-cohere-q5-installation-terminates-near-completion). Hosted Qwen is future work.
 
 Transcription initializes one diary body and a read-only title, using Apple's on-device model when available or a shortened first sentence. Supported diaries offer body editing with title regeneration, Favorite, a full-width Edit Diary button with Delete Diary Snippet directly below, and audio replay above Metadata. Legacy text stays read-only, with replay for safely validated audio.
 
 Pending and Failed Recordings are separate destinations in All. Retry uses current Settings; Remove opens inline Remove Recording/Cancel confirmation. Diary detail has a separate Delete Diary Snippet action below Edit Diary for permanently deleting its verified text/audio pair after confirmation.
 
-Pending iCloud verification now retries automatically with increasing delays while the app is open, and resumes when you return. Retry Verification requests an immediate check. The app retains private staging until both diary files are verified and report successful upload.
+Pending iCloud verification now retries automatically with increasing delays while the app is open, and resumes when you return. Retry Verification requests an immediate check. For recorded snippets, the app retains private staging until both diary files are verified and report successful upload; manual snippets require their one Markdown file.
 
 Settings → Danger Zone separately confirms purging all active-folder contents, including non-app files, or internal staging, including pending audio and unsaved drafts. Purges require idle app work; folder purge also requires staging to finish or be purged separately. An interrupted purge pauses recording and processing until explicitly retried. See the [purge contract](docs/product-behavior.md#confirmed-v1-behavior) for scope and exclusions.
 

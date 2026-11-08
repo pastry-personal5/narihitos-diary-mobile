@@ -14,8 +14,9 @@ struct DiarySnippetLayout: Equatable, Sendable {
     audioFilename = "\(id.description).m4a"
   }
 
-  func validates(audioReference: String) -> Bool {
-    audioReference == audioFilename && !audioReference.contains("/")
+  func validates(audioReference: String?) -> Bool {
+    guard let audioReference else { return false }
+    return audioReference == audioFilename && !audioReference.contains("/")
       && !audioReference.contains("\\")
       && !audioReference.contains(":") && !audioReference.contains("%")
       && !audioReference.unicodeScalars.contains(where: {

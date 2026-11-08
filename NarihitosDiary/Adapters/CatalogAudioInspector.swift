@@ -4,10 +4,13 @@ import Darwin
 import Foundation
 
 final class CatalogReadControl: @unchecked Sendable {
+  let metrics: CatalogPerformanceProbe?
   private let lock = NSLock()
   private var cancelled = false
   private var allowedAudio: Set<[String]>?
   private let deadline = ContinuousClock.now.advanced(by: .seconds(120))
+
+  init(metrics: CatalogPerformanceProbe? = nil) { self.metrics = metrics }
 
   func allowAudio(_ paths: Set<[String]>) { lock.withLock { allowedAudio = paths } }
   func authorizeAudio(_ path: [String]) throws {
@@ -57,8 +60,12 @@ enum CatalogAudioInspector {
     guard initial.st_size > 0, initial.st_size <= maximumBytes else {
       throw CatalogIssue.invalidAudio
     }
+    let decodeStart = DispatchTime.now().uptimeNanoseconds
     let duration = try decodeDescriptor(
       descriptor, size: initial.st_size, maximumDuration: maximumDuration, control: control)
+    control.metrics?.record(
+      .audioDecodeNanoseconds, DispatchTime.now().uptimeNanoseconds - decodeStart)
+    let hashStart = DispatchTime.now().uptimeNanoseconds
     let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: false)
     try handle.seek(toOffset: 0)
     var hash = SHA256()
@@ -66,6 +73,7 @@ enum CatalogAudioInspector {
     while let part = try handle.read(upToCount: 65_536), !part.isEmpty {
       try control.check()
       count += Int64(part.count)
+      control.metrics?.record(.audioHashBytes, UInt64(part.count))
       guard count <= maximumBytes else { throw CatalogIssue.invalidAudio }
       hash.update(data: part)
     }
@@ -79,6 +87,8 @@ enum CatalogAudioInspector {
       count == initial.st_size
     else { throw CatalogIssue.changed }
     let digest = hash.finalize().map { String(format: "%02x", $0) }.joined()
+    control.metrics?.record(
+      .audioHashNanoseconds, DispatchTime.now().uptimeNanoseconds - hashStart)
     return CatalogAudioInspection(
       version: DiaryFileIdentity.versionIdentity(final) + ":" + digest, duration: duration)
   }
@@ -105,6 +115,7 @@ enum CatalogAudioInspector {
           return kAudioFileUnspecifiedError
         }
         actual.pointee = UInt32(read)
+        input.control.metrics?.record(.audioDecodeBytes, UInt64(read))
         return noErr
       }, nil,
       { context in Unmanaged<CatalogAudioInput>.fromOpaque(context).takeUnretainedValue().size },

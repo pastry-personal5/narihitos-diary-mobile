@@ -12,7 +12,8 @@ final class AppleDiaryEditStore: DiaryEditStorePort, DiaryEditRecoveryPort {
     let facts: CommittedDiaryFacts
   }
 
-  private let catalog: AppleAssetCatalog
+  private let creationIsSettled: (String) -> Bool
+  private let catalog: any CatalogActionBindingSource
   private let destination: AppleDestinationService
   private let installation: any InstallationIdentityPort
   private let observer: any DiaryFileObserverPort
@@ -22,13 +23,15 @@ final class AppleDiaryEditStore: DiaryEditStorePort, DiaryEditRecoveryPort {
   private var epoch = UUID()
 
   init(
-    catalog: AppleAssetCatalog, destination: AppleDestinationService,
+    catalog: any CatalogActionBindingSource, destination: AppleDestinationService,
     installation: any InstallationIdentityPort,
     root: URL? = nil,
     protection: any DraftFileProtectionPolicy = AppleDraftProtectionPolicy(),
     observer: any DiaryFileObserverPort = AppleDiaryFileObserver(),
+    creationIsSettled: @escaping (String) -> Bool = { _ in true },
     protectedDataAvailable: @escaping () -> Bool = { UIApplication.shared.isProtectedDataAvailable }
   ) {
+    self.creationIsSettled = creationIsSettled
     self.catalog = catalog
     self.destination = destination
     self.installation = installation
@@ -55,6 +58,9 @@ final class AppleDiaryEditStore: DiaryEditStorePort, DiaryEditRecoveryPort {
       }
       guard generation == epoch, !Task.isCancelled, let snippet = facts.snippet else {
         throw DiaryEditIssue.unsupported
+      }
+      if snippet.creationMethod == .manual, !creationIsSettled(snippet.id.description) {
+        throw DiaryEditIssue.busy
       }
       let key = CommittedDiaryResource.resourceKey(
         destinationID: binding.destination.id, rootIdentity: facts.rootIdentity,
@@ -107,7 +113,12 @@ final class AppleDiaryEditStore: DiaryEditStorePort, DiaryEditRecoveryPort {
         guard generation == epoch, !Task.isCancelled else { throw DiaryEditIssue.changed }
         return .unchanged
       }
-      try await retainSourceAudio(live, binding: binding)
+      if binding.audioComponents.isEmpty {
+        _ = try await journal.prepare(binding)
+        try await revalidate(live)
+      } else {
+        try await retainSourceAudio(live, binding: binding)
+      }
       guard generation == epoch, !Task.isCancelled else { throw DiaryEditIssue.changed }
       let regeneratesTitle: Bool
       if case .body = submission.change {

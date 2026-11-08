@@ -120,9 +120,9 @@ final class FileDiaryDraftStore: DiaryDraftStore {
     }
     guard job.draftAssetID == snippet.id.description,
       snippet.body.text == candidate.text,
-      snippet.transcription.methodID.description == job.selectedMethodID,
+      snippet.transcription?.methodID.description == job.selectedMethodID,
       snippet.language == job.language.rawValue,
-      snippet.transcription.languageHint == job.language.rawValue,
+      snippet.transcription?.languageHint == job.language.rawValue,
       snippet.createdAt == (try SchemaInstant.from(date: job.startedAt)),
       snippet.audioSHA256 == nil || snippet.audioSHA256 == candidate.sourceDigest,
       Self.validDigest(candidate.sourceDigest)
@@ -189,10 +189,10 @@ final class FileDiaryDraftStore: DiaryDraftStore {
     guard case .supported(let snippet) = codec.decode(markdown),
       snippet.id.description == record.assetID,
       snippet.body.text.utf8.count <= DiaryBody.maximumBytes,
-      snippet.transcription.methodID.description == record.methodID,
+      snippet.transcription?.methodID.description == record.methodID,
       snippet.createdAt == (try SchemaInstant.from(date: job.startedAt)),
       snippet.language == job.language.rawValue,
-      snippet.transcription.languageHint == job.language.rawValue,
+      snippet.transcription?.languageHint == job.language.rawValue,
       snippet.audioSHA256 == nil || snippet.audioSHA256 == record.sourceDigest
     else { throw QueueStoreFailure.corrupt }
     return VerifiedDiaryDraft(

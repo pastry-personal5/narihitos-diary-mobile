@@ -7,13 +7,13 @@ import UIKit
 
 @MainActor
 final class AppleDiaryDeletionService: DiaryDeletionPort {
-  private let catalog: AppleAssetCatalog
+  private let catalog: any CatalogActionBindingSource
   private let destination: AppleDestinationService
   private let creationIsSettled: (String) throws -> Bool
   private let protectedDataAvailable: () -> Bool
 
   init(
-    catalog: AppleAssetCatalog, destination: AppleDestinationService,
+    catalog: any CatalogActionBindingSource, destination: AppleDestinationService,
     creationIsSettled: @escaping (String) throws -> Bool,
     protectedDataAvailable: @escaping () -> Bool = { UIApplication.shared.isProtectedDataAvailable }
   ) {
@@ -83,6 +83,10 @@ enum DiaryPairDeletion {
     let stem = try CommittedDiaryResource.requiredStem(resource.candidate)
     let parent = Array(resource.candidate.components.dropLast())
     let markdown = parent + [stem + ".md"]
+    if facts.audioComponents.isEmpty {
+      try await removeManual(resource, facts: facts, root: root, markdown: markdown)
+      return
+    }
     let assets = Array(facts.audioComponents.dropLast())
     let paths = [[], parent, assets, markdown, facts.audioComponents]
     let intents = paths.enumerated().map { index, components in
@@ -105,6 +109,30 @@ enum DiaryPairDeletion {
         throw CatalogIssue.changed
       }
       try unlinkPair(resource, facts: facts, root: root, beforeTextRemoval: beforeTextRemoval)
+    }
+  }
+
+  private static func removeManual(
+    _ resource: CatalogActionResource, facts: CommittedDiaryFacts, root: URL, markdown: [String]
+  ) async throws {
+    let target = markdown.reduce(root) { $0.appendingPathComponent($1) }
+    try await BoundedFileCoordinator().perform(
+      intents: [NSFileAccessIntent.writingIntent(with: target, options: .forDeleting)],
+      timeout: .seconds(120)
+    ) { urls in
+      guard urls.first?.standardizedFileURL == target.standardizedFileURL else {
+        throw CatalogIssue.changed
+      }
+      let current = try CommittedDiaryResource.inspect(
+        resource, root: root, control: CatalogReadControl())
+      guard current.rootIdentity == facts.rootIdentity, current.version == facts.version,
+        current.snippet?.creationMethod == .manual
+      else { throw CatalogIssue.changed }
+      let parent = Array(markdown.dropLast())
+      let day = try CatalogSafeFiles.descriptor(root: root, components: parent, directory: true)
+      defer { close(day) }
+      try attached(day, root: root, components: parent)
+      try unlinkFile(markdown.last!, parent: day, version: facts.version.markdownIdentity)
     }
   }
 

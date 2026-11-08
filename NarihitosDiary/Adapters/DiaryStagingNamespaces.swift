@@ -10,12 +10,17 @@ enum DiaryStagingNamespaces {
       let slice = try cursor.next(root: root, components: [], maximum: 50)
       for entry in slice.entries {
         guard entry.safe, entry.isDirectory,
-          entry.name == "DiaryEdits" || entry.name == "DiaryReplay"
+          entry.name == "DiaryEdits" || entry.name == "DiaryReplay" || entry.name == "ManualDiaries"
         else { return false }
         let descriptor = try CatalogSafeFiles.descriptor(
           root: root, components: [entry.name], directory: true)
         close(descriptor)
-        guard try PurgeFileTree.isEmpty(root.appending(path: entry.name)) else { return false }
+        let namespace = root.appending(path: entry.name)
+        if entry.name == "ManualDiaries" {
+          guard try !ManualDiaryJournal.hasPending(in: namespace) else { return false }
+        } else {
+          guard try PurgeFileTree.isEmpty(namespace) else { return false }
+        }
       }
       if slice.ended { return true }
     } while true

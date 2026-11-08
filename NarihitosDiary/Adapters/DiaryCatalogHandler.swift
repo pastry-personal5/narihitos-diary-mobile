@@ -3,6 +3,8 @@ import Foundation
 
 struct DiaryCatalogHandler: CatalogAssetHandler {
   let kind = DiarySnippetSupportPolicy.kind
+  var metrics: CatalogPerformanceProbe?
+  var preparedLegacy: CatalogLegacySiblingProof?
 
   func descends(into components: [String]) -> Bool {
     guard components.count <= 3 else { return false }
@@ -29,7 +31,8 @@ struct DiaryCatalogHandler: CatalogAssetHandler {
   }
 
   func read(_ candidate: CatalogCandidate, root: URL) async throws -> CatalogReadValue {
-    let control = CatalogReadControl()
+    metrics?.record(.validationAttempts)
+    let control = CatalogReadControl(metrics: metrics)
     return try await withTaskCancellationHandler {
       try await coordinatedRead(candidate, root: root, control: control)
     } onCancel: {
@@ -50,6 +53,7 @@ struct DiaryCatalogHandler: CatalogAssetHandler {
     let maximum = DiaryBody.maximumBytes + DiarySnippetMarkdownCodec.maximumFrontMatterBytes + 10
     let (bytes, markdownVersion) = try CatalogSafeFiles.read(
       root: root, components: markdown, maximum: maximum)
+    metrics?.record(.markdownBytes, UInt64(bytes.count))
     let markdownURL = markdown.reduce(root) { $0.appendingPathComponent($1) }
     if Self.hasConflict(markdownURL) {
       return failure(
@@ -71,8 +75,9 @@ struct DiaryCatalogHandler: CatalogAssetHandler {
       result = try legacy(
         bytes, candidate: candidate, root: root, version: markdownVersion, control: control)
     }
-    let (_, reopened) = try CatalogSafeFiles.read(
+    let (reopenedBytes, reopened) = try CatalogSafeFiles.read(
       root: root, components: markdown, maximum: maximum)
+    metrics?.record(.markdownBytes, UInt64(reopenedBytes.count))
     guard reopened == markdownVersion, !Self.hasConflict(markdownURL) else {
       throw CatalogIssue.changed
     }
@@ -162,15 +167,17 @@ struct DiaryCatalogHandler: CatalogAssetHandler {
     _ snippet: DiarySnippetV1, date: Date, audioAvailable: Bool
   ) -> DiaryCatalogDetail {
     DiaryCatalogDetail(
-      title: snippet.title, body: snippet.body.text, favorite: snippet.favorite, recordedAt: date,
-      duration: Double(snippet.recordingDurationMilliseconds) / 1_000,
-      language: snippet.transcription.languageHint,
+      title: snippet.title, body: snippet.body.text, favorite: snippet.favorite,
+      recordedAt: snippet.creationMethod == .manual ? nil : date,
+      duration: snippet.recordingDurationMilliseconds.map { Double($0) / 1_000 },
+      language: snippet.transcription?.languageHint,
       location: snippet.location.map {
         CatalogLocation(latitude: $0.latitude, longitude: $0.longitude, placeName: $0.placeName)
       },
       weather: snippet.weather.map {
         CatalogWeather(summary: $0.summary, temperatureCelsius: $0.temperatureCelsius)
       },
-      audioAvailable: audioAvailable, isLegacy: false, assetID: snippet.id.description)
+      audioAvailable: audioAvailable, isLegacy: false, assetID: snippet.id.description,
+      isManual: snippet.creationMethod == .manual)
   }
 }

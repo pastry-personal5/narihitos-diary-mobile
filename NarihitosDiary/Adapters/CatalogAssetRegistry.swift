@@ -33,6 +33,43 @@ protocol CatalogAssetHandler: Sendable {
   func descends(into components: [String]) -> Bool
   func candidate(components: [String], safe: Bool) -> CatalogCandidate?
   func read(_ candidate: CatalogCandidate, root: URL) async throws -> CatalogReadValue
+  func unexploredDateUpperBound(in components: [String]) -> Date?
+  func mayAppearInTimeline(_ candidate: CatalogCandidate) -> Bool
+  func hasKnownTimelineOrder(_ candidate: CatalogCandidate) -> Bool
+  func presence(of candidate: CatalogCandidate, root: URL) throws -> CatalogResourcePresence
+  func prepareRead(
+    _ candidate: CatalogCandidate, root: URL, continuation: (any CatalogReadPreparation)?
+  ) async throws -> CatalogReadPreparationResult
+  func readPrepared(
+    _ candidate: CatalogCandidate, root: URL, preparation: (any CatalogReadPreparation)?
+  ) async throws -> CatalogReadValue
+}
+
+protocol CatalogReadPreparation: Sendable {}
+
+struct CatalogReadPreparationFailure: CatalogReadPreparation { let issue: CatalogIssue }
+
+enum CatalogReadPreparationResult: Sendable {
+  case progress(any CatalogReadPreparation, visits: Int)
+  case ready((any CatalogReadPreparation)?, visits: Int)
+}
+
+extension CatalogAssetHandler {
+  func unexploredDateUpperBound(in components: [String]) -> Date? { nil }
+  func mayAppearInTimeline(_ candidate: CatalogCandidate) -> Bool { true }
+  func hasKnownTimelineOrder(_ candidate: CatalogCandidate) -> Bool {
+    candidate.date != nil && !candidate.stableID.isEmpty
+  }
+  func presence(of candidate: CatalogCandidate, root: URL) throws -> CatalogResourcePresence {
+    try CatalogResourcePresence.inspect(root: root, components: candidate.components)
+  }
+  func prepareRead(
+    _ candidate: CatalogCandidate, root: URL, continuation: (any CatalogReadPreparation)?
+  ) async throws -> CatalogReadPreparationResult { .ready(nil, visits: 0) }
+
+  func readPrepared(
+    _ candidate: CatalogCandidate, root: URL, preparation: (any CatalogReadPreparation)?
+  ) async throws -> CatalogReadValue { try await read(candidate, root: root) }
 }
 
 struct CatalogAssetRegistry: Sendable {
@@ -45,6 +82,15 @@ struct CatalogAssetRegistry: Sendable {
   }
   func candidates(components: [String], safe: Bool) -> [CatalogCandidate] {
     handlers.values.compactMap { $0.candidate(components: components, safe: safe) }
+  }
+
+  func unexploredDateUpperBound(in components: [String]) -> Date? {
+    var result = Date.distantPast
+    for handler in handlers.values where components.isEmpty || handler.descends(into: components) {
+      guard let bound = handler.unexploredDateUpperBound(in: components) else { return nil }
+      result = max(result, bound)
+    }
+    return result
   }
 }
 

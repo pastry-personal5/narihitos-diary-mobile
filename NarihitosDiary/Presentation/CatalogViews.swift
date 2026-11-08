@@ -34,146 +34,6 @@ struct CatalogDetailRendererRegistry {
   }
 }
 
-struct CatalogCollectionView: View {
-  @ObservedObject var catalog: CatalogModel
-  let openAll: () -> Void
-  let renderers: CatalogDetailRendererRegistry
-  @State private var calendarRevision = 0
-
-  private var sections: [CatalogDateSection] {
-    _ = calendarRevision
-    return CatalogDateSections.group(catalog.summaries, calendar: .autoupdatingCurrent)
-  }
-
-  var body: some View {
-    List {
-      ForEach(sections, id: \.date) { section in
-        Section(section.date.formatted(date: .complete, time: .omitted)) {
-          ForEach(section.entries) { summary in
-            Button {
-              catalog.open(summary.handle)
-            } label: {
-              VStack(alignment: .leading, spacing: 6) {
-                Text(verbatim: summary.title).font(.headline).foregroundStyle(.primary)
-                Text(summary.createdAt.formatted(date: .omitted, time: .shortened))
-                  .font(.subheadline).foregroundStyle(.secondary)
-              }
-              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-              .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint("Opens Diary Snippet")
-          }
-        }
-      }
-      if !catalog.summaries.isEmpty { footer }
-    }
-    .overlay { if catalog.summaries.isEmpty { emptyState } }
-    .refreshable { catalog.refresh() }
-    .navigationDestination(item: $catalog.selectedItem) { handle in
-      CatalogDetailScreen(catalog: catalog, handle: handle, renderers: renderers)
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-      calendarRevision += 1
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
-      calendarRevision += 1
-    }
-    .onReceive(
-      NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)
-    ) { _ in calendarRevision += 1 }
-    .privacySensitive()
-  }
-
-  @ViewBuilder private var footer: some View {
-    if catalog.state == .unavailable {
-      Button("Retry Loading", action: catalog.refresh).frame(minHeight: 44)
-    } else if catalog.canLoadMore || catalog.state == .loading || catalog.state == .discovering {
-      ProgressView("Loading Diary Snippets")
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .task(id: catalog.pageRevision) { catalog.loadMore() }
-    }
-  }
-
-  @ViewBuilder private var emptyState: some View {
-    switch catalog.state {
-    case .idle, .loading, .discovering, .loaded:
-      ProgressView(
-        catalog.state == .discovering ? "Finding Diary Snippets" : "Loading Diary Snippets")
-    case .noFolder:
-      ContentUnavailableView {
-        Label {
-          Text("Choose an iCloud Folder")
-        } icon: {
-          InterfaceIcon(.incomplete)
-        }
-      } description: {
-        Text("Choose your active folder in All’s Settings to see your diary.")
-      } actions: {
-        Button("Open All", action: openAll).frame(minHeight: 44)
-      }
-    case .unavailable:
-      ContentUnavailableView {
-        Label {
-          Text("Folder Unavailable")
-        } icon: {
-          InterfaceIcon(.warning)
-        }
-      } description: {
-        Text("Restore access to your active folder or try again.")
-      } actions: {
-        Button("Retry", action: catalog.refresh).frame(minHeight: 44)
-        Button("Open All", action: openAll).frame(minHeight: 44)
-      }
-    case .end:
-      ContentUnavailableView {
-        Label {
-          Text("No Diary Snippets")
-        } icon: {
-          InterfaceIcon(.main)
-        }
-      } description: {
-        Text(
-          catalog.recovery.isEmpty
-            ? "Your active folder has no Diary Snippets."
-            : "Some items need attention. Open All to review their status.")
-      }
-    }
-  }
-}
-
-private struct CatalogDetailScreen: View {
-  @ObservedObject var catalog: CatalogModel
-  let handle: CatalogItemHandle
-  let renderers: CatalogDetailRendererRegistry
-
-  var body: some View {
-    Group {
-      if let detail = catalog.detail, detail.handle == handle {
-        renderers.render(detail)
-      } else if let issue = catalog.detailIssue {
-        ContentUnavailableView {
-          Label {
-            Text("Diary Unavailable")
-          } icon: {
-            InterfaceIcon(.warning)
-          }
-        } description: {
-          Text(issue.message)
-        } actions: {
-          Button("Retry") { catalog.open(handle) }.frame(minHeight: 44)
-        }
-      } else {
-        ProgressView("Opening Diary Snippet")
-      }
-    }
-    .navigationTitle("Diary Snippet")
-    .navigationBarTitleDisplayMode(.inline)
-    .onDisappear { catalog.clearDetail(expectedHandle: handle) }
-    .privacySensitive()
-  }
-}
-
 private struct DiaryCatalogDetailView: View {
   let diary: DiaryCatalogDetail
   let handle: CatalogItemHandle
@@ -229,10 +89,12 @@ private struct DiaryCatalogDetailView: View {
           }
           if let message = actions.message { Text(message).foregroundStyle(.secondary) }
         }
-        Divider()
-        audio
-        Divider()
-        metadata
+        if !diary.isManual {
+          Divider()
+          audio
+          Divider()
+          metadata
+        }
       }
       .padding(20)
       .frame(maxWidth: .infinity, alignment: .leading)

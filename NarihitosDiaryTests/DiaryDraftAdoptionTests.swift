@@ -225,7 +225,7 @@ struct DiaryDraftAdoptionTests {
     #expect(saved.draftAssetID == snippet.id.description)
     #expect(snippet.body.text == "I wrote a diary entry. Another sentence.")
     #expect(snippet.language == "en-US")
-    #expect(snippet.transcription.languageHint == "en-US")
+    #expect(snippet.transcription?.languageHint == "en-US")
     #expect(snippet.audioSampleRateHertz == 44_100)
     #expect(snippet.audioBitrateBPS == 64_000)
     #expect(snippet.favorite == false)
@@ -434,9 +434,9 @@ struct DiaryDraftAdoptionTests {
       title: DiaryTitlePolicy.fallback(korean))
     #expect(snippet.body.text == korean)
     #expect(snippet.language == "en-US")
-    #expect(snippet.transcription.languageHint == "en-US")
-    #expect(snippet.transcription.modelID == descriptor.modelID)
-    #expect(snippet.transcription.modelVersion == descriptor.repositoryRevision)
+    #expect(snippet.transcription?.languageHint == "en-US")
+    #expect(snippet.transcription?.modelID == descriptor.modelID)
+    #expect(snippet.transcription?.modelVersion == descriptor.repositoryRevision)
   }
 
   @Test func cohereCandidateUsesTheSameDraftAdoptionPath() async throws {
@@ -455,8 +455,8 @@ struct DiaryDraftAdoptionTests {
     #expect(fixture.queue.values[job.id]?.state == .readyToSave)
     #expect(snippet.body.text == "오늘은 집에서 하루를 보내고 일기를 썼다.")
     #expect(snippet.language == "en-US")
-    #expect(snippet.transcription.languageHint == "en-US")
-    #expect(snippet.transcription.methodID.description == TranscriptionMethodIdentifiers.cohere)
+    #expect(snippet.transcription?.languageHint == "en-US")
+    #expect(snippet.transcription?.methodID.description == TranscriptionMethodIdentifiers.cohere)
     #expect(fixture.candidates.published[job.id] == nil)
   }
 

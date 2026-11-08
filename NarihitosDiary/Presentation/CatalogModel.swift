@@ -19,57 +19,117 @@ final class CatalogModel: ObservableObject {
   @Published private(set) var recovery: [CatalogRecovery] = []
   @Published private(set) var state: State = .idle
   @Published private(set) var pageRevision = UUID()
-  @Published private(set) var detail: CatalogDetail?
-  @Published private(set) var detailIssue: CatalogIssue?
-  @Published var selectedItem: CatalogItemHandle?
+  @Published var detail: CatalogDetail?
+  @Published var detailIssue: CatalogIssue?
+  @Published var selection: CatalogSelection?
+  var selectedItem: CatalogItemHandle? {
+    get {
+      guard let selection else { return nil }
+      return selection.handle ?? detail?.handle
+    }
+    set { selection = newValue.map(CatalogSelection.current) }
+  }
   private(set) var knownRecoveryDestinations: Set<CatalogRecoveryDestination> = []
   private var scopeID: DestinationID?
   var onChange: (@MainActor () -> Void)?
-  private let catalog: any AssetCatalogPort
-  private var collection = CatalogCollection()
+  let catalog: any AssetCatalogPort
+  let remembered: RememberedCatalogPresentation?
+  var collection = CatalogCollection()
   private var session: CatalogSessionID?
   private var cursor: CatalogCursor?
   private var operation: Task<Void, Never>?
-  private var detailOperation: Task<Void, Never>?
-  private var generation = UUID()
+  var detailOperation: Task<Void, Never>?
+  var generation = UUID()
   private var visible = false
   private var active = false
-  private var loading = false
+  var loading = false
   private var automaticChangedPageRestarts = 0
   private var reopenAssetID: String?
+  private var reopenRowID: CatalogRowID?
+  private var reopenEditKey: String?
+  private var reopenAfterReconciliation = false
+  private var lastViewportEvent: UUID?
 
   init(catalog: any AssetCatalogPort) {
     self.catalog = catalog
-    catalog.onEvent = { [weak self] _ in
+    remembered = (catalog as? any IndexedAssetCatalogPort).map(RememberedCatalogPresentation.init)
+    remembered?.onChange = { [weak self] in self?.acceptRemembered() }
+    catalog.onEvent = { [weak self] event in
       guard let self, self.active, self.visible else { return }
-      self.refresh()
+      switch event {
+      case .projectionChanged: self.remembered?.refresh()
+      case .bindingsInvalidated:
+        if self.selection != nil {
+          self.clearDetail()
+          self.detailIssue = .changed
+        }
+        self.remembered?.refresh()
+      case .invalidated, .accessChanged: self.startRefresh()
+      }
     }
   }
 
-  var canLoadMore: Bool { cursor != nil && !loading && state != .unavailable }
+  var canLoadMore: Bool {
+    if let remembered, remembered.isActive { return remembered.canLoadMore }
+    return cursor != nil && !loading && state != .unavailable
+  }
+  var rows: [CatalogListRow] {
+    if let remembered, remembered.isActive { return remembered.rows }
+    return summaries.map(CatalogListRow.current)
+  }
+  var isLoadingMore: Bool {
+    guard let remembered, remembered.isActive else {
+      return state == .loading || state == .discovering
+    }
+    return !rows.isEmpty && rows.count < remembered.requestedCount
+      && remembered.catalog.projectionStatus?.exhausted != true
+      && remembered.catalog.projectionStatus?.wait == nil
+  }
+
+  func requestMore(event: UUID) {
+    guard event != lastViewportEvent else { return }
+    lastViewportEvent = event
+    if let remembered, remembered.isActive {
+      remembered.requestMore(event: event)
+    } else {
+      loadMore()
+    }
+  }
+
+  func nearEnd(_ id: CatalogRowID, event: UUID) {
+    guard rows.suffix(3).contains(where: { $0.id == id }) else { return }
+    requestMore(event: event)
+  }
 
   func activate(destinationID: DestinationID? = nil) {
-    if scopeID != destinationID {
+    let changed = scopeID != destinationID
+    if changed {
       reopenAssetID = nil
       scopeID = destinationID
       knownRecoveryDestinations = []
     }
     active = true
-    if visible { refresh() }
+    if visible {
+      if changed { startRefresh() } else { refresh() }
+    }
   }
 
   func changeScope(_ id: DestinationID?) {
     reopenAssetID = nil
     scopeID = id
     knownRecoveryDestinations = []
-    refresh()
+    startRefresh()
   }
 
   func setVisible(_ visible: Bool) {
     self.visible = visible
     if visible, active {
-      if session == nil { refresh() } else if summaries.isEmpty { loadMore() }
-    } else if !visible, loading {
+      if session == nil {
+        refresh()
+      } else if remembered?.isActive != true, summaries.isEmpty {
+        loadMore()
+      }
+    } else if !visible, loading || remembered?.isActive == true {
       suspendAccessPreservingProjections()
     }
   }
@@ -84,22 +144,18 @@ final class CatalogModel: ObservableObject {
     reopenAssetID = nil
     active = false
     reset()
+    (catalog as? any IndexedAssetCatalogPort)?.endActivation()
     state = .idle
   }
 
   func refresh() {
+    if let remembered, remembered.isActive, remembered.catalog.usesRememberedRows {
+      remembered.catalog.requestReconciliation()
+      remembered.refresh()
+      return
+    }
     automaticChangedPageRestarts = 0
     startRefresh()
-  }
-
-  func refreshAfterMutation(assetID: String) {
-    holdSelectionForMutation(assetID: assetID)
-    refresh()
-  }
-
-  func holdSelectionForMutation(assetID: String) {
-    let matches = summaries.contains { $0.handle == selectedItem && $0.assetID == assetID }
-    if matches { reopenAssetID = assetID }
   }
 
   private func startRefresh() {
@@ -127,7 +183,11 @@ final class CatalogModel: ObservableObject {
         self.session = session
         self.cursor = cursor
         state = .loaded
-        loadMore()
+        if let indexed = catalog as? any IndexedAssetCatalogPort, indexed.usesRememberedRows {
+          remembered?.start()
+        } else {
+          loadMore()
+        }
       case .noFolder: state = .noFolder
       case .unavailable: state = .unavailable
       }
@@ -135,6 +195,10 @@ final class CatalogModel: ObservableObject {
   }
 
   func loadMore() {
+    if let remembered, remembered.isActive {
+      remembered.requestMore(event: UUID())
+      return
+    }
     guard active, visible, canLoadMore, let cursor else { return }
     loading = true
     state = .loading
@@ -208,40 +272,65 @@ final class CatalogModel: ObservableObject {
 }
 
 extension CatalogModel {
-  func open(_ handle: CatalogItemHandle) {
-    selectedItem = handle
+  func refreshAfterDeletion() {
+    reopenRowID = nil
+    reopenEditKey = nil
+    reopenAfterReconciliation = false
+    selection = nil
     clearDetail()
-    if collection.recovery[handle.id]?.issue == .duplicateID {
-      detailIssue = .duplicateID
-      return
-    }
-    let epoch = generation
-    detailOperation = Task { [weak self] in
-      guard let self else { return }
-      do {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(15))
-        while loading {
-          guard ContinuousClock.now < deadline else { throw CatalogIssue.unavailable }
-          try await Task.sleep(for: .milliseconds(50))
-        }
-        try Task.checkCancellation()
-        let value = try await catalog.detail(handle)
-        guard epoch == generation, !Task.isCancelled, selectedItem == handle else { return }
-        detail = value
-      } catch {
-        guard epoch == generation, !Task.isCancelled else { return }
-        let issue = (error as? CatalogIssue) ?? .unavailable
-        if issue == .changed { refresh() } else { detailIssue = issue }
-      }
-    }
+    refresh()
   }
 
-  func clearDetail(expectedHandle: CatalogItemHandle? = nil) {
-    guard expectedHandle == nil || selectedItem == expectedHandle else { return }
-    detailOperation?.cancel()
-    detailOperation = nil
-    detail = nil
-    detailIssue = nil
+  func refreshAfterMutation(assetID: String, resourceKey: String? = nil) {
+    if remembered?.isActive != true || resourceKey == nil {
+      holdSelectionForMutation(assetID: assetID, resourceKey: resourceKey)
+    }
+    if remembered?.isActive == true {
+      if resourceKey == reopenEditKey { reopenAfterReconciliation = true }
+      clearDetail()
+      refresh()
+      return
+    }
+    refresh()
+  }
+
+  func holdSelectionForMutation(assetID: String, resourceKey: String? = nil) {
+    let matches = summaries.contains { $0.handle == selectedItem && $0.assetID == assetID }
+    let selectedMatches = matches || (detail?.payload as? DiaryCatalogDetail)?.assetID == assetID
+    if remembered?.isActive == true, let selectedItem, selectedMatches {
+      reopenRowID = CatalogRowID(selectedItem.resource)
+      reopenEditKey = resourceKey
+      reopenAfterReconciliation = false
+      return
+    }
+    if matches { reopenAssetID = assetID }
+  }
+
+  private func acceptRemembered() {
+    guard let remembered, remembered.isActive else { return }
+    summaries = remembered.summaries
+    recovery = remembered.recovery
+    state = remembered.state
+    pageRevision = remembered.pageRevision
+    let destinations = Set(recovery.map(\.destination))
+    if remembered.catalog.projectionStatus?.metadataComplete == true {
+      knownRecoveryDestinations = destinations
+    } else {
+      knownRecoveryDestinations.formUnion(destinations)
+    }
+    if let selectedItem, let issue = recovery.first(where: { $0.id == selectedItem.id })?.issue {
+      clearDetail()
+      detailIssue = issue
+    }
+    let canReopen =
+      reopenAfterReconciliation && remembered.catalog.projectionStatus?.metadataComplete == true
+    if let id = reopenRowID, canReopen {
+      reopenRowID = nil
+      reopenEditKey = nil
+      reopenAfterReconciliation = false
+      if selection?.id == id.rawValue { open(CatalogSelection.remembered(id)) }
+    }
+    onChange?()
   }
 
   private func restartAfterChangedPage(epoch: UUID) async {
@@ -262,14 +351,19 @@ extension CatalogModel {
 
   private func reset() {
     generation = UUID()
+    reopenRowID = nil
+    reopenEditKey = nil
+    reopenAfterReconciliation = false
     operation?.cancel()
     operation = nil
     clearDetail()
     selectedItem = nil
+    remembered?.reset()
     catalog.end()
     session = nil
     cursor = nil
     loading = false
+    lastViewportEvent = nil
     collection = CatalogCollection()
     summaries = []
     recovery = []
@@ -285,24 +379,11 @@ extension CatalogModel {
     operation = nil
     clearDetail()
     selectedItem = nil
+    remembered?.reset()
     catalog.end()
     session = nil
     cursor = nil
     loading = false
     state = .idle
-  }
-}
-
-struct CatalogDateSection: Identifiable {
-  let date: Date
-  let entries: [CatalogSummary]
-  var id: Date { date }
-}
-
-enum CatalogDateSections {
-  static func group(_ summaries: [CatalogSummary], calendar: Calendar) -> [CatalogDateSection] {
-    Dictionary(grouping: summaries) { calendar.startOfDay(for: $0.createdAt) }
-      .map { CatalogDateSection(date: $0.key, entries: $0.value) }
-      .sorted { $0.date > $1.date }
   }
 }

@@ -9,12 +9,13 @@ final class ApplePurgeService: PurgePort {
     "Captures", "ProcessingQueue", "ConflictSnapshots", "PrivateWorkspaces",
   ]
   private let support: URL
-  private let journal: URL
+  private let journalStore: PurgeJournalStore
   private let destination: AppleDestinationService
   private let manager: FileManager
   private let protection: any DraftFileProtectionPolicy
   private let protectedDataAvailable: () -> Bool
   private let tree: PurgeFileTree
+  private let settleProjection: @MainActor () async -> Void
 
   init(
     destination: AppleDestinationService, support: URL? = nil,
@@ -23,7 +24,8 @@ final class ApplePurgeService: PurgePort {
     protectedDataAvailable: @escaping () -> Bool = {
       UIApplication.shared.isProtectedDataAvailable
     },
-    tree: PurgeFileTree = PurgeFileTree()
+    tree: PurgeFileTree = PurgeFileTree(),
+    settleProjection: @escaping @MainActor () async -> Void = {}
   ) {
     self.destination = destination
     self.manager = manager
@@ -31,37 +33,26 @@ final class ApplePurgeService: PurgePort {
       support
       ?? manager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
       .appending(path: "NarihitosDiary", directoryHint: .isDirectory)
-    journal = self.support.appending(path: "purge-transaction.json")
     self.protection = protection
     self.protectedDataAvailable = protectedDataAvailable
     self.tree = tree
+    self.settleProjection = settleProjection
+    journalStore = PurgeJournalStore(root: self.support, manager: manager, protection: protection)
   }
 
   func pendingTransaction() throws -> PurgeTransaction? {
     try requireAccess()
-    guard try exists(journal) else { return nil }
-    var freshJournal = journal
-    freshJournal.removeAllCachedResourceValues()
-    let facts = try freshJournal.resourceValues(forKeys: [
-      .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey,
-    ])
-    guard facts.isRegularFile == true, facts.isSymbolicLink == false,
-      let size = facts.fileSize, size > 0, size < 4_096
-    else { throw PurgeFailure.unsafeResource }
-    try protection.verify(journal)
-    let transaction = try JSONDecoder().decode(
-      PurgeTransaction.self, from: Data(contentsOf: journal))
-    switch transaction.scope {
-    case .internalStaging:
-      guard transaction.destinationID == nil, transaction.rootIdentity == nil else {
-        throw PurgeFailure.unsafeResource
-      }
-    case .activeFolder:
-      guard let id = transaction.destinationID, DestinationID(rawValue: id) != nil,
-        let identity = transaction.rootIdentity, !identity.isEmpty
-      else { throw PurgeFailure.unsafeResource }
+    guard let record = try journalStore.read(), record.sourceCompleted != true else { return nil }
+    return record.transaction
+  }
+
+  func projectionGeneration() throws -> String {
+    try requireAccess()
+    guard let record = try journalStore.read() else { return "initial" }
+    guard record.sourceCompleted == true, let generation = record.projectionGeneration else {
+      throw PurgeFailure.unavailable
     }
-    return transaction
+    return generation.uuidString
   }
 
   func prepare(_ scope: PurgeScope) async throws -> PurgeTransaction {
@@ -87,28 +78,19 @@ final class ApplePurgeService: PurgePort {
 
   func begin(_ transaction: PurgeTransaction) throws {
     try requireAccess()
-    if let pending = try pendingTransaction() {
-      guard pending == transaction else { throw PurgeFailure.changedDestination }
-    } else {
-      try manager.createDirectory(at: support, withIntermediateDirectories: true)
-      _ = try PurgeFileTree.identity(support)
-      // Atomic publication of protected intent precedes every destructive mutation.
-      try JSONEncoder().encode(transaction).write(
-        to: journal, options: [.atomic, .completeFileProtection])
-    }
-    try protection.applyAndVerify(to: journal)
-    var url = journal
-    var attributes = URLResourceValues()
-    attributes.isExcludedFromBackup = true
-    try url.setResourceValues(attributes)
-    guard try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true,
-      try pendingTransaction() == transaction
-    else { throw PurgeFailure.unavailable }
+    try journalStore.begin(transaction)
   }
 
   func perform(
     _ transaction: PurgeTransaction, progress: @escaping @Sendable (Int) -> Void
   ) async throws {
+    try requireAccess()
+    guard try pendingTransaction() == transaction else { throw PurgeFailure.unavailable }
+    // Enrich a legacy interrupted intent before touching any source. The generation
+    // remains durable even when cache removal fails or the process exits after deletion.
+    try journalStore.begin(transaction)
+    await settleProjection()
+    try Task.checkCancellation()
     try requireAccess()
     guard try pendingTransaction() == transaction else { throw PurgeFailure.unavailable }
     switch transaction.scope {
@@ -183,8 +165,7 @@ final class ApplePurgeService: PurgePort {
 
   func finish() throws {
     try requireAccess()
-    guard try pendingTransaction() != nil else { throw PurgeFailure.unavailable }
-    try manager.removeItem(at: journal)
+    try journalStore.complete()
   }
 
   private func stagingHasNoPendingWork() async throws -> Bool {

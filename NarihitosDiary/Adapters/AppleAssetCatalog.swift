@@ -1,7 +1,7 @@
 import Foundation
 
 /// File-presenter callbacks carry only invalidation, never source paths or content.
-private final class CatalogFolderPresenter: NSObject, NSFilePresenter, @unchecked Sendable {
+final class CatalogFolderPresenter: NSObject, NSFilePresenter, @unchecked Sendable {
   let id: UUID
   let presentedItemURL: URL?
   let presentedItemOperationQueue: OperationQueue
@@ -35,7 +35,7 @@ private final class CatalogFolderPresenter: NSObject, NSFilePresenter, @unchecke
 }
 
 @MainActor
-final class AppleAssetCatalog: AssetCatalogPort {
+final class AppleAssetCatalog: AssetCatalogPort, CatalogActionBindingSource {
   var onEvent: (@MainActor (CatalogEvent) -> Void)?
   private let destination: AppleDestinationService
   private let registry: CatalogAssetRegistry
@@ -47,6 +47,10 @@ final class AppleAssetCatalog: AssetCatalogPort {
   private var refreshAfterSettlement = false
   private var settlementWaiters: [CheckedContinuation<Void, Never>] = []
   var activePresenterID: UUID? { presenter?.id }
+
+  func waitForSettlement() async {
+    while busy { await withCheckedContinuation { settlementWaiters.append($0) } }
+  }
 
   init(destination: AppleDestinationService, registry: CatalogAssetRegistry) {
     self.destination = destination

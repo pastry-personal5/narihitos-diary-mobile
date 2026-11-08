@@ -369,9 +369,10 @@ extension DiaryEditCoordinator {
       proof.markdown
       == DiaryFileUploadProof(identity: version.markdownIdentity, digest: version.markdownDigest)
     record.audioUploaded =
-      proof.audio
-      == DiaryFileUploadProof(identity: version.audioIdentity, digest: version.audioDigest)
-    guard proof.proves(version) else {
+      !version.requiresAudio
+      || proof.audio
+        == DiaryFileUploadProof(identity: version.audioIdentity, digest: version.audioDigest)
+    guard proof.provesEditResources(version) else {
       try await retain(&record, issue: .upload)
       return nil
     }

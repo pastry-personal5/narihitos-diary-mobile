@@ -35,7 +35,7 @@ private final class ReplaySessionObservers {
 @MainActor
 final class AppleDiaryReplayPlayer: DiaryReplayPort {
   var onEvent: (@MainActor (UUID, DiaryReplayEvent) -> Void)?
-  private let catalog: AppleAssetCatalog
+  private let catalog: any CatalogActionBindingSource
   private let destination: AppleDestinationService
   private let ownership: AudioSessionOwnership
   private let cache: DiaryReplayCache
@@ -48,7 +48,7 @@ final class AppleDiaryReplayPlayer: DiaryReplayPort {
   private let observers = ReplaySessionObservers()
 
   init(
-    catalog: AppleAssetCatalog, destination: AppleDestinationService,
+    catalog: any CatalogActionBindingSource, destination: AppleDestinationService,
     ownership: AudioSessionOwnership, cache: DiaryReplayCache = DiaryReplayCache()
   ) {
     self.catalog = catalog

@@ -86,6 +86,13 @@ final class AppModel: ObservableObject {
   private var draftAdoption: DiaryDraftAdoptionCoordinator?
   private var commitCoordinator: DiaryCommitCoordinator?
   private var editCoordinator: DiaryEditCoordinator?
+  private var manualCreation: ManualDiaryCreation?
+  @Published var manualEditor: ManualDiaryEditorModel?
+  @Published private(set) var manualDiaryPending: [ManualDiaryRecord] = []
+  @Published private(set) var manualDiaryIssue: String?
+  private var retainedManualEditor: ManualDiaryEditorModel?
+  private var resumeManualAfterFolder = false
+  private var chooseManualFolderAfterDismissal = false
   private var replayCoordinator: DiaryReplayCoordinator?
   private var audioOwnership: AudioSessionOwnership?
   private var saveScheduler: DiarySaveScheduler?
@@ -123,9 +130,10 @@ final class AppModel: ObservableObject {
   convenience init() {
     let repository = PrivateSettingsRepository()
     let destination = AppleDestinationService(repository: repository)
-    var catalogRegistry = CatalogAssetRegistry()
-    catalogRegistry.register(DiaryCatalogHandler())
-    let catalog = AppleAssetCatalog(destination: destination, registry: catalogRegistry)
+    let installationIdentity = KeychainInstallationIdentity()
+    let catalogComposition = CatalogProductionComposition.make(
+      destination: destination, installation: installationIdentity)
+    let catalog = catalogComposition.catalog
     let files = CapturePrivateFiles()
     let audioSource = VerifiedCaptureAudioSource(files: files)
     let candidateStore = FileTranscriptionCandidateStore(root: files.root, audio: audioSource)
@@ -147,7 +155,6 @@ final class AppModel: ObservableObject {
           else { return .cohereQ4 }
           return selection
         }))
-    let installationIdentity = KeychainInstallationIdentity()
     self.init(
       microphone: AppleMicrophoneAuthorization(),
       location: AppleLocationAuthorization(),
@@ -185,9 +192,14 @@ final class AppModel: ObservableObject {
       queue: queueStore, receipts: receipts,
       candidates: candidateStore, drafts: draftStore,
       titles: titles)
+    let manual = ManualDiaryCreation(
+      store: AppleManualDiaryStore(destination: destination, installation: installationIdentity),
+      titles: titles)
+    configureManualCreation(manual)
     let edits = DiaryEditCoordinator(
       store: AppleDiaryEditStore(
-        catalog: catalog, destination: destination, installation: installationIdentity),
+        catalog: catalog, destination: destination, installation: installationIdentity,
+        creationIsSettled: { manual.isSettled($0) }),
       titles: titles)
     let replay = DiaryReplayCoordinator(
       player: AppleDiaryReplayPlayer(
@@ -200,19 +212,21 @@ final class AppModel: ObservableObject {
       AppleDiaryDeletionService(
         catalog: catalog, destination: destination,
         creationIsSettled: { id in
-          try AppleDiaryDeletionService.creationIsSettled(
+          guard manual.isSettled(id) else { return false }
+          return try AppleDiaryDeletionService.creationIsSettled(
             id: id, queue: queueStore, captures: files.root)
         })
     ) { [weak self] in
-      self?.catalog.refresh()
+      self?.catalog.refreshAfterDeletion()
     }
     edits.onPublished = { [weak self] record in
       guard let self, self.destination.summary?.id.rawValue == record.destinationID else { return }
-      self.catalog.refreshAfterMutation(assetID: record.assetID)
+      self.catalog.refreshAfterMutation(assetID: record.assetID, resourceKey: record.resourceKey)
     }
     edits.onAccepted = { [weak self] record in
       guard let self, self.destination.summary?.id.rawValue == record.destinationID else { return }
-      self.catalog.holdSelectionForMutation(assetID: record.assetID)
+      self.catalog.holdSelectionForMutation(
+        assetID: record.assetID, resourceKey: record.resourceKey)
     }
     let payload = RetryingDiaryCommitPayload(
       root: files.root, drafts: draftStore, audio: audioSource)
@@ -261,7 +275,7 @@ final class AppModel: ObservableObject {
       self?.draftAdoption?.prerequisiteChanged()
       self?.pumpSaves()
     }
-    dangerZone.configure(ApplePurgeService(destination: destination))
+    dangerZone.configure(catalogComposition.purge)
     dangerZone.acquireMaintenance = { [weak self] in self?.beginPurgeMaintenance() == true }
     dangerZone.releaseMaintenance = { [weak self] in self?.endPurgeMaintenance() }
     if dangerZone.blocksWork { suspendPurgeWork() }
@@ -314,6 +328,7 @@ final class AppModel: ObservableObject {
     draftAdoption?.endMaintenance()
     commitCoordinator?.endMaintenance()
     editCoordinator?.activate()
+    manualCreation?.activate()
     diaryActions.activate()
     _ = captureEnvironment?.recover()
     processingQueue?.activate()
@@ -335,6 +350,7 @@ final class AppModel: ObservableObject {
     processingQueue?.deactivate()
     draftAdoption?.deactivate()
     editCoordinator?.deactivate()
+    manualCreation?.deactivate()
     diaryActions.invalidateVisibleActions()
     appleReadiness?.invalidate()
     appleReadinessStates = [:]
@@ -350,6 +366,7 @@ final class AppModel: ObservableObject {
   func identityChanged() async {
     dangerZone.disarm()
     editCoordinator?.deactivate()
+    manualCreation?.deactivate()
     diaryActions.invalidateVisibleActions()
     catalog.stop()
     catalog.changeScope(nil)
@@ -365,6 +382,7 @@ final class AppModel: ObservableObject {
     diaryActions.updateScope(destination.summary?.id)
     if isAppActive {
       editCoordinator?.activate()
+      manualCreation?.activate()
       diaryActions.activate()
     }
     saveScheduler?.reset()
@@ -496,6 +514,77 @@ final class AppModel: ObservableObject {
   func acceptDisclosure() {
     folderSelectionLogger.notice("Folder disclosure accepted; committing prepared selection")
     commitPreparedDestination()
+  }
+
+  func configureManualCreation(_ creation: ManualDiaryCreation) {
+    manualCreation = creation
+    creation.onChange = { [weak self, weak creation] in
+      self?.manualDiaryPending = creation?.pending ?? []
+      self?.manualDiaryIssue = creation?.discoveryIssue.map {
+        $0 == .reviewRequired
+          ? "Submitted diary text needs review. Its protected local files have been kept."
+          : "Submitted diary text is waiting for protected local data."
+      }
+      self?.updateMainNotices()
+    }
+    creation.onSaved = { [weak self] record in
+      guard let self else { return }
+      if self.destination.summary?.id.rawValue == record.destinationID {
+        self.catalog.refresh()
+      } else {
+        self.showSavedFolderBanner(record.folderName)
+      }
+    }
+  }
+
+  func handleWrite() {
+    guard !dangerZone.blocksWork, !isCapturePresented, !captureEntryInProgress else {
+      presentMessage("Diary writing is waiting for the current operation to finish.")
+      return
+    }
+    guard manualCreation != nil else { return }
+    if destination.summary == nil {
+      resumeManualAfterFolder = true
+      selectFolder()
+    } else {
+      openManualEditor()
+    }
+  }
+
+  private func openManualEditor() {
+    guard isAppActive, !dangerZone.blocksWork, let creation = manualCreation else { return }
+    let editor = retainedManualEditor ?? ManualDiaryEditorModel(creation: creation)
+    retainedManualEditor = editor
+    editor.onAccepted = { [weak self] in
+      self?.manualEditor = nil
+      self?.retainedManualEditor = nil
+    }
+    manualEditor = editor
+  }
+
+  func cancelManualDiary() {
+    manualEditor = nil
+    retainedManualEditor = nil
+    resumeManualAfterFolder = false
+  }
+
+  func chooseManualDiaryFolder() {
+    chooseManualFolderAfterDismissal = true
+    resumeManualAfterFolder = true
+    manualEditor = nil
+  }
+
+  func manualEditorDismissed() {
+    if chooseManualFolderAfterDismissal {
+      chooseManualFolderAfterDismissal = false
+      selectFolder()
+    } else if retainedManualEditor?.dirty != true {
+      retainedManualEditor = nil
+    }
+  }
+
+  func retryManualDiaries() {
+    if isAppActive, !dangerZone.blocksWork { manualCreation?.activate() }
   }
 
   func handleRecord(language: CaptureLanguage) async {
@@ -668,6 +757,17 @@ final class AppModel: ObservableObject {
     selectedRoot = .all
   }
 
+  private var manualDiaryNotice: MainNotice? {
+    guard !manualDiaryPending.isEmpty || manualDiaryIssue != nil else { return nil }
+    let needsReview =
+      manualDiaryIssue != nil
+      || manualDiaryPending.contains { $0.issue?.canRetryAutomatically == false }
+    return MainNotice(
+      category: needsReview ? .recovery : .queued, destination: .manualPending,
+      message: needsReview
+        ? "Written diary text needs review." : "Written diary text is waiting to save.")
+  }
+
   private func updateMainNotices() {
     var values: [MainNotice] = []
     let processing = queuePending.filter { $0.state == .transcribing }.count
@@ -692,6 +792,7 @@ final class AppModel: ObservableObject {
         MainNotice(
           category: .recovery, destination: .pending, message: "Pending work needs attention."))
     }
+    if let notice = manualDiaryNotice { values.append(notice) }
     if let edits = editCoordinator, !edits.pending.isEmpty {
       let recovery = edits.pending.compactMap { $0.issue?.recoveryDestination }.first
       values.append(
@@ -988,6 +1089,7 @@ final class AppModel: ObservableObject {
     guard !captureEntryInProgress, !isCapturePresented,
       processingQueue?.hasActiveWork != true, draftAdoption?.hasActiveWork != true,
       commitCoordinator?.hasActiveWork != true, editCoordinator?.hasActiveWork != true,
+      manualCreation?.hasActiveWork != true, manualEditor == nil, retainedManualEditor == nil,
       replayCoordinator?.hasActiveWork != true, saveScheduler?.hasActiveWork != true
     else { return false }
     suspendPurgeWork()
@@ -1000,6 +1102,7 @@ final class AppModel: ObservableObject {
     draftAdoption?.suspendForMaintenance()
     commitCoordinator?.suspendForMaintenance()
     editCoordinator?.suspendForMaintenance()
+    manualCreation?.suspendForMaintenance()
     replayCoordinator?.suspendForMaintenance()
     diaryActions.invalidateVisibleActions()
     catalog.stop()
@@ -1010,6 +1113,7 @@ final class AppModel: ObservableObject {
     draftAdoption?.endMaintenance()
     commitCoordinator?.endMaintenance()
     editCoordinator?.endMaintenance()
+    manualCreation?.endMaintenance()
     replayCoordinator?.endMaintenance()
     saveScheduler?.reset()
     refreshCaptureLists()
@@ -1019,6 +1123,7 @@ final class AppModel: ObservableObject {
       pumpSaves()
       catalog.activate(destinationID: destination.summary?.id)
       editCoordinator?.activate()
+      manualCreation?.activate()
       diaryActions.activate()
     }
   }
@@ -1055,6 +1160,14 @@ final class AppModel: ObservableObject {
     switch destinationService.commitPreparedSelection(candidate.id) {
     case .committed(let summary):
       folderSelectionLogger.notice("Folder selection committed")
+      let shouldResumeWriting = resumeManualAfterFolder
+      resumeManualAfterFolder = false
+      if shouldResumeWriting {
+        Task { [weak self] in
+          await Task.yield()
+          self?.openManualEditor()
+        }
+      }
       destination = ActiveDestination(summary: summary, accessState: .accessible)
       diaryActions.updateScope(summary.id)
       editCoordinator?.deactivate()

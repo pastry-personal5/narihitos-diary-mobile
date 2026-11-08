@@ -22,6 +22,7 @@ enum DiaryTitleWorkOwner: Equatable, Sendable {
     jobID: String, attemptID: UUID?, attemptGeneration: Int,
     destinationRevision: Int, bodyRevision: Int)
   case edit(submissionID: UUID)
+  case manual(submissionID: UUID)
 }
 
 struct DiaryTitleWorkSnapshot: Equatable, Sendable {

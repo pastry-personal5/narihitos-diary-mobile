@@ -53,8 +53,14 @@ struct DiaryEditPrivateFiles: Sendable {
     let binding = try JSONDecoder().decode(DiaryEditBinding.self, from: bytes)
     guard binding.schema == 1, binding.transactionID == id,
       Self.validDigest(binding.resourceKey), Self.validDigest(binding.submissionDigest),
-      binding.audioByteCount > 0, binding.audioByteCount <= CatalogAudioInspector.maximumBytes,
-      binding.audioComponents.count == 5,
+      binding.audioComponents.isEmpty
+        ? !binding.sourceVersion.requiresAudio && binding.audioByteCount == 0
+          && binding.audioContentIdentity == CommittedDiaryResource.absentAudio
+          && binding.sourceVersion.audioIdentity == CommittedDiaryResource.absentAudio
+          && binding.sourceVersion.audioDigest == CommittedDiaryResource.absentAudio
+        : binding.sourceVersion.requiresAudio && binding.audioByteCount > 0
+          && binding.audioByteCount <= CatalogAudioInspector.maximumBytes
+          && binding.audioComponents.count == 5,
       binding.candidate.components.count == 4,
       Self.validDigest(binding.markdownContentIdentity),
       Self.validDigest(binding.audioContentIdentity),
@@ -81,9 +87,10 @@ struct DiaryEditPrivateFiles: Sendable {
     let instant = try SchemaInstant.from(date: parsed.date)
     let layout = DiarySnippetLayout(id: parsed.id, createdAt: instant)
     guard binding.candidate.components == layout.directoryComponents + [stem],
-      binding.audioComponents == layout.directoryComponents + [
-        layout.assetsDirectoryName, layout.audioFilename,
-      ]
+      binding.audioComponents.isEmpty
+        || binding.audioComponents == layout.directoryComponents + [
+          layout.assetsDirectoryName, layout.audioFilename,
+        ]
     else { throw DiaryEditIssue.changed }
   }
 
@@ -115,7 +122,8 @@ struct DiaryEditPrivateFiles: Sendable {
       }
     }
     if let version = record.publishedVersion {
-      guard version.markdownDigest == record.candidateDigest,
+      guard version.requiresAudio == binding.sourceVersion.requiresAudio,
+        version.markdownDigest == record.candidateDigest,
         version.audioDigest == binding.sourceVersion.audioDigest,
         Self.validDigest(version.markdownIdentity), Self.validDigest(version.audioIdentity)
       else { throw DiaryEditIssue.changed }
@@ -174,7 +182,8 @@ struct DiaryEditPrivateFiles: Sendable {
     guard data.count == record.candidateByteCount,
       CommittedDiaryResource.digest(data) == record.candidateDigest,
       case .supported(let snippet) = DiarySnippetMarkdownCodec().decode(data),
-      snippet.id.description == record.assetID
+      snippet.id.description == record.assetID,
+      (snippet.creationMethod == .manual) == (try readBinding(record.id).audioComponents.isEmpty)
     else { throw DiaryEditIssue.invalidCandidate }
     return snippet
   }
@@ -279,6 +288,7 @@ extension DiaryEditPrivateFiles {
   }
 
   func verifyAudio(_ binding: DiaryEditBinding) throws {
+    if binding.audioComponents.isEmpty { return }
     let directory = try directory(binding.transactionID)
     let result = try CatalogAudioInspector.inspect(
       root: directory, components: ["audio.m4a"], maximumDuration: 301,

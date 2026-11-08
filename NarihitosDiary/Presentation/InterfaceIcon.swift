@@ -2,7 +2,7 @@ import SwiftUI
 
 enum InterfaceIconName: String {
   case main, benefits, calendar, plugins, all, record, stop, settings, pending, warning, incomplete,
-    conflicts, favorite, play, pause, seekBack, seekForward
+    conflicts, favorite, play, pause, seekBack, seekForward, write, save, cancel
 
   var size: CGFloat {
     switch self {

@@ -134,7 +134,7 @@ Notes: The owner requested completion on 2026-11-03, authorizing implementation 
 Status: Active
 Goal: Enhance the software architecture, initially reviewing processing lifecycle reporting, and implement GUI enhancements supplied by the owner.
 Plan: [overview](milestone-21-architecture-gui-enhancement-overview.md), [approach](milestone-21-architecture-gui-enhancement-architecture.md)
-Notes: Follows M16 under the revised execution order. Delivered lifecycle/identity/save work and open GUI/device acceptance are tracked in the M21 checklists. The upcoming-task review refines the unselected Main-loading proposal into baseline, demand, ordered-discovery/action, cache, and device stages; broader lifecycle aggregation still needs a concrete consumer. M17–M19 remain later work; earlier evidence stays open.
+Notes: Follows M16 under the revised execution order. Delivered lifecycle/identity/save work and open GUI/device acceptance are tracked in the M21 checklists. Tasks 10–14 own the system-SQLite remembered-first prototype, absorbing Task 6's stages and Task 9's catalog comparison. The synthetic Release baseline, frozen budgets and Task 10 foundation exist; reconciliation, maintenance/presentation integration and production retention remain open. Task 9 follows Tasks 10–14 and retains independent activation, private-storage and readiness work. Task 15 implements manual text-only Diary Snippet creation with compact custom bitmap Save/Cancel actions at the editor top right and independent protected save recovery; its 14 focused tests and full simulator gate pass, with physical interaction and real-iCloud acceptance still open. M17–M19 remain later work; earlier evidence stays open.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 

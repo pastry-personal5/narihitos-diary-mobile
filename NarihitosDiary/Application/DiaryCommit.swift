@@ -100,6 +100,9 @@ struct DiaryPairVersion: Codable, Equatable, Sendable {
   let audioIdentity: String
   let markdownDigest: String
   let audioDigest: String
+  var audioRequired: Bool?
+
+  var requiresAudio: Bool { audioRequired != false }
 }
 
 enum DiaryCommitWait: Equatable, Sendable {
@@ -140,12 +143,20 @@ struct DiaryPairUploadObservation: Equatable, Sendable {
 
   func proves(_ version: DiaryPairVersion) -> Bool {
     markdown
-      == DiaryFileUploadProof(
-        identity: version.markdownIdentity, digest: version.markdownDigest)
-      && audio
-        == DiaryFileUploadProof(
-          identity: version.audioIdentity, digest: version.audioDigest)
+      == DiaryFileUploadProof(identity: version.markdownIdentity, digest: version.markdownDigest)
+      && audio == DiaryFileUploadProof(identity: version.audioIdentity, digest: version.audioDigest)
   }
+
+  /// Only the independently validated edit journal can select a text-only resource set.
+  /// Recorded-creation callers continue to require both file proofs through `proves`.
+  func provesEditResources(_ version: DiaryPairVersion) -> Bool {
+    if version.requiresAudio { return proves(version) }
+    return audio == nil
+      && markdown
+        == DiaryFileUploadProof(
+          identity: version.markdownIdentity, digest: version.markdownDigest)
+  }
+
 }
 
 enum DiaryFinalPairCheck: Equatable, Sendable {

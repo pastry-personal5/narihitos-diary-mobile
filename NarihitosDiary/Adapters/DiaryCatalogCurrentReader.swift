@@ -8,9 +8,23 @@ extension DiaryCatalogHandler {
     let layout = DiarySnippetLayout(id: snippet.id, createdAt: snippet.createdAt)
     let parent = Array(candidate.components.dropLast())
     guard let stem = candidate.components.last, parent == layout.directoryComponents,
-      stem + ".md" == layout.markdownFilename, snippet.audioFilename == layout.audioFilename,
+      stem + ".md" == layout.markdownFilename,
       let date = Self.currentStem(stem)?.date
     else { return failure(.malformed, version: version, hasText: true) }
+    if snippet.creationMethod == .manual {
+      guard try !Self.assetsExist(root: root, parent: parent, name: layout.assetsDirectoryName)
+      else {
+        return failure(.malformed, version: version, hasText: true)
+      }
+      return CatalogReadValue(
+        version: version, assetID: snippet.id.description, createdAt: date, title: snippet.title,
+        favorite: snippet.favorite,
+        payload: Self.detail(snippet, date: date, audioAvailable: false),
+        issue: nil, hasText: true, hasAudio: false)
+    }
+    guard snippet.audioFilename == layout.audioFilename else {
+      return failure(.malformed, version: version, hasText: true)
+    }
     let audioComponents = parent + [layout.assetsDirectoryName, layout.audioFilename]
     let detail = Self.detail(snippet, date: date, audioAvailable: false)
     let audio: CatalogAudioInspection

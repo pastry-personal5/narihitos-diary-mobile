@@ -11,6 +11,7 @@ actor FileCatalogWorker {
 
   let session: CatalogSessionID
   private let registry: CatalogAssetRegistry
+  private let metrics: CatalogPerformanceProbe?
   private var index = CatalogDirectoryIndex()
   private var ordered: [CatalogCandidate]?
   private var nextIndex = 0
@@ -20,10 +21,14 @@ actor FileCatalogWorker {
   private var resourceOrders: [String: String] = [:]
   private var rootIdentity: String?
 
-  init(session: CatalogSessionID, cursor: CatalogCursor, registry: CatalogAssetRegistry) {
+  init(
+    session: CatalogSessionID, cursor: CatalogCursor, registry: CatalogAssetRegistry,
+    metrics: CatalogPerformanceProbe? = nil
+  ) {
     self.session = session
     self.cursor = cursor
     self.registry = registry
+    self.metrics = metrics
   }
 
   func page(_ requested: CatalogCursor, root: URL) async throws -> CatalogPage {
@@ -40,6 +45,7 @@ actor FileCatalogWorker {
     while nextIndex < end {
       try Task.checkCancellation()
       let candidate = candidates[nextIndex]
+      metrics?.record(.candidateVisits)
       guard let handler = registry.handler(candidate.handler) else {
         throw CatalogIssue.unsupported
       }
@@ -81,6 +87,7 @@ actor FileCatalogWorker {
       return (updated, count)
     }
     index = result.0
+    metrics?.record(.enumerationVisits, UInt64(result.1))
     if index.complete { prepareOrdering() }
     cursor = CatalogCursor(session: session, token: UUID())
     return CatalogPage(

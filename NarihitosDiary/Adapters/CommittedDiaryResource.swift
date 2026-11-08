@@ -8,11 +8,17 @@ import Foundation
 struct CatalogActionResource: Sendable {
   let candidate: CatalogCandidate
   let version: String
+  var preparation: (any CatalogReadPreparation)?
 }
 
 struct CatalogActionBinding: Sendable {
   let destination: StoredDestinationRecord
   let resource: CatalogActionResource
+}
+
+@MainActor
+protocol CatalogActionBindingSource: AnyObject {
+  func actionBinding(_ handle: CatalogItemHandle) async throws -> CatalogActionBinding
 }
 
 struct CommittedDiaryFacts: Sendable {
@@ -60,9 +66,15 @@ enum CommittedDiaryResource {
   static func inspect(
     _ resource: CatalogActionResource, root: URL, control: CatalogReadControl
   ) throws -> CommittedDiaryFacts {
-    let handler = DiaryCatalogHandler()
+    let handler = DiaryCatalogHandler(
+      preparedLegacy: resource.preparation as? CatalogLegacySiblingProof)
     let read = try handler.readCoordinated(resource.candidate, root: root, control: control)
     if let issue = read.issue { throw issue }
+    if read.version == resource.version, let detail = read.payload as? DiaryCatalogDetail,
+      !detail.isLegacy, !detail.audioAvailable, read.files.isEmpty
+    {
+      return try inspectManual(resource, read: read, root: root)
+    }
     guard read.version == resource.version, let detail = read.payload as? DiaryCatalogDetail,
       detail.audioAvailable, let duration = detail.duration,
       let audio = read.files.first(where: { !$0.directory })
@@ -105,6 +117,39 @@ enum CommittedDiaryResource {
       audioComponents: audio.components, audioBytes: info.st_size, duration: duration)
   }
 
+  /// Absence has an internal sentinel in the existing edit journal's pair-version
+  /// envelope. It is never a file reference or evidence of an uploaded audio file.
+  static let absentAudio = digest(Data())
+
+  private static func inspectManual(
+    _ resource: CatalogActionResource, read: CatalogReadValue, root: URL
+  ) throws -> CommittedDiaryFacts {
+    let stem = try requiredStem(resource.candidate)
+    let markdown = Array(resource.candidate.components.dropLast()) + [stem + ".md"]
+    let (bytes, observed) = try CatalogSafeFiles.read(
+      root: root, components: markdown, maximum: 1_114_122)
+    let parts = observed.split(separator: ":").map(String.init)
+    guard observed == read.version, parts.count == 2,
+      case .supported(let snippet) = DiarySnippetMarkdownCodec().decode(bytes),
+      snippet.creationMethod == .manual
+    else { throw CatalogIssue.changed }
+    let descriptor = try CatalogSafeFiles.descriptor(
+      root: root, components: markdown, directory: false)
+    defer { close(descriptor) }
+    var info = stat()
+    guard fstat(descriptor, &info) == 0, DiaryFileIdentity.versionIdentity(info) == parts[0] else {
+      throw CatalogIssue.changed
+    }
+    return CommittedDiaryFacts(
+      rootIdentity: try rootIdentity(root),
+      version: DiaryPairVersion(
+        markdownIdentity: parts[0], audioIdentity: absentAudio,
+        markdownDigest: parts[1], audioDigest: absentAudio, audioRequired: false),
+      markdownContentIdentity: DiaryFileIdentity.contentVersionIdentity(info),
+      audioContentIdentity: absentAudio, snippet: snippet, audioComponents: [], audioBytes: 0,
+      duration: 0)
+  }
+
   static func requiredStem(_ candidate: CatalogCandidate) throws -> String {
     guard let stem = candidate.components.last, candidate.components.count == 4,
       candidate.safe, candidate.handler == DiarySnippetSupportPolicy.kind
@@ -119,7 +164,8 @@ enum CommittedDiaryResource {
     operation: @escaping @Sendable (URL, CatalogReadControl) throws -> Value
   ) async throws -> Value {
     let control = CatalogReadControl()
-    let handler = DiaryCatalogHandler()
+    let handler = DiaryCatalogHandler(
+      preparedLegacy: resource.preparation as? CatalogLegacySiblingProof)
     let plan = try await BoundedFileCoordinator().perform(
       intents: [
         NSFileAccessIntent.readingIntent(with: root, options: .immediatelyAvailableMetadataOnly)

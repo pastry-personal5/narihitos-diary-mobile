@@ -2,7 +2,7 @@
 
 Status: Active
 
-This is the canonical vocabulary for approved v1 navigation and diary work. An **exact label** is approved user-facing text; a **concept term** names a thing consistently in designs and code but does not approve its final on-screen copy. Use the mapped code-facing name when that thing is represented in code.
+This is the canonical vocabulary for approved v1 navigation and diary work. An **exact label** is approved user-facing text; a **concept term** names a thing consistently in designs and code but does not approve its final on-screen copy. Use the mapped code-facing name when that thing is represented in code. M21 catalog additions below are marked **Planned — M21** and introduce concept vocabulary only. The separate manual-writing labels describe Task 15’s creation flow.
 
 ## Exact labels
 
@@ -23,6 +23,13 @@ This is the canonical vocabulary for approved v1 navigation and diary work. An *
 | Favorite | favorite | On/off action beside a Diary Snippet title where editing is allowed. |
 
 The five root tab labels retain the order Main, Benefits, Calendar, Plugins, All. Other exact labels name destinations or controls, not additional tabs.
+
+## Manual writing labels
+
+- `Write Diary Snippet`: Main creation entry and editor heading.
+- `Save` / `Cancel`: accessible names of the compact custom bitmap actions together at the editor top right.
+- `Pending Diary Snippets`: All destination for accepted manual text awaiting saving or review, distinct from recording queues.
+- `Keep Writing` / `Discard Changes`: inline protection for changed editor text.
 
 ## Content and workflow concepts
 
@@ -45,6 +52,21 @@ The five root tab labels retain the order Main, Benefits, Calendar, Plugins, All
 | Conflict pair | conflictPair | Two versions shown in separate tabs when iCloud modification times are equal or missing. Each tab scrolls vertically. |
 | Main notice bar | mainNoticeBar | One-line bar at the top of Main for queued recordings, in-app transcription, and recovery attention. |
 | Cancelling | cancelling | Visible state after confirmed removal of an in-flight recording, until its work stops and removal completes. |
+
+## Planned M21 concepts
+
+**Planned — M21 Main integration.** Task 10's storage foundation exists; these terms still describe interface behavior awaiting integration. Code-facing names below are vocabulary rather than declarations of types or ports. Their behavior is owned by [UX GUI](ux-gui.md#planned-m21-remembered-first-main-collection) and their containment by [UX information architecture](ux-information-architecture.md#planned-m21-collection-access-and-recovery-boundaries).
+
+| Status | Concept term | Planned code-facing name | Meaning |
+|---|---|---|---|
+| **Planned — M21** | Remembered summary | rememberedSummary | Previously validated title/date/Favorite projection for the verified active-folder scope. It may be outdated and grants no current detail or action authority. It is not a pending recording. |
+| **Planned — M21** | Current validated summary | currentValidatedSummary | Summary observed through current strict file validation. This observation alone does not replace action-specific checks or prove that every newer or duplicate resource has been discovered. |
+| **Planned — M21** | Silent reconciliation | silentReconciliation | Active-session updates that converge the remembered list with current files without normal-progress banners, stale badges, progress titles or replacement empty spinners. Existing actionable notices and tap failures remain visible. |
+| **Planned — M21** | Fresh row validation | freshRowValidation | Demand-priority check of the exact scoped resource before opening detail. Editing, Favorite, replay and deletion retain their existing additional checks. |
+| **Planned — M21** | Requested collection range | requestedCollectionRange | Visible demand beginning at up to 10 summaries and increasing by 10 on continuation. Partial eligible results fill the same demand; the range is not a collection cap or proof of completed discovery. |
+| **Planned — M21** | Catalog rebuild | catalogRebuild | Internal recreation of disposable remembered data from authoritative files. It is not a diary restore, retranscription, source deletion or new Settings action. |
+
+**Planned — M21:** keep Main, Diary Snippet, Favorite and all existing destination/action labels. “Remembered”, “current validated”, “reconciling”, “SQLite” and “cache” do not become new user-facing labels, badges or screen titles through this plan. Use existing loading, unavailable and typed recovery vocabulary when user action needs an outcome. Do not describe a remembered row as verified saved/upload completion or label an empty local catalog as an empty iCloud folder.
 
 ## Naming rules and open copy
 

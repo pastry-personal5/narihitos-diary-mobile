@@ -128,7 +128,7 @@ struct DiarySnippetMarkdownCodecTests {
     let source = try #require(String(data: codec.encode(Self.snippet()), encoding: .utf8))
     let mutations = [
       SupportMutation(
-        original: "schema_version: 1", replacement: "schema_version: 2", reason: .schemaVersion),
+        original: "schema_version: 1", replacement: "schema_version: 3", reason: .schemaVersion),
       SupportMutation(
         original: "kind: \"ndm.diary-snippet\"", replacement: "kind: \"future.kind\"", reason: .kind
       ),
