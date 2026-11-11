@@ -160,7 +160,8 @@ storage batch, replace the `extraArgs` JSON with, for example:
 
 Use [Conventional Commits](https://www.conventionalcommits.org):
 `<type>[(scope)]: <imperative summary>`. Keep the lowercase title at most 50
-characters with no period. Use a short body only to explain why.
+characters with no period. Every commit message MUST include both this title
+and a short body explaining why.
 
 Keep each commit focused. Example:
 
