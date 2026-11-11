@@ -96,6 +96,9 @@ final class AppModel: ObservableObject {
   private var replayCoordinator: DiaryReplayCoordinator?
   private var audioOwnership: AudioSessionOwnership?
   private var saveScheduler: DiarySaveScheduler?
+  private var reminders: PendingReminderCoordinator?
+  private var hasObservedPending = false
+  private var reminderBackgroundTask = UIBackgroundTaskIdentifier.invalid
   private var savedFolderBannerTask: Task<Void, Never>?
   private var transcriptionSettings: PrivateSettingsRepository?
   private var appleReadiness: AppleTranscriptionReadiness?
@@ -167,6 +170,21 @@ final class AppModel: ObservableObject {
       microphone: microphone, destination: destination, files: files,
       installationIdentity: installationIdentity, sessionOwnership: ownership)
     transcriptionSettings = repository
+    let reminderScheduler = AppleReminderScheduler()
+    reminderScheduler.onOpen = { [weak self] in
+      self?.openAll()
+      self?.refreshCaptureLists()
+    }
+    reminders = PendingReminderCoordinator(
+      scheduler: reminderScheduler, store: FileReminderStore(),
+      installation: {
+        if case .available(let value) = installationIdentity.current() { return value }
+        return nil
+      })
+    reminders?.onChange = { [weak self] in
+      self?.objectWillChange.send()
+      self?.endReminderBackgroundTask()
+    }
     reloadTranscriptionSelection(from: repository)
     appleReadiness = AppleTranscriptionReadiness(source: readinessSource)
     let installer = AppleAssetInstaller(backend: SystemAppleAssetInstallationBackend())
@@ -319,6 +337,7 @@ final class AppModel: ObservableObject {
     diaryActions.updateScope(destination.summary?.id)
     if let repository = transcriptionSettings { reloadTranscriptionSelection(from: repository) }
     firstLaunchStep = firstLaunch.pendingExplanation
+    reminders?.foregrounded()
     dangerZone.reloadBarrier()
     guard !dangerZone.blocksWork else {
       suspendPurgeWork()
@@ -337,8 +356,51 @@ final class AppModel: ObservableObject {
     pumpSaves()
     refreshAppleReadiness()
     refreshCohereReadiness()
+    hasObservedPending = true
     refreshCaptureLists()
     catalog.activate(destinationID: destination.summary?.id)
+  }
+
+  /// A genuine foreground-to-background departure; inactive sheets and pickers never call this.
+  func departed() {
+    guard let reminders else { return }
+    // Keep the process alive long enough for the add/cancel to finish; the coordinator's
+    // onChange ends it once idle.
+    if reminderBackgroundTask == .invalid {
+      reminderBackgroundTask = UIApplication.shared.beginBackgroundTask(
+        withName: "pending-reminder"
+      ) { [weak self] in
+        MainActor.assumeIsolated { self?.endReminderBackgroundTask() }
+      }
+    }
+    reminders.departed(at: Date())
+  }
+
+  private func endReminderBackgroundTask() {
+    guard reminderBackgroundTask != .invalid else { return }
+    UIApplication.shared.endBackgroundTask(reminderBackgroundTask)
+    reminderBackgroundTask = .invalid
+  }
+
+  var remindersDenied: Bool { reminders?.notificationsDenied == true }
+
+  private func observePendingWork() {
+    let present =
+      !pendingCaptures.isEmpty || !queuePending.isEmpty || !manualDiaryPending.isEmpty
+      || editCoordinator?.pending.isEmpty == false
+    var observation = PendingWorkObservation.unknown
+    if present {
+      observation = .present
+    } else if hasObservedPending, processingQueue != nil, captureEnvironment != nil {
+      // The capture and queue readers return empty lists when protected data is unavailable
+      // or a receipt cannot be validated, so an empty list proves nothing in those cases.
+      let settled =
+        queuePausedReason == nil && captureIssues.isEmpty
+        && UIApplication.shared.isProtectedDataAvailable
+        && manualCreation?.isObserved == true && editCoordinator?.isObserved == true
+      if settled { observation = .empty }
+    }
+    reminders?.update(observation: observation, canPrompt: isAppActive && !isCapturePresented)
   }
 
   func becameInactive() {
@@ -815,6 +877,7 @@ final class AppModel: ObservableObject {
           message: "\(destination.rawValue) need attention."))
     }
     notices.update(values)
+    observePendingWork()
   }
 
   func refreshTranscriptionReadiness() {

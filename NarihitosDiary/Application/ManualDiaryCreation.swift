@@ -51,6 +51,8 @@ final class ManualDiaryCreation {
     self.titles = titles
   }
 
+  var isObserved: Bool { discovered && discoveryIssue == nil }
+
   var hasActiveWork: Bool { work != nil || !accepting.isEmpty || titles.hasActiveWork }
 
   func isSettled(_ assetID: String) -> Bool {

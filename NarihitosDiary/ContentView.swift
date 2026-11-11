@@ -117,6 +117,7 @@ struct ContentView: View {
         Task { await model.becameActive() }
       } else {
         model.becameInactive()
+        if phase == .background { model.departed() }
       }
     }
     .onReceive(NotificationCenter.default.publisher(for: .NSUbiquityIdentityDidChange)) { _ in
@@ -613,6 +614,13 @@ private struct SettingsView: View {
           Button("Allow Location Access") { Task { await model.requestLocation() } }
             .frame(minHeight: 44)
         } else if model.locationState == .denied || model.locationState == .restricted {
+          Button("Open Settings", action: model.openSettings)
+            .frame(minHeight: 44)
+        }
+      }
+      if model.remindersDenied {
+        Section("Reminders") {
+          Text("Notifications are off, so pending diary work can’t remind you.")
           Button("Open Settings", action: model.openSettings)
             .frame(minHeight: 44)
         }

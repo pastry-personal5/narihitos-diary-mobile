@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 
 enum DiaryEditSubmissionResult: Equatable {
@@ -57,6 +58,11 @@ final class DiaryEditCoordinator {
   var hasActiveWork: Bool {
     deleting || discovery != nil || openingCount > 0 || !requests.isEmpty || !work.isEmpty
       || titles.hasActiveWork
+  }
+
+  /// True once accepted-edit inventory is settled, so an empty list proves no pending edits.
+  var isObserved: Bool {
+    reconciled && discoveryIssue == nil && isolatedCount == 0 && uncertainSubmissions.isEmpty
   }
 
   var pending: [DiaryEditRecord] {
