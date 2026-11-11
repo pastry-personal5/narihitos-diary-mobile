@@ -584,7 +584,9 @@ struct DiarySnippetMarkdownCodec: Sendable {
         try? SchemaInstant($0)
       }),
       let summary = optionalString("weather_summary", in: entries),
-      let temperature = decimal("weather_temperature_celsius", in: entries)
+      let temperature = decimal("weather_temperature_celsius", in: entries),
+      temperature.isFinite, temperature >= Decimal(-100), temperature <= Decimal(70),
+      ContextPolicy.isKnownSummary(summary)
     {
       weather = WeatherContext(
         observedAt: observed, summary: summary, temperatureCelsius: temperature)

@@ -329,6 +329,26 @@ struct ContextStorageTests {
   }
 }
 
+struct PersistedContextValidationTests {
+  @Test func envelopeRejectsOutOfRangeOrUnknownWeather() throws {
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    var envelope = try ContextEnvelope(ownerID: "owner", start: start, installation: nil)
+    envelope.latitude = "35.0"
+    envelope.longitude = "139.0"
+    envelope.accuracy = "10"
+    envelope.sampledAt = try SchemaInstant.from(date: start).description
+    envelope.weatherObservedAt = try SchemaInstant.from(date: start).description
+    envelope.weatherSummary = "Clear sky"
+
+    envelope.temperature = "71"
+    #expect(envelope.snapshot.weather == nil)
+
+    envelope.temperature = "20"
+    envelope.weatherSummary = "not a weather code"
+    #expect(envelope.snapshot.weather == nil)
+  }
+}
+
 struct ManualContextCodecTests {
   @Test func manualSnippetRoundTripsLocationWeatherAndPreservesBadGroups() throws {
     let title = DiaryTitlePolicy.fallback("Hi")

@@ -174,7 +174,8 @@ struct ContextEnvelope: Codable, Equatable, Sendable {
       if result.location != nil, let weatherObservedAt, let weatherSummary,
         let temperature = Self.decimal(temperature),
         let observed = try? SchemaInstant(weatherObservedAt),
-        ContextPolicy.isKnownSummary(weatherSummary)
+        temperature >= Decimal(-100), temperature <= Decimal(70),
+        temperature.isFinite, ContextPolicy.isKnownSummary(weatherSummary)
       {
         result.weather = WeatherContext(
           observedAt: observed, summary: weatherSummary, temperatureCelsius: temperature)
