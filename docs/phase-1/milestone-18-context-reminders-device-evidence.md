@@ -12,6 +12,8 @@ Do not commit audio, diary/title/place/weather text, exact coordinates or sample
 
 ## Required scenarios
 
+Simulator test maintenance on 2026-11-11 is recorded in [M20 Task 23](milestone-20-enhancements-fixes-refactoring-overview.md#task-23-repair-failing-and-flaky-tests). The real-center/protection suite is now explicitly device-only, with injected adapter and portable disk coverage in the passing simulator gate. No scenario below is closed by those tests.
+
 | ID | Required observable evidence | Status | Redacted observation |
 |---|---|---|---|
 | M18-D01 | First-launch optional location allow/deny and Allow Once expiry preserve recording/non-recording use. Settings preference Off/On persists across relaunch without overriding denial or implicitly prompting; system Settings recovery refreshes live state. Failed Record prerequisites/audio start cause no context lookup. Test reduced accuracy and disabled system location; no temporary-precise/Always/background-location request appears. | Not run | — |

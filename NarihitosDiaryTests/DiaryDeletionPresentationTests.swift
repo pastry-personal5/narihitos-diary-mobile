@@ -8,6 +8,8 @@ import UIKit
 @Suite(.serialized)
 struct DiaryDeletionPresentationTests {
   @Test func fullWidthDeleteUsesInlineConfirmationAndCancel() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await DiaryPresentationFixture()
     defer { fixture.close() }
     let deletion = MemoryDiaryDeletion()

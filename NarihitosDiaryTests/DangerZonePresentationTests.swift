@@ -9,6 +9,8 @@ import UIKit
 @Suite(.serialized)
 struct DangerZonePresentationTests {
   @Test func separateInlineConfirmationsCancelAndSceneDepartureAreSafe() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try DangerZoneFixture()
     defer { fixture.close() }
     #expect(fixture.port.performed.isEmpty)
@@ -34,6 +36,8 @@ struct DangerZonePresentationTests {
   }
 
   @Test func navigationDepartureDisarmsAndLargeTextCanScroll() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try DangerZoneFixture()
     defer { fixture.close() }
     fixture.state.large = true

@@ -44,6 +44,23 @@ No change to accepted folder providers, iCloud identity requirements, readable-f
 
 ## Completion checklist
 
+### Task 23: Repair failing and flaky tests
+
+Requested on 2026-11-11: inspect the codebase and tests, reproduce failures, and repair test reliability within the existing product and architecture contracts. Preserve the six pre-existing test-file edits. Approach: [test reliability](milestone-20-enhancements-fixes-refactoring-architecture.md#task-23-repair-failing-and-flaky-tests).
+
+Status: Done for simulator test repair; physical acceptance remains with the owning milestones.
+
+- [x] Reproduce current failures and inspect asynchronous waits and shared platform state; record concrete causes and baseline artifacts.
+- [x] Make simulator reminder coverage independent of interactive authorization and retain explicit physical-device coverage for notification delivery and Data Protection.
+- [x] Replace scheduling-dependent waits with observable completion conditions; repeat affected tests without automatic retries masking failures.
+- [x] Pass `make lint` and the complete required simulator validation gate; record counts, destination, and remaining evidence limits.
+
+Evidence, 2026-11-11: the initial simulator run excluding `ReminderDeviceTests` reported **535 passed, 18 failed, 4 skipped**, artifact `test_sim_2026-11-11T14-43-46-397Z_pid55304_db2ada8e.xcresult`. Seventeen failures were hosted UI tests whose accessibility elements were unavailable even when one suite ran alone; the remaining failure used `Clear` instead of the current valid `Clear sky` weather summary. A separate run reproduced nil `.protectionKey` on Simulator in `ReminderDeviceTests`; prior notification-prompt failures are recorded in M21 Task 17. The six pre-existing path-hardening edits remain intact.
+
+The harness now enables and restores test-only UIKit accessibility automation, serializes key-window ownership across all seven hosted suites, and waits for the diary's accessible controls before returning its fixture. Reminder adapter tests inject the notification-center boundary and retain assertions for actual calendar triggers, authorization mapping, generic content, replacement, cancellation isolation and platform errors. Disk round trips/corruption remain covered on Simulator. The six physical reminder checks are explicitly skipped there, and phone runs fail promptly on missing authorization instead of prompting. Reminder coordinator tests observe the reconciliation callback rather than a fixed yield count.
+
+The first repaired focused batch passed **24 tests, 0 failed, 6 skipped**. A subsequent **37-test batch across nine UI/reminder suites passed all three requested iterations**, including parameterized cases, with no retry-on-failure option; artifact `test_sim_2026-11-11T14-53-49-480Z_pid55304_51a5a9c9.xcresult`. `make lint` and the complete `TEST_DESTINATION='platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082' scripts/validate.sh` gate passed generation, lint, build and tests on iPhone 18 Pro / iOS 27.0. The script removes successful logs; the retained focused artifacts supply the numeric counts above. The documented service-access retry resolved restricted-shell CoreSimulator refusal. No physical delivery, lock-state, VoiceOver or real-provider acceptance is claimed.
+
 ### Task 22: Replace milestone and phase references with technical names
 
 Status: Done. Owner authorized implementation on 2026-11-04; naming audit and required simulator validation passed.

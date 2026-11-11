@@ -8,6 +8,8 @@ import UIKit
 @Suite(.serialized)
 struct DiaryPresentationTests {
   @Test func editorPreservesFailedInputAndConfirmsDiscard() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await DiaryPresentationFixture()
     defer { fixture.close() }
     try await fixture.waitUntil { !fixture.edits.hasActiveWork }
@@ -34,6 +36,8 @@ struct DiaryPresentationTests {
   }
 
   @Test func favoriteControlSubmitsDesiredStateWithoutRegeneratingTitle() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await DiaryPresentationFixture()
     defer { fixture.close() }
     try await fixture.waitUntil { !fixture.edits.hasActiveWork }
@@ -49,6 +53,8 @@ struct DiaryPresentationTests {
   }
 
   @Test func uncertainSaveKeepsTheSubmittedIdentityUntilAcknowledgmentIsReadable() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await DiaryPresentationFixture()
     defer { fixture.close() }
     try await fixture.waitUntil { !fixture.edits.hasActiveWork }
@@ -74,6 +80,8 @@ struct DiaryPresentationTests {
   }
 
   @Test func bodySaveFavoriteAndReplayUseAccessibleControlsAndLegacyHasNoMutations() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await DiaryPresentationFixture()
     defer { fixture.close() }
     try await fixture.waitUntil { !fixture.edits.hasActiveWork }
@@ -114,6 +122,8 @@ struct DiaryPresentationTests {
   }
 
   @Test func syntheticDetailEditorAndPrivacyLayoutsAreRenderableAcrossSizes() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await DiaryPresentationFixture()
     defer { fixture.close() }
     try await fixture.waitUntil { !fixture.edits.hasActiveWork }

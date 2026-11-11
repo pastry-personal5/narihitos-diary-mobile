@@ -43,6 +43,12 @@ The lint script checks tracked and unignored new Swift files, including trial so
 
 If `xcrun simctl list devices available` or `scripts/validate.sh` reports `CoreSimulatorService connection became invalid`, `Connection refused`, or a permission error for CoreSimulator logs, first suspect restricted-shell access to the simulator service. Retry discovery with simulator service access (request command escalation in an agent sandbox), then run the gate with an explicit available iPhone simulator ID under the same access. A successful retry identifies an environment restriction; do not change app code or reset simulators to address it. If access cannot be granted or the retry still fails, leave the validation checklist item unchecked and report the blocker. A generic build or lint pass alone does not satisfy the simulator test gate.
 
+### Hosted UI and reminder tests
+
+Hosted UI unit tests acquire `HostedUITestSession` before creating windows and release it after fixture cleanup. Swift Testing's `.serialized` applies within a suite, so the shared session also serializes different suites that use the app's key window. It enables UIKit accessibility automation using dynamically resolved, test-only system symbols and restores the previous setting afterward. Missing symbols fail the test explicitly. Keep this helper in the test target; the app does not use private accessibility APIs.
+
+`AppleReminderSchedulerTests` uses the real adapter with an injected notification center, and `FileReminderStoreTests` verifies disk round trips and corrupt input without prompts. `ReminderDeviceTests` is explicitly skipped on Simulator because real notification-service and Data Protection checks require an iPhone. For that physical suite, grant notification permission in Settings before running; it fails promptly when permission is missing instead of opening an interactive sheet. Simulator passes do not establish phone notification delivery or lock-state protection.
+
 ## Code and repository conventions
 
 - Use Swift and SwiftUI, following the [inward source-dependency rule](architecture.md#clean-architecture-layers-and-dependency-rule). Format Swift with swift-format and resolve SwiftLint warnings.

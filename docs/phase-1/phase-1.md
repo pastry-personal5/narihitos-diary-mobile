@@ -122,7 +122,7 @@ Notes: The owner requested implementation on 2026-11-02 ahead of remaining M14 d
 Status: Active
 Goal: Correct app behavior reported by the owner, with related enhancements and refactoring.
 Plan: [overview](milestone-20-enhancements-fixes-refactoring-overview.md), [approach](milestone-20-enhancements-fixes-refactoring-architecture.md)
-Notes: Owner-requested repairs and enhancements are tracked in the linked task checklists, including folder/Settings persistence, transcription models and failures, capture/catalog performance, inline recording removal, Danger Zone purges, and Diary Snippet deletion. See the [M20 overview](milestone-20-enhancements-fixes-refactoring-overview.md) for per-task implementation, validation, owner acceptance, and remaining phone evidence. The later M16/M21 authorizations below supersede the original requirement to finish M20 first; its open evidence remains required.
+Notes: Owner-requested repairs and enhancements are tracked in the linked task checklists, including folder/Settings persistence, transcription models and failures, capture/catalog performance, inline recording removal, Danger Zone purges, Diary Snippet deletion, and Task 23's failing/flaky test repair. See the [M20 overview](milestone-20-enhancements-fixes-refactoring-overview.md) for per-task implementation, validation, owner acceptance, and remaining phone evidence. The later M16/M21 authorizations below supersede the original requirement to finish M20 first; its open evidence remains required.
 
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 

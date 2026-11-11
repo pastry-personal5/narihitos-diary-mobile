@@ -4,9 +4,17 @@ import UserNotifications
 
 @testable import NarihitosDiary
 
-// M18a on-device checks against the real UserNotifications center. They use a private
+// On-device checks against the real UserNotifications center. They use a private
 // request identifier, so a real pending-work reminder on the phone is never touched.
 // Precondition: notifications are allowed for the app (grant once in Settings > Notifications).
+
+private var runsOnPhysicalDevice: Bool {
+  #if targetEnvironment(simulator)
+    false
+  #else
+    true
+  #endif
+}
 
 @MainActor
 private func makeScheduler() -> AppleReminderScheduler {
@@ -27,11 +35,14 @@ private func calendar(_ zone: String) -> Calendar {
 }
 
 @MainActor
+@Suite(
+  .serialized,
+  .enabled(
+    if: runsOnPhysicalDevice, "Requires physical-device notification and protection services."))
 struct ReminderDeviceTests {
   private func requireAuthorized(_ scheduler: AppleReminderScheduler) async throws {
-    var status = await scheduler.authorization()
-    // First run only: the system sheet must be answered by hand on the unlocked phone.
-    if status == .notDetermined { status = await scheduler.requestAuthorization() }
+    let status = await scheduler.authorization()
+    // Authorization is a precondition; automated runs must never wait for a system prompt.
     try #require(
       status == .authorized,
       "Allow notifications for Narihito's Diary on the test phone, then rerun.")
@@ -108,9 +119,10 @@ struct ReminderDeviceTests {
   @Test func coordinatorDrivesTheRealCenterFromDepartureToEmpty() async throws {
     let scheduler = makeScheduler()
     try await requireAuthorized(scheduler)
-    let store = FileReminderStore(
-      root: FileManager.default.temporaryDirectory
-        .appendingPathComponent("reminder-\(UUID().uuidString)", isDirectory: true))
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("reminder-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = FileReminderStore(root: root)
     let departure = Date().addingTimeInterval(60).rounded()
     let coordinator = PendingReminderCoordinator(
       scheduler: scheduler, store: store, installation: { "device-test" })

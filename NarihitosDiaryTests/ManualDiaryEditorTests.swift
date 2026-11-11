@@ -45,6 +45,8 @@ final class MemoryManualDiaryStore: ManualDiaryStorePort {
 @Suite(.serialized)
 struct ManualDiaryEditorTests {
   @Test func blankTextIsRejectedAndUncertainSaveKeepsTheSameSnapshot() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let store = MemoryManualDiaryStore()
     let creation = makeCreation(store)
     creation.activate()
@@ -71,6 +73,8 @@ struct ManualDiaryEditorTests {
   }
 
   @Test func editorHasCompactTopRightBitmapActionsAndCancelDoesNotSubmit() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let store = MemoryManualDiaryStore()
     let creation = makeCreation(store)
     creation.activate()

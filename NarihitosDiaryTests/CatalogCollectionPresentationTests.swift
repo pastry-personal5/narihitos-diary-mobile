@@ -9,6 +9,8 @@ import UIKit
 struct CatalogCollectionPresentationTests {
   @Test(arguments: [false, true])
   func weatherSettingsRoundTripPreservesDetail(inFlight: Bool) async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await CatalogCollectionFixture(strict: true)
     defer { fixture.close() }
     let port = try #require(fixture.currentPort)
@@ -43,6 +45,8 @@ struct CatalogCollectionPresentationTests {
   }
 
   @Test func mountedFooterDoesNotDrainAndAccessibleContinuationLoadsTenMore() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await CatalogCollectionFixture()
     defer { fixture.close() }
     fixture.scrollToBottom(fixture.host.view)
@@ -71,6 +75,8 @@ struct CatalogCollectionPresentationTests {
   }
 
   @Test func rememberedTapShowsOpeningUntilFreshDetailResolves() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try await CatalogCollectionFixture()
     defer { fixture.close() }
     fixture.port.holdResolve = true

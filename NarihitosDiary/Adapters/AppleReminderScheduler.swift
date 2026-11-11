@@ -2,21 +2,41 @@ import Foundation
 import UserNotifications
 
 @MainActor
+protocol ReminderNotificationCenter: AnyObject {
+  var delegate: (any UNUserNotificationCenterDelegate)? { get set }
+  func authorizationStatus() async -> UNAuthorizationStatus
+  func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+  func add(_ request: UNNotificationRequest) async throws
+  func removePendingNotificationRequests(withIdentifiers identifiers: [String])
+  func removeDeliveredNotifications(withIdentifiers identifiers: [String])
+}
+
+extension UNUserNotificationCenter: ReminderNotificationCenter {
+  func authorizationStatus() async -> UNAuthorizationStatus {
+    await notificationSettings().authorizationStatus
+  }
+}
+
+@MainActor
 final class AppleReminderScheduler: NSObject, ReminderSchedulerPort {
   static let productionIdentifier = "pending-diary-work"
   let identifier: String
-  private let center = UNUserNotificationCenter.current()
+  private let center: any ReminderNotificationCenter
   /// Called when the user taps the reminder; the owner opens All and rechecks state.
   var onOpen: (() -> Void)?
 
-  init(identifier: String = AppleReminderScheduler.productionIdentifier) {
+  init(
+    identifier: String = AppleReminderScheduler.productionIdentifier,
+    center: any ReminderNotificationCenter = UNUserNotificationCenter.current()
+  ) {
     self.identifier = identifier
+    self.center = center
     super.init()
     center.delegate = self
   }
 
   func authorization() async -> ReminderAuthorization {
-    switch await center.notificationSettings().authorizationStatus {
+    switch await center.authorizationStatus() {
     case .authorized, .provisional, .ephemeral: .authorized
     case .denied: .denied
     default: .notDetermined

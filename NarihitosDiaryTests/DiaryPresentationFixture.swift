@@ -79,6 +79,14 @@ final class DiaryPresentationFixture {
     window.rootViewController = host
     window.makeKeyAndVisible()
     window.layoutIfNeeded()
+    do {
+      try await waitUntil {
+        self.element(legacy ? "diary-audio-play-pause" : "diary-edit") != nil
+      }
+    } catch {
+      close()
+      throw error
+    }
   }
 
   private static func foregroundScene() async throws -> UIWindowScene {

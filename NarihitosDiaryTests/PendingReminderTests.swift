@@ -52,8 +52,15 @@ private struct Rig {
 }
 
 @MainActor
-private func settle() async {
-  for _ in 0..<20 { await Task.yield() }
+private func settle(_ coordinator: PendingReminderCoordinator) async throws {
+  var completed = false
+  coordinator.onChange = { completed = true }
+  defer { coordinator.onChange = nil }
+  let deadline = ContinuousClock.now + .seconds(5)
+  while !completed, ContinuousClock.now < deadline {
+    try await Task.sleep(for: .milliseconds(1))
+  }
+  try #require(completed, "Reminder reconciliation did not complete")
 }
 
 @MainActor
@@ -90,84 +97,84 @@ struct PendingReminderTests {
     #expect(next == date("2027-11-07T05:30:00Z"))
   }
 
-  @Test func schedulesOnceAfterDepartureWithPendingWork() async {
+  @Test func schedulesOnceAfterDepartureWithPendingWork() async throws {
     let rig = Rig()
     let departure = rig.clock
     rig.coordinator.update(observation: .present, canPrompt: true)
     rig.coordinator.departed(at: departure)
     rig.coordinator.departed(at: departure.addingTimeInterval(5))  // repeated: same anchor
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.scheduled == [departure.addingTimeInterval(86_400)])
     #expect(rig.store.value?.trigger == departure.addingTimeInterval(86_400))
   }
 
-  @Test func foregroundWithoutDepartureNeverSchedules() async {
+  @Test func foregroundWithoutDepartureNeverSchedules() async throws {
     let rig = Rig()
     rig.coordinator.update(observation: .present, canPrompt: true)
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.scheduled.isEmpty)
   }
 
-  @Test func unknownIsNotEmptyAndChangesNothing() async {
+  @Test func unknownIsNotEmptyAndChangesNothing() async throws {
     let rig = Rig()
     rig.coordinator.update(observation: .unknown, canPrompt: true)
     rig.coordinator.departed(at: rig.clock)
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.scheduled.isEmpty)
     #expect(rig.scheduler.cancels == 0)
   }
 
-  @Test func lastItemClearingCancels() async {
+  @Test func lastItemClearingCancels() async throws {
     let rig = Rig()
     rig.coordinator.update(observation: .present, canPrompt: true)
     rig.coordinator.departed(at: rig.clock)
-    await settle()
+    try await settle(rig.coordinator)
     rig.coordinator.update(observation: .empty, canPrompt: false)
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.cancels == 1)
     #expect(rig.store.value?.trigger == nil)
     #expect(rig.store.value?.departure == nil)
   }
 
-  @Test func promptsOnceOnlyWhenSafeAndNeverRepeatsAfterDenial() async {
+  @Test func promptsOnceOnlyWhenSafeAndNeverRepeatsAfterDenial() async throws {
     let rig = Rig()
     rig.scheduler.status = .notDetermined
     rig.scheduler.grantOnRequest = false
     rig.coordinator.update(observation: .present, canPrompt: false)  // capturing/background
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.requests == 0)
     rig.coordinator.update(observation: .present, canPrompt: true)
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.requests == 1)
     #expect(rig.coordinator.notificationsDenied)
     rig.scheduler.status = .notDetermined  // even if the system still allows it
     rig.coordinator.update(observation: .unknown, canPrompt: true)
     rig.coordinator.update(observation: .present, canPrompt: true)
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.requests == 1)
     #expect(rig.scheduler.scheduled.isEmpty)
   }
 
-  @Test func deniedKeepsStateAndSchedulesNothing() async {
+  @Test func deniedKeepsStateAndSchedulesNothing() async throws {
     let rig = Rig()
     rig.scheduler.status = .denied
     rig.coordinator.update(observation: .present, canPrompt: true)
     rig.coordinator.departed(at: rig.clock)
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.scheduled.isEmpty)
     #expect(rig.coordinator.notificationsDenied)
   }
 
-  @Test func unverifiedTriggerIsRecordedAsNotScheduled() async {
+  @Test func unverifiedTriggerIsRecordedAsNotScheduled() async throws {
     let rig = Rig()
     rig.scheduler.verified = false
     rig.coordinator.update(observation: .present, canPrompt: true)
     rig.coordinator.departed(at: rig.clock)
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.store.value?.trigger == nil)
   }
 
-  @Test func overdueDepartureIsRetiredOnReopen() async {
+  @Test func overdueDepartureIsRetiredOnReopen() async throws {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let rig = Rig(now: now)
     rig.store.value = ReminderRecord(
@@ -175,29 +182,29 @@ struct PendingReminderTests {
       trigger: now.addingTimeInterval(-100_000))
     rig.coordinator.update(observation: .present, canPrompt: true)
     rig.coordinator.foregrounded()
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.scheduled.isEmpty)
     #expect(rig.scheduler.cancels == 1)
     #expect(rig.store.value?.trigger == nil)
   }
 
-  @Test func foregroundReopenConsumesAnchorSoLaterWorkWaitsForNextDeparture() async {
+  @Test func foregroundReopenConsumesAnchorSoLaterWorkWaitsForNextDeparture() async throws {
     let rig = Rig()
     rig.coordinator.update(observation: .present, canPrompt: true)
     rig.coordinator.departed(at: rig.clock)
-    await settle()
+    try await settle(rig.coordinator)
     rig.coordinator.foregrounded()
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.store.value?.departure == nil)
     #expect(rig.store.value?.trigger != nil)
   }
 
-  @Test func otherInstallationScheduleIsNeverReplayed() async {
+  @Test func otherInstallationScheduleIsNeverReplayed() async throws {
     let rig = Rig(installation: "new")
     rig.store.value = ReminderRecord(
       installation: "old", departure: rig.clock, trigger: rig.clock.addingTimeInterval(1))
     rig.coordinator.update(observation: .present, canPrompt: true)
-    await settle()
+    try await settle(rig.coordinator)
     #expect(rig.scheduler.cancels == 1)
     #expect(rig.store.value?.installation == "new")
     #expect(rig.store.value?.departure == nil)

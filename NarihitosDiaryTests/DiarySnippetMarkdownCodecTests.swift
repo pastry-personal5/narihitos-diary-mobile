@@ -93,7 +93,7 @@ struct DiarySnippetMarkdownCodecTests {
         latitude: 37.5, longitude: 127.0, sampledAt: snippet.createdAt,
         horizontalAccuracyMeters: 5.25, placeName: "Seoul"),
       weather: WeatherContext(
-        observedAt: snippet.createdAt, summary: "Clear", temperatureCelsius: 12.5),
+        observedAt: snippet.createdAt, summary: "Clear sky", temperatureCelsius: 12.5),
       body: snippet.body,
       preservedScalars: [
         PreservedScalar(key: "future_integer", rawValue: "42", sourceOrder: 100),

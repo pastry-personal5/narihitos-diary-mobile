@@ -10,7 +10,10 @@ import UIKit
 @MainActor
 @Suite(.serialized)
 struct RecordingRemovalPresentationTests {
+  // swiftlint:disable:next function_body_length
   @Test func removalRequiresInlineConfirmationAndCancelDoesNothing() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try RemovalPresentationFixture()
     defer { fixture.close() }
 
@@ -73,6 +76,8 @@ struct RecordingRemovalPresentationTests {
   }
 
   @Test func anotherSelectionAndCancellingCannotLeaveAnArmedRemoval() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try RemovalPresentationFixture()
     defer { fixture.close() }
 
@@ -103,6 +108,8 @@ struct RecordingRemovalPresentationTests {
   }
 
   @Test func sceneDepartureDisarmsConfirmation() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let fixture = try RemovalPresentationFixture()
     defer { fixture.close() }
 

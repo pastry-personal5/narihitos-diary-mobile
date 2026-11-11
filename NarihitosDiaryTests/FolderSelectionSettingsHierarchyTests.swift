@@ -27,6 +27,8 @@ private struct SettingsHierarchyRoot: View {
 @Suite(.serialized)
 struct FolderSelectionSettingsHierarchyTests {
   @Test func settingsEntryKeepsCommittedFolderWithoutPresentingPicker() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let destination = FolderSelectionTestDestination()
     destination.activeSummary = destination.summary
     let model = makeFolderSelectionModel(destination)
@@ -71,6 +73,8 @@ struct FolderSelectionSettingsHierarchyTests {
 
   @Test(arguments: [false, true], [false, true])
   func allSettingsToolbarHasOneAccessibleTarget(dark: Bool, accessibilitySize: Bool) async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let destination = FolderSelectionTestDestination()
     destination.activeSummary = destination.summary
     let model = makeFolderSelectionModel(destination)
@@ -158,6 +162,8 @@ struct FolderSelectionSettingsHierarchyTests {
   }
 
   @Test func settingsHierarchyShowsDisclosureForResultAfterSheetDismissal() async throws {
+    try await HostedUITestSession.acquire()
+    defer { HostedUITestSession.release() }
     let destination = FolderSelectionTestDestination()
     let model = makeFolderSelectionModel(destination)
     model.selectedRoot = .all
