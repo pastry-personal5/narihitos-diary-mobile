@@ -182,7 +182,6 @@ private struct CatalogDetailScreen: View {
     }
     .navigationTitle("Diary Snippet")
     .navigationBarTitleDisplayMode(.inline)
-    .onDisappear { catalog.clearDetail(expectedSelection: selection) }
     .privacySensitive()
   }
 }

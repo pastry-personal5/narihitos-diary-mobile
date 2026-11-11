@@ -1,3 +1,4 @@
+// swiftlint:disable opening_brace
 import Foundation
 
 struct ManualDiarySubmission: Equatable, Sendable {
@@ -24,8 +25,17 @@ protocol ManualDiaryStorePort: AnyObject {
   func body(_ record: ManualDiaryRecord) async throws -> DiaryBody
   func finalize(_ record: ManualDiaryRecord, title: GeneratedDiaryTitle) async throws
     -> ManualDiaryRecord
+  /// `context` is the already-sealed snapshot; nil means omission.
+  func finalize(_ record: ManualDiaryRecord, title: GeneratedDiaryTitle, context: ContextSnapshot?)
+    async throws -> ManualDiaryRecord
   /// True only after the exact Markdown version has verified upload and local cleanup.
   func publish(_ record: ManualDiaryRecord) async throws -> Bool
+}
+
+extension ManualDiaryStorePort {
+  func finalize(_ record: ManualDiaryRecord, title: GeneratedDiaryTitle, context: ContextSnapshot?)
+    async throws -> ManualDiaryRecord
+  { try await finalize(record, title: title) }
 }
 
 /// Manual creation owns submissions independently of audio capture and edit sessions.
@@ -45,6 +55,10 @@ final class ManualDiaryCreation {
   private(set) var discoveryIssue: DiaryEditIssue?
   var onChange: (() -> Void)?
   var onSaved: ((ManualDiaryRecord) -> Void)?
+  /// The first Save is the context instant. Acquisition never delays acknowledgment.
+  var beginContext: ((ManualDiarySubmission) -> Void)?
+  /// Synchronously seals what was accepted, evaluated after the title await.
+  var sealContext: ((ManualDiaryRecord) -> ContextSnapshot?)?
 
   init(store: any ManualDiaryStorePort, titles: DiaryTitlePolicy) {
     self.store = store
@@ -103,6 +117,7 @@ final class ManualDiaryCreation {
     }
     do {
       let record = try await store.accept(submission)
+      beginContext?(submission)
       pending.removeAll { $0.id == record.id }
       pending.append(record)
       onChange?()
@@ -143,7 +158,8 @@ final class ManualDiaryCreation {
       if record.needsTitle {
         let body = try await store.body(record)
         let title = await titles.title(for: body, owner: .manual(submissionID: record.id))
-        record = try await store.finalize(record, title: title)
+        record = try await store.finalize(
+          record, title: title, context: sealContext?(record))
       }
       guard active, !suspended else {
         update(record)
@@ -195,3 +211,5 @@ extension DiaryEditIssue {
     }
   }
 }
+
+// swiftlint:enable opening_brace

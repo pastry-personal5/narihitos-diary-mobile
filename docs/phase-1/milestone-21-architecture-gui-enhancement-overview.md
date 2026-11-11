@@ -4,6 +4,10 @@ Status: Active
 
 Enhance the software architecture and implement GUI enhancements requested by the owner. The initial architecture task reviews processing stages and active resource ownership. M21 follows M16 under the revised execution order; specific GUI requests are tracked below.
 
+## Scope revision, 2026-11-11 (owner decision)
+
+Tasks 11–14 (reconciliation worker, remembered-first presentation, projection updates/invalidation, prototype comparison) are **Deferred behind a measurement gate**; they supersede the 2026-11-04 instruction to deliver them in order. Task 10's foundation, the Task 11 controller and the Task 13 purge-generation safeguards already exist unwired and stay in the tree, disabled and unreferenced from production paths. See [Task 16](#task-16-catalog-measurement-gate). Task 9's independent remainder stays active, limited to activation coalescing and demand-based readiness. The documentation-consolidation items in Tasks 2b/2c are low priority and may be closed with an explicit disposition. Task 8 (missing Main title under the notice) remains required.
+
 ## Entry and locked inputs
 
 - The owner revised the order on 2026-11-04 to M20 → M16 → M21 → M17 → M18 → M19 and requested an M21 task now against the implemented M16 handoff. Follow the [Phase 1 execution order](phase-1.md). This authorizes the bounded Task 2 work below; M16, M20, and earlier evidence remain open.
@@ -357,6 +361,27 @@ Task 15 implementation evidence, 2026-11-09: the delegated test runner passed `m
 
 Reviewed synthetic `manual-editor-small.png`, `manual-editor-large.png`, `manual-editor-landscape.png` and `manual-editor-dark-large.png` previews, with programmatic Cancel/discard and compact top-right action assertions. A truncated largest-type discard prompt was corrected with a scrollable confirmation. The indexed test originally waited for ten-row demand satisfaction with a one-row fixture; it now accepts exhausted coverage and awaits worker settlement before fixture deletion. The recorded-creation proof API still always requires both file proofs; a separate, validated edit-only method handles explicit absence of audio. No real provider upload proof is claimed: synthetic observers bind controlled upload flags to real coordinated file versions. MobileBuildMCP 2.7.1 device listing did not return, so physical-iPhone and real-iCloud checks above remain open. Earlier M16/M20/M21 acceptance is not closed by this feature.
 
+## Task 16: Catalog measurement gate
+
+Decides whether Tasks 11–14 resume. Do not wire the SQLite projection into Main until this gate opens.
+
+- [ ] Wire no production path to the SQLite adapter (Tasks 10–13 code stays disabled). Confirm with a grep/test that Main uses only the strict file catalog.
+- [ ] On the target iPhone, Release, no debugger, with a realistic synthetic history (at least 365 diaries, real iCloud folder, locally present), measure process-cold launch and warm return to the first 10 Main rows using the [frozen protocol](milestone-21-catalog-benchmark-results.md#frozen-prototype-budgets). Record repeat counts, median and maximum.
+- [ ] Gate: reopen Tasks 11–14 only if the file catalog's first-10 median exceeds the frozen 500 ms remembered-page budget or the owner reports visible slowness. Note that the synthetic baseline already shows 741 ms median for a 100-diary first batch of 50, so first try the smaller first batch and discovery-barrier removal that baseline motivates before building the cache.
+- [ ] Record the outcome and an owner decision: keep deferred, resume Tasks 11–14, or remove the disabled SQLite code.
+
+## Task 17: Snippet loading after weather Settings
+
+Owner report, 2026-11-11: after enabling weather in Settings, Main can remain on `Opening Diary Snippet` indefinitely. Trace detail selection, view disappearance and task ownership without changing context policy or enabling the deferred SQLite path.
+
+- [x] Reproduce the stuck detail with synthetic snippets across Main → All → Settings → Main and identify the state transition that loses loading progress.
+- [x] Repair detail lifecycle ownership and cover completed/in-flight detail, navigation dismissal and stale callbacks with regression checks.
+- [ ] Run focused checks, `make lint` and the required full simulator gate; record observed results and physical-device evidence limits.
+
+Task 17 evidence, 2026-11-11: the hosted strict-catalog round trip failed before the fix with a retained selection, nil detail/issue and an accessible `Opening Diary Snippet`. Removing disappearance-driven cleanup and tying cancellation to nil selection passes the round trip for both completed and delayed reads. All 18 focused tests across `CatalogCollectionPresentationTests`, `CatalogModelTests` and `RememberedCatalogPresentationTests` pass on iPhone 18 Pro / iOS 27.0; artifact `test_sim_2026-11-11T13-48-09-156Z_pid40431_40a7f47d.xcresult`. `make lint` passes after shortening the test name. Physical-iPhone/weather-provider checks were not performed. Existing independent workspace changes and milestone evidence remain intact.
+
+The full required `scripts/validate.sh` run passes generation, lint and build, with **555 tests passed, 4 skipped and 3 failed** (562 total reported by xcresulttool). All failures are in the unchanged `ReminderDeviceTests`: notification authorization blocks/times out before the simulator prompt is answered, and `.protectionKey` is nil for the device-only file-protection assertion. The initial restricted-shell CoreSimulator refusal was resolved by service-access discovery and validation. After answering the simulator's notification prompt, a focused reminder rerun finishes with 4 passed/2 failed: the same protection assertion and a refused notification schedule. These reminder/platform checks are not a clean full-gate pass, so the composite gate item stays unchecked. No reminder implementation or test requirement was changed to close it. Full logs/result bundle remain at `/var/folders/g8/85jt_6h55k18d0yypsf09kdh0000gn/T/tmp.3ke3G6Tnfj`; the reminder rerun is `test_sim_2026-11-11T13-54-36-031Z_pid40431_481b9065.xcresult`.
+
 ## Out of scope
 
 An unsolicited GUI redesign, a catalog checking/stale banner, a title editor, automatic regeneration when a model becomes ready, new durable queue states, migration of diary/queue/edit truth into SQLite, a global replacement state machine, broad repository restructuring, third-party dependencies/build-tool changes, and M16–M19 implementation. M21 does not waive earlier phone or adversarial evidence.
@@ -375,7 +400,7 @@ An unsolicited GUI redesign, a catalog checking/stale banner, a title editor, au
 - [x] Review Task 2's proposed lifecycle projection at implementation entry and record the selected bounded change, or an evidence-backed decision to retain existing interfaces. Any selected change separates durable job state, transient phase, and unsettled ownership without adding persisted title states or mutation authority.
 - [x] For lifecycle changes, verify durable candidate handoff, restart from candidate or verified draft, fallback within the title budget, late-result fencing, no overlapping title inference, and busy ownership until actual settlement. Other ready transcription and save work must retain independent progress.
 - [ ] Verify affected GUI behavior with synthetic data, including applicable small/large iPhones, landscape, largest Dynamic Type, VoiceOver, Reduce Motion, foreground/relaunch, and processing/recovery states. Record required target-iPhone evidence separately; unavailable evidence stays unchecked.
-- [ ] Complete Task 3's physical-token and Task 4's real-iCloud acceptance; deliver or explicitly defer Tasks 10–14 and Task 9's independent remainder, and record the broader Task 2 disposition before marking M21 Done. Task 6 has no separate implementation gate. Checked historical gates do not complete future code or device work.
+- [ ] Complete Task 3's physical-token and Task 4's real-iCloud acceptance; Task 16's gate outcome recorded (Tasks 11–14 are deferred, not required), Task 9's independent remainder delivered or explicitly deferred, and record the broader Task 2 disposition before marking M21 Done. Task 6 has no separate implementation gate. Checked historical gates do not complete future code or device work.
 - [x] Reconcile affected architecture, UX, README, milestone, and index docs with delivered behavior; record compatibility with M16's edit/title boundaries and any remaining evidence in its owning milestone.
 - [x] Run `make lint` and `TEST_DESTINATION='platform=iOS Simulator,id=<available iPhone UDID>' scripts/validate.sh` on the implemented changes and record the destination/results. Unavailable required checks remain unchecked with the observed blocker.
 

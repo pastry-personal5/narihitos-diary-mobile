@@ -148,7 +148,8 @@ struct CapturePrivateFilesTests {
     for name in [
       PrivateArtifactRole.markdownDraft.ownedFilename,
       PrivateArtifactRole.draftBinding.ownedFilename,
-      ".recovery-markdownDraft", ".recovery-draftBinding",
+      PrivateArtifactRole.context.ownedFilename,
+      ".recovery-markdownDraft", ".recovery-draftBinding", ".recovery-context",
     ] {
       try Data([1]).write(to: folder.appending(path: name))
     }

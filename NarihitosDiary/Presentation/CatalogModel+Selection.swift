@@ -34,11 +34,6 @@ extension CatalogModel {
     }
   }
 
-  func clearDetail(expectedSelection: CatalogSelection) {
-    guard selection == expectedSelection else { return }
-    clearDetail()
-  }
-
   func open(_ handle: CatalogItemHandle) {
     selectedItem = handle
     clearDetail()

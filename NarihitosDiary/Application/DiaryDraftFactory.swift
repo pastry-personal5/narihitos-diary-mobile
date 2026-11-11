@@ -11,7 +11,8 @@ struct DiaryDraftFactory {
   // swiftlint:disable:next function_parameter_count
   func make(
     job: QueueJob, receipt: QueueReceipt, candidate: TranscriptionPayload,
-    assetID: AssetID, updatedAt: Date, title: GeneratedDiaryTitle
+    assetID: AssetID, updatedAt: Date, title: GeneratedDiaryTitle,
+    context: ContextSnapshot? = nil
   ) throws -> DiarySnippetV1 {
     guard job.state == .resultReady, job.draftAssetID == assetID.description,
       job.matches(receipt), job.attemptID != nil,
@@ -39,7 +40,7 @@ struct DiaryDraftFactory {
       recordingDurationMilliseconds: Int64((inspection.duration * 1_000).rounded()),
       audioCodec: "aac", audioSampleRateHertz: Int64(sampleRate.rounded()),
       audioChannels: Int64(channels), audioBitrateBPS: Int64(bitRate),
-      transcription: provenance, location: nil, weather: nil,
+      transcription: provenance, location: context?.location, weather: context?.weather,
       body: try DiaryBody(candidate.text), preservedScalars: [])
   }
 

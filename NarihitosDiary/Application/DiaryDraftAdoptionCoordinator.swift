@@ -10,6 +10,8 @@ final class DiaryDraftAdoptionCoordinator {
   private let drafts: any DiaryDraftStore
   private let titles: DiaryTitlePolicy
   private let makeAssetID: () throws -> AssetID
+  /// Synchronously seals available context at draft construction; never awaits acquisition.
+  private let sealContext: @MainActor (QueueJob) -> ContextSnapshot?
   private let factory = DiaryDraftFactory()
   private var activeTask: Task<Void, Never>?
   private var isActive = false
@@ -21,7 +23,8 @@ final class DiaryDraftAdoptionCoordinator {
     queue: any QueueStorePort, receipts: any QueueReceiptSourcePort,
     candidates: any TranscriptionCandidateStore, drafts: any DiaryDraftStore,
     titles: DiaryTitlePolicy,
-    makeAssetID: @escaping () throws -> AssetID = AssetID.random
+    makeAssetID: @escaping () throws -> AssetID = AssetID.random,
+    sealContext: @escaping @MainActor (QueueJob) -> ContextSnapshot? = { _ in nil }
   ) {
     self.queue = queue
     self.receipts = receipts
@@ -29,6 +32,7 @@ final class DiaryDraftAdoptionCoordinator {
     self.drafts = drafts
     self.titles = titles
     self.makeAssetID = makeAssetID
+    self.sealContext = sealContext
   }
 
   var hasActiveWork: Bool { activeTask != nil || titles.hasActiveWork }
@@ -132,7 +136,7 @@ final class DiaryDraftAdoptionCoordinator {
       }
       let snippet = try factory.make(
         job: latest, receipt: receipt, candidate: candidate,
-        assetID: assetID, updatedAt: Date(), title: title)
+        assetID: assetID, updatedAt: Date(), title: title, context: sealContext(latest))
       try drafts.publish(snippet, candidate: candidate, job: latest)
       guard let afterWrite = try currentJob(matching: latest), isActive,
         !Task.isCancelled

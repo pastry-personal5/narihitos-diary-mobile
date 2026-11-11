@@ -27,10 +27,8 @@ final class AppModel: ObservableObject {
   let dangerZone = DangerZoneModel()
   let catalog: CatalogModel
   let diaryActions = DiaryActionsModel()
-  private let weatherAttribution = AppleWeatherAttributionSource()
   var catalogRenderers: CatalogDetailRendererRegistry {
-    CatalogDetailRendererRegistry.production(
-      attributionSource: weatherAttribution, actions: diaryActions)
+    CatalogDetailRendererRegistry.production(actions: diaryActions)
   }
   let notices = MainNoticeModel()
   @Published var recoveryRoute: CatalogRecoveryDestination?
@@ -101,6 +99,11 @@ final class AppModel: ObservableObject {
   private var reminderBackgroundTask = UIBackgroundTaskIdentifier.invalid
   private var savedFolderBannerTask: Task<Void, Never>?
   private var transcriptionSettings: PrivateSettingsRepository?
+  private var recordingContext: RecordingContextCoordinator?
+  private var manualContext: RecordingContextCoordinator?
+  private var manualContextStarts: [UUID: Date] = [:]
+  @Published private(set) var locationContextEnabled = true
+  @Published private(set) var weatherContextEnabled = false
   private var appleReadiness: AppleTranscriptionReadiness?
   private var appleInstaller: AppleAssetInstaller?
   private var cohereModels: CohereModelManager?
@@ -129,7 +132,7 @@ final class AppModel: ObservableObject {
       })
   }
 
-  // swiftlint:disable:next function_body_length
+  // swiftlint:disable:next function_body_length cyclomatic_complexity
   convenience init() {
     let repository = PrivateSettingsRepository()
     let destination = AppleDestinationService(repository: repository)
@@ -170,6 +173,25 @@ final class AppModel: ObservableObject {
       microphone: microphone, destination: destination, files: files,
       installationIdentity: installationIdentity, sessionOwnership: ownership)
     transcriptionSettings = repository
+    // swiftlint:disable opening_brace
+    if let workspace = try? LocalPrivateWorkspace(
+      root: files.root, protectionPolicy: AppleDraftProtectionPolicy())
+    {
+      recordingContext = RecordingContextCoordinator(
+        location: AppleLocationSampleSource(), place: AppleMapKitPlaceSource(),
+        weather: OpenMeteoWeatherSource(),
+        gate: LivePreferenceContextGate(preferences: repository, location: location),
+        store: WorkspaceContextEnvelopeStore(workspace: workspace))
+      // Manual context lives only in memory: a restart simply omits it.
+      manualContext = RecordingContextCoordinator(
+        location: AppleLocationSampleSource(), place: AppleMapKitPlaceSource(),
+        weather: OpenMeteoWeatherSource(),
+        gate: LivePreferenceContextGate(preferences: repository, location: location),
+        store: InMemoryContextEnvelopeStore())
+    }
+    // swiftlint:enable opening_brace
+    locationContextEnabled = repository.loadLocationContextEnabled() ?? true
+    weatherContextEnabled = repository.loadWeatherContextEnabled()
     let reminderScheduler = AppleReminderScheduler()
     reminderScheduler.onOpen = { [weak self] in
       self?.openAll()
@@ -209,10 +231,30 @@ final class AppModel: ObservableObject {
     draftAdoption = DiaryDraftAdoptionCoordinator(
       queue: queueStore, receipts: receipts,
       candidates: candidateStore, drafts: draftStore,
-      titles: titles)
+      titles: titles,
+      sealContext: { [weak self] job in
+        // Restored (rebound) work never reuses another installation's context.
+        guard job.installationBinding == job.sourceInstallationBinding else { return nil }
+        return self?.recordingContext?.seal(
+          ownerID: job.id, start: job.startedAt, installation: job.sourceInstallationBinding)
+      })
     let manual = ManualDiaryCreation(
       store: AppleManualDiaryStore(destination: destination, installation: installationIdentity),
       titles: titles)
+    manual.beginContext = { [weak self] submission in
+      guard let self else { return }
+      self.manualContextStarts[submission.id] = submission.createdAt
+      self.manualContext?.begin(
+        ownerID: submission.id.uuidString.lowercased(), start: submission.createdAt,
+        installation: nil)
+    }
+    manual.sealContext = { [weak self] record in
+      guard let self, let start = self.manualContextStarts.removeValue(forKey: record.id) else {
+        return nil
+      }
+      return self.manualContext?.seal(
+        ownerID: record.assetID, start: start, installation: nil)
+    }
     configureManualCreation(manual)
     let edits = DiaryEditCoordinator(
       store: AppleDiaryEditStore(
@@ -363,6 +405,8 @@ final class AppModel: ObservableObject {
 
   /// A genuine foreground-to-background departure; inactive sheets and pickers never call this.
   func departed() {
+    recordingContext?.cancel()
+    manualContext?.cancel()
     guard let reminders else { return }
     // Keep the process alive long enough for the add/cancel to finish; the coordinator's
     // onChange ends it once idle.
@@ -461,6 +505,28 @@ final class AppModel: ObservableObject {
   func requestLocation() async {
     guard location.currentState() == .notDetermined else { return }
     locationState = await location.requestWhenInUse()
+  }
+
+  func setLocationContext(_ enabled: Bool) {
+    guard let repository = transcriptionSettings,
+      (try? repository.saveLocationContextEnabled(enabled)) != nil
+    else { return }
+    locationContextEnabled = enabled
+    if !enabled {
+      recordingContext?.cancel()
+      manualContext?.cancel()
+    }
+  }
+
+  func setWeatherContext(_ enabled: Bool) {
+    guard let repository = transcriptionSettings,
+      (try? repository.saveWeatherContextEnabled(enabled)) != nil
+    else { return }
+    weatherContextEnabled = enabled
+    if !enabled {
+      recordingContext?.cancel()
+      manualContext?.cancel()
+    }
   }
 
   func openSettings() {
@@ -731,7 +797,11 @@ final class AppModel: ObservableObject {
     }
     do {
       try await coordinator.start(language: language)
-      guard case .capturing = coordinator.phase else { return }
+      guard case .capturing(let identity) = coordinator.phase else { return }
+      // Only a genuinely started recording begins context acquisition; nothing awaits it.
+      recordingContext?.begin(
+        ownerID: identity.id.description, start: identity.startedAt,
+        installation: identity.installationBinding)
       captureElapsed = 0
       captureLevel = 0
       isCapturePresented = true

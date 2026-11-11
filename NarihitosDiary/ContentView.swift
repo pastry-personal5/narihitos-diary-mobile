@@ -617,6 +617,24 @@ private struct SettingsView: View {
           Button("Open Settings", action: model.openSettings)
             .frame(minHeight: 44)
         }
+        Toggle(
+          "Add place to new diary snippets",
+          isOn: Binding(
+            get: { model.locationContextEnabled }, set: model.setLocationContext)
+        )
+        .frame(minHeight: 44)
+        Toggle(
+          "Add weather",
+          isOn: Binding(
+            get: { model.weatherContextEnabled }, set: model.setWeatherContext)
+        )
+        .frame(minHeight: 44)
+        Text(
+          "Weather is off by default. When on, rounded coordinates (about 1 km), the recording time "
+            + "and this device’s IP address are sent to Open-Meteo.com, which may keep server logs, "
+            + "possibly including coordinates, for 90 days. No audio, text or account details are sent."
+        )
+        .font(.footnote).foregroundStyle(.secondary)
       }
       if model.remindersDenied {
         Section("Reminders") {

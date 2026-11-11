@@ -18,6 +18,7 @@ enum PrivateArtifactRole: String, CaseIterable, Sendable {
   case draftBinding
   case replacement
   case recovery
+  case context
 
   var ownedFilename: String {
     switch self {
@@ -26,6 +27,7 @@ enum PrivateArtifactRole: String, CaseIterable, Sendable {
     case .draftBinding: "draft-binding-v1.json"
     case .replacement: "replacement.data"
     case .recovery: "recovery.data"
+    case .context: "context-v1.json"
     }
   }
 }

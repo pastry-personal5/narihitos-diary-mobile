@@ -15,6 +15,9 @@ final class FakeCatalog: AssetCatalogPort {
   var queuedPages: [CatalogPage] = []
   var pageFailures: [CatalogIssue] = []
   var detailPayload: (any CatalogDetailPayload)?
+  var holdDetail = false
+  var detailCalls = 0
+  var waitingDetail: CheckedContinuation<CatalogDetail, Error>?
   func begin() async -> CatalogStart {
     begins += 1
     return .ready(session, CatalogCursor(session: session, token: UUID()))
@@ -31,6 +34,10 @@ final class FakeCatalog: AssetCatalogPort {
       isDiscovering: false)
   }
   func detail(_ handle: CatalogItemHandle) async throws -> CatalogDetail {
+    detailCalls += 1
+    if holdDetail {
+      return try await withCheckedThrowingContinuation { waitingDetail = $0 }
+    }
     if let detailPayload { return CatalogDetail(handle: handle, payload: detailPayload) }
     throw CatalogIssue.changed
   }
@@ -39,6 +46,52 @@ final class FakeCatalog: AssetCatalogPort {
 
 @MainActor
 struct CatalogModelTests {
+  @Test func navigationDismissalCancelsDetailAndFencesItsLateResult() async throws {
+    let fake = FakeCatalog()
+    fake.holdDetail = true
+    let model = CatalogModel(catalog: fake)
+    let handle = CatalogItemHandle(
+      session: fake.session, resource: UUID(), version: UUID(), kind: "test")
+    model.open(handle)
+    for _ in 0..<100 where fake.waitingDetail == nil { await Task.yield() }
+    let waiting = try #require(fake.waitingDetail)
+    let operation = try #require(model.detailOperation)
+
+    // SwiftUI writes nil to the destination binding when Back dismisses the route.
+    model.selection = nil
+    #expect(operation.isCancelled)
+    #expect(model.detailOperation == nil)
+    waiting.resume(
+      returning: CatalogDetail(handle: handle, payload: ReconciliationFixturePayload(text: "Old")))
+    await operation.value
+    #expect(model.selection == nil)
+    #expect(model.detail == nil)
+    #expect(model.detailIssue == nil)
+  }
+
+  @Test func dismissedDetailCannotOverwriteAReopenedSnippet() async throws {
+    let fake = FakeCatalog()
+    fake.holdDetail = true
+    let model = CatalogModel(catalog: fake)
+    let handle = CatalogItemHandle(
+      session: fake.session, resource: UUID(), version: UUID(), kind: "test")
+    model.open(handle)
+    for _ in 0..<100 where fake.waitingDetail == nil { await Task.yield() }
+    let waiting = try #require(fake.waitingDetail)
+    let previous = try #require(model.detailOperation)
+    model.selection = nil
+    fake.holdDetail = false
+    fake.detailPayload = ReconciliationFixturePayload(text: "Fresh")
+    model.open(handle)
+    await model.detailOperation?.value
+    waiting.resume(throwing: CatalogIssue.unavailable)
+    await previous.value
+    #expect(model.selection == .current(handle))
+    #expect((model.detail?.payload as? ReconciliationFixturePayload)?.text == "Fresh")
+    #expect(model.detailIssue == nil)
+    model.stop()
+  }
+
   @Test func changedPageRestartsFreshTraversalInsteadOfReportingFolderUnavailable() async {
     let fake = FakeCatalog()
     fake.pageFailures = [.changed]

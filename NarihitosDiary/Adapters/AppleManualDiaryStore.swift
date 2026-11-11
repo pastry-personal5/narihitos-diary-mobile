@@ -77,7 +77,14 @@ final class AppleManualDiaryStore: ManualDiaryStorePort {
   func finalize(_ record: ManualDiaryRecord, title: GeneratedDiaryTitle) async throws
     -> ManualDiaryRecord
   {
-    try await journal.finalize(record.id, installation: identity(), title: title)
+    try await finalize(record, title: title, context: nil)
+  }
+
+  func finalize(_ record: ManualDiaryRecord, title: GeneratedDiaryTitle, context: ContextSnapshot?)
+    async throws -> ManualDiaryRecord
+  {
+    try await journal.finalize(
+      record.id, installation: identity(), title: title, context: context)
   }
 
   func publish(_ record: ManualDiaryRecord) async throws -> Bool {

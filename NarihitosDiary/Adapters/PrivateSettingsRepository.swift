@@ -1,3 +1,4 @@
+// swiftlint:disable opening_brace
 import Foundation
 
 struct StoredDestinationRecord: Codable, Equatable, Sendable {
@@ -19,10 +20,15 @@ private struct StoredApplicationSettings: Codable {
   var destination: StoredDestinationRecord?
   var selectedTranscriptionMethodID: String?
   var selectedTranscriptionModel: String? = .none
+  // Optional so settings written before M18b still decode; nil means "not chosen".
+  var locationContextEnabled: Bool?
+  var weatherContextEnabled: Bool?
 }
 
 @MainActor
-final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettingsStore {
+final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettingsStore,
+  ContextPreferenceStore
+{
   private static let maximumFileSize = 128 * 1_024
   private let fileManager: FileManager
   private let fileURL: URL
@@ -101,6 +107,24 @@ final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettings
     try persist(proposed)
   }
 
+  /// nil inherits permission-based opt-in; an explicit Off stays Off.
+  func loadLocationContextEnabled() -> Bool? { (try? read())?.locationContextEnabled }
+
+  /// Weather is Off until the user turns it on.
+  func loadWeatherContextEnabled() -> Bool { (try? read())?.weatherContextEnabled ?? false }
+
+  func saveLocationContextEnabled(_ value: Bool) throws {
+    var proposed = try read()
+    proposed.locationContextEnabled = value
+    try persist(proposed)
+  }
+
+  func saveWeatherContextEnabled(_ value: Bool) throws {
+    var proposed = try read()
+    proposed.weatherContextEnabled = value
+    try persist(proposed)
+  }
+
   private func read() throws -> StoredApplicationSettings {
     let handle: FileHandle
     do {
@@ -127,3 +151,5 @@ final class PrivateSettingsRepository: FirstLaunchStorePort, DestinationSettings
     try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
   }
 }
+
+// swiftlint:enable opening_brace

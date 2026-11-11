@@ -1,5 +1,4 @@
 // swift-format wraps multiline declarations and collections.
-// swiftlint:disable opening_brace
 import Darwin
 import Foundation
 
@@ -133,15 +132,18 @@ actor ManualDiaryJournal {
     return value
   }
 
-  func finalize(_ id: UUID, installation: String, title: GeneratedDiaryTitle) throws
-    -> ManualDiaryRecord
-  {
+  func finalize(
+    _ id: UUID, installation: String, title: GeneratedDiaryTitle, context: ContextSnapshot? = nil
+  ) throws -> ManualDiaryRecord {
     var value = try envelope(id, installation: installation)
     guard value.needsTitle, !value.completed,
       case .supported(var snippet) = DiarySnippetMarkdownCodec().decode(value.markdown)
     else { return value.record }
     snippet.title = title.text
     snippet.titleProvenance = title.provenance
+    // Sealed together with the title, before first publication; never added afterwards.
+    snippet.location = context?.location
+    snippet.weather = context?.weather
     value.markdown = try DiarySnippetMarkdownCodec().encode(snippet)
     value.needsTitle = false
     try write(value)
@@ -290,5 +292,3 @@ actor ManualDiaryJournal {
       Data((submission.createdAt.timeIntervalSince1970.description + "\0" + submission.body).utf8))
   }
 }
-
-// swiftlint:enable opening_brace

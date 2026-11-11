@@ -141,7 +141,7 @@ struct LocationContext: Equatable, Sendable {
   let longitude: Decimal
   let sampledAt: SchemaInstant
   let horizontalAccuracyMeters: Decimal
-  let placeName: String?
+  var placeName: String?
 }
 
 struct WeatherContext: Equatable, Sendable {
@@ -177,8 +177,8 @@ struct DiarySnippetV1: Equatable, Sendable {
   let audioChannels: Int64?
   let audioBitrateBPS: Int64?
   let transcription: TranscriptionProvenance?
-  let location: LocationContext?
-  let weather: WeatherContext?
+  var location: LocationContext?
+  var weather: WeatherContext?
   var body: DiaryBody
   var preservedScalars: [PreservedScalar]
   var creationMethod: DiaryCreationMethod = .recording
@@ -191,14 +191,16 @@ struct DiarySnippetV1: Equatable, Sendable {
 
   static func manual(
     id: AssetID, createdAt: SchemaInstant, body: DiaryBody, title: String,
-    provenance: TitleProvenance
+    provenance: TitleProvenance, location: LocationContext? = nil,
+    weather: WeatherContext? = nil
   ) -> Self {
     return Self(
       id: id, createdAt: createdAt, updatedAt: createdAt, title: title,
       titleProvenance: provenance,
       favorite: false, language: nil, audioFilename: nil, audioSHA256: nil,
       recordingDurationMilliseconds: nil, audioCodec: nil, audioSampleRateHertz: nil,
-      audioChannels: nil, audioBitrateBPS: nil, transcription: nil, location: nil, weather: nil,
+      audioChannels: nil, audioBitrateBPS: nil, transcription: nil,
+      location: location, weather: weather,
       body: body, preservedScalars: [], creationMethod: .manual)
   }
 }

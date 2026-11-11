@@ -4,7 +4,9 @@ Status: Active
 
 Phase 1 is organized into the following milestones.
 
-The owner revised the execution order to P1-M15 → P1-M20 → P1-M16 → P1-M21 → P1-M17 → P1-M18 → P1-M19 on 2026-11-04. The owner authorized an M21 task now against the implemented M16 handoff, with M16 acceptance evidence still open. Milestone IDs remain unchanged; earlier open evidence remains assigned to its owning milestone.
+The owner revised the execution order to P1-M15 → P1-M20 → P1-M16 → P1-M21 → P1-M17 → P1-M18 → P1-M19 on 2026-11-04. The owner authorized an M21 task now against the implemented M16 handoff, with M16 acceptance evidence still open. Milestone IDs remain unchanged.
+
+On 2026-11-11 the owner revised the plan: milestones whose code is finished close as "Done (owner decision; phone evidence tracked in M19)" and their open device evidence moves to [M19](milestone-19-complete-v1-validation-overview.md); M17 is trimmed; M21 Tasks 11–14 (SQLite catalog) are deferred behind a measurement gate; M18 is unchanged. M20 stays Active because it still has code and regression work.
 
 ## Milestones
 
@@ -68,7 +70,7 @@ Notes: The owner marked M8 implementation done on 2026-11-02, except for the by-
 
 ### P1-M9: Implement Recording and Capture Recovery
 
-Status: Active
+Status: Done (owner decision; phone evidence tracked in M19)
 Goal: Capture private playable audio through lock and backgrounding, settle it durably on stop/interruption/five minutes, and recover playable partials after relaunch.
 Plan: [overview](milestone-09-recording-capture-recovery-overview.md), [approach](milestone-09-recording-capture-recovery-architecture.md), [device evidence](milestone-09-recording-capture-recovery-device-evidence.md)
 Notes: The owner marked M9 implementation done on 2026-11-02, except for the by-human test and evidence. P1-M9 provides the minimal durable capture receipt that P1-M10 adopts into the full processing queue; target-phone Data Protection and interruption evidence remain open.
@@ -110,7 +112,7 @@ Notes: M14 has a live audio-first coordinated pair writer, per-file upload obser
 
 ### P1-M15: Build the Main Collection and Diary Detail
 
-Status: Active
+Status: Done (owner decision; phone evidence tracked in M19)
 Goal: Page and validate the active-folder Diary Snippet collection, surface recovery attention, and present safe read-only Diary Snippet detail.
 Plan: [overview](milestone-15-main-collection-diary-detail-overview.md), [approach](milestone-15-main-collection-diary-detail-architecture.md), [device evidence](milestone-15-main-collection-diary-detail-device-evidence.md)
 Notes: The owner requested implementation on 2026-11-02 ahead of remaining M14 device evidence. M15 now has scoped catalog discovery/paging, exact-version read-only detail, evidenced legacy support, Main notices/All routing, and custom template artwork. Lint and the full simulator gate passed with `platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082`; target-iPhone M15-D01–D10 and the unchecked display/provider/visual checklist items remain open, so the milestone stays Active. M16 retains editing/Favorite mutation/replay; M17 retains complete recovery actions/screens; M18 retains context acquisition/reminders. Earlier device gates are unchanged.
@@ -124,7 +126,7 @@ Notes: Owner-requested repairs and enhancements are tracked in the linked task c
 
 ### P1-M16: Add Diary Editing, Favorite, and Audio Replay
 
-Status: Active
+Status: Done (owner decision; phone evidence tracked in M19)
 Goal: Save version-checked body and Favorite edits durably and replay verified audio without compromising capture or legacy read-only behavior.
 Plan: [overview](milestone-16-diary-editing-favorite-audio-replay-overview.md), [approach](milestone-16-diary-editing-favorite-audio-replay-architecture.md), [device evidence](milestone-16-diary-editing-favorite-audio-replay-device-evidence.md)
 Notes: The owner requested completion on 2026-11-03, authorizing implementation against the current M15/M20 handoffs without waiting for M21. Body/Favorite editing now uses an independent durable journal and shared title policy, checked Markdown replacement, exact upload proof and resumable cleanup. Replay uses validated private leases and capture-priority session ownership. M20 maintenance integrates both owners. On 2026-11-04 KST, lint and the full simulator gate passed with `platform=iOS Simulator,id=993AECCC-055E-4C46-8F3B-D2913A5C1082`. The connected iPhone 17 Pro Max then passed 70 synthetic state/storage/recovery/maintenance tests, two native replay tests and one native title test; a completed-cleanup recovery fix and its final simulator gate also passed. M16 stays Active: M16-D01–D11 have partial evidence, hosted phone interaction tests remain unresolved, and the remaining human/provider/hardware acceptance criteria stay open. M17 retains recovery choice/removal screens; earlier provider, legacy, capture, and device evidence is unchanged.
@@ -134,22 +136,24 @@ Notes: The owner requested completion on 2026-11-03, authorizing implementation 
 Status: Active
 Goal: Enhance the software architecture, initially reviewing processing lifecycle reporting, and implement GUI enhancements supplied by the owner.
 Plan: [overview](milestone-21-architecture-gui-enhancement-overview.md), [approach](milestone-21-architecture-gui-enhancement-architecture.md)
-Notes: Follows M16 under the revised execution order. Delivered lifecycle/identity/save work and open GUI/device acceptance are tracked in the M21 checklists. Tasks 10–14 own the system-SQLite remembered-first prototype, absorbing Task 6's stages and Task 9's catalog comparison. The synthetic Release baseline, frozen budgets and Task 10 foundation exist; reconciliation, maintenance/presentation integration and production retention remain open. Task 9 follows Tasks 10–14 and retains independent activation, private-storage and readiness work. Task 15 implements manual text-only Diary Snippet creation with compact custom bitmap Save/Cancel actions at the editor top right and independent protected save recovery; its 14 focused tests and full simulator gate pass, with physical interaction and real-iCloud acceptance still open. M17–M19 remain later work; earlier evidence stays open.
+Notes: Revised 2026-11-11: Tasks 11–14 (SQLite catalog) are deferred behind the [Task 16 measurement gate](milestone-21-architecture-gui-enhancement-overview.md#task-16-catalog-measurement-gate); Task 9 is limited to activation coalescing and demand-based readiness. [Task 17](milestone-21-architecture-gui-enhancement-overview.md#task-17-snippet-loading-after-weather-settings) repairs the retained snippet spinner after a Settings tab round trip; focused simulator regressions pass, with full-gate evidence recorded in its checklist. Follows M16 under the revised execution order. Delivered lifecycle/identity/save work and open GUI/device acceptance are tracked in the M21 checklists. Tasks 10–14 own the system-SQLite remembered-first prototype, absorbing Task 6's stages and Task 9's catalog comparison. The synthetic Release baseline, frozen budgets and Task 10 foundation exist; reconciliation, maintenance/presentation integration and production retention remain open. Task 9 follows Tasks 10–14 and retains independent activation, private-storage and readiness work. Task 15 implements manual text-only Diary Snippet creation with compact custom bitmap Save/Cancel actions at the editor top right and independent protected save recovery; its 14 focused tests and full simulator gate pass, with physical interaction and real-iCloud acceptance still open. M17–M19 remain later work; earlier evidence stays open.
 
 ### P1-M17: Build Pending, Failed, Incomplete, and Conflict Recovery
 
 Status: Planned
 Goal: Complete the four All recovery destinations with typed state, safe inspection, version-bound retry/replacement/removal, and verified conflict choice and cleanup.
 Plan: [overview](milestone-17-recovery-overview.md), [approach](milestone-17-recovery-architecture.md), [device evidence](milestone-17-recovery-device-evidence.md)
-Notes: Planning only; implementation follows M21 unless the owner authorizes a reorder. Recovery spans capture jobs, active-folder resources, and M16 submitted edits through owner-specific capabilities and journals. Confirmation never substitutes for fresh resource/version checks, cancellation settlement, or chosen-pair/upload proof. Earlier validation and target-phone evidence remain open.
+Notes: Trimmed 2026-11-11: per-recording destination replacement, the Incomplete repair flow, the unified recovery inventory and the submitted-edit conflict owner are cut (see the overview's scope revision). Planning only; implementation follows M21 unless the owner authorizes a reorder. Recovery spans capture jobs, active-folder resources, and M16 submitted edits through owner-specific capabilities and journals. Confirmation never substitutes for fresh resource/version checks, cancellation settlement, or chosen-pair/upload proof. Earlier validation and target-phone evidence remain open.
 
 ### P1-M18: Add Optional Context and Pending-Work Reminders
 
 Status: Planned
 Goal: Bind optional location/weather to recording start and schedule a generic next-local-day reminder from durable pending work without blocking capture or saving.
 Plan: [overview](milestone-18-context-reminders-overview.md), [approach](milestone-18-context-reminders-architecture.md), [device evidence](milestone-18-context-reminders-device-evidence.md)
-Notes: Planning only; implementation follows M17 unless the owner authorizes a reorder. Context needs a protected recording-bound handoff into draft/publication and a verified WeatherKit capability/profile; reminders need authoritative pending state, genuine departure events, and calendar/permission reconciliation. Earlier implementation gates and target-phone evidence remain open.
+Notes: Revised 2026-11-11: two stages, M18a reminder then M18b location/weather context; weather uses Open-Meteo behind a default-Off Settings toggle instead of WeatherKit; manual snippets get context at first Save and waiting manual saves are reminder-eligible; failed-only recordings stay excluded. Planning only; implementation follows M17 unless the owner authorizes a reorder. Context needs a protected recording-bound handoff into draft/publication and a verified WeatherKit capability/profile; reminders need authoritative pending state, genuine departure events, and calendar/permission reconciliation. Earlier implementation gates and target-phone evidence remain open.
 
 ### P1-M19: Validate the Complete V1 Experience
 
 Status: Planned
+Goal: Run one prioritized real-iPhone, real-iCloud pass that closes the open device evidence from M8–M18.
+Plan: [overview](milestone-19-complete-v1-validation-overview.md)

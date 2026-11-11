@@ -14,7 +14,6 @@ struct CatalogDetailRendererRegistry {
   }
 
   static func production(
-    attributionSource: any WeatherAttributionPort,
     actions: DiaryActionsModel = DiaryActionsModel()
   ) -> CatalogDetailRendererRegistry {
     var registry = CatalogDetailRendererRegistry()
@@ -27,8 +26,7 @@ struct CatalogDetailRendererRegistry {
       }
       return AnyView(
         DiaryCatalogDetailView(
-          diary: diary, handle: detail.handle, actions: actions,
-          attributionSource: attributionSource))
+          diary: diary, handle: detail.handle, actions: actions))
     }
     return registry
   }
@@ -38,20 +36,8 @@ private struct DiaryCatalogDetailView: View {
   let diary: DiaryCatalogDetail
   let handle: CatalogItemHandle
   @ObservedObject var actions: DiaryActionsModel
-  @StateObject private var attribution: WeatherAttributionModel
-  @Environment(\.colorScheme) private var colorScheme
   @Environment(\.scenePhase) private var scenePhase
   @AccessibilityFocusState private var deletionFocused: Bool
-
-  init(
-    diary: DiaryCatalogDetail, handle: CatalogItemHandle, actions: DiaryActionsModel,
-    attributionSource: any WeatherAttributionPort
-  ) {
-    self.diary = diary
-    self.handle = handle
-    self.actions = actions
-    _attribution = StateObject(wrappedValue: WeatherAttributionModel(source: attributionSource))
-  }
 
   var body: some View {
     ScrollView {
@@ -99,7 +85,6 @@ private struct DiaryCatalogDetailView: View {
       .padding(20)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .task { if diary.weather != nil { await attribution.load() } }
     .onAppear { actions.showDetail(handle) }
     .onDisappear { actions.hideDetail(handle) }
     .onChange(of: scenePhase) { _, phase in
@@ -113,10 +98,6 @@ private struct DiaryCatalogDetailView: View {
 
   private var pending: DiaryEditRecord? {
     diary.assetID.flatMap { actions.pending(assetID: $0) }
-  }
-
-  private var weatherMark: UIImage? {
-    colorScheme == .dark ? attribution.darkMark : attribution.lightMark
   }
 
   private var title: some View {
@@ -169,28 +150,16 @@ private struct DiaryCatalogDetailView: View {
         field("Place", value: location.placeName ?? "\(location.latitude), \(location.longitude)")
       }
       if let weather = diary.weather {
-        if attribution.ready {
-          field("Weather", value: weather.summary)
-          field(
-            "Temperature",
-            value: Measurement(
-              value: NSDecimalNumber(decimal: weather.temperatureCelsius).doubleValue,
-              unit: UnitTemperature.celsius
-            ).formatted(.measurement(width: .abbreviated, usage: .weather)))
-          if let mark = weatherMark, let legalPage = attribution.legalPage {
-            Link(destination: legalPage) {
-              Image(uiImage: mark).resizable().scaledToFit().frame(height: 20)
-                .frame(minHeight: 44, alignment: .leading)
-            }
-            .accessibilityLabel("Apple Weather attribution")
-          }
-        } else if attribution.failed {
-          Text("Weather attribution is unavailable.").foregroundStyle(.secondary)
-          Button("Retry Weather Attribution") { Task { await attribution.load() } }.frame(
-            minHeight: 44)
-        } else {
-          ProgressView("Loading weather attribution")
-        }
+        field("Weather", value: weather.summary)
+        field(
+          "Temperature",
+          value: Measurement(
+            value: NSDecimalNumber(decimal: weather.temperatureCelsius).doubleValue,
+            unit: UnitTemperature.celsius
+          ).formatted(.measurement(width: .abbreviated, usage: .weather)))
+        // Required attribution (CC BY 4.0) always accompanies displayed weather.
+        Link("Weather data by Open-Meteo.com", destination: URL(string: "https://open-meteo.com/")!)
+          .frame(minHeight: 44, alignment: .leading)
       }
       if diary.isLegacy {
         Text("Read-only legacy diary").font(.footnote).foregroundStyle(.secondary)

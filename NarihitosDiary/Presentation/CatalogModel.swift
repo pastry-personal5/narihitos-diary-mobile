@@ -21,7 +21,13 @@ final class CatalogModel: ObservableObject {
   @Published private(set) var pageRevision = UUID()
   @Published var detail: CatalogDetail?
   @Published var detailIssue: CatalogIssue?
-  @Published var selection: CatalogSelection?
+  @Published var selection: CatalogSelection? {
+    didSet {
+      // Navigation dismissal owns detail cleanup. A tab switch can hide the detail while its
+      // route remains selected; clearing only its content would strand that route on a spinner.
+      if selection == nil { clearDetail() }
+    }
+  }
   var selectedItem: CatalogItemHandle? {
     get {
       guard let selection else { return nil }
@@ -94,11 +100,6 @@ final class CatalogModel: ObservableObject {
     } else {
       loadMore()
     }
-  }
-
-  func nearEnd(_ id: CatalogRowID, event: UUID) {
-    guard rows.suffix(3).contains(where: { $0.id == id }) else { return }
-    requestMore(event: event)
   }
 
   func activate(destinationID: DestinationID? = nil) {
@@ -272,6 +273,11 @@ final class CatalogModel: ObservableObject {
 }
 
 extension CatalogModel {
+  func nearEnd(_ id: CatalogRowID, event: UUID) {
+    guard rows.suffix(3).contains(where: { $0.id == id }) else { return }
+    requestMore(event: event)
+  }
+
   func refreshAfterDeletion() {
     reopenRowID = nil
     reopenEditKey = nil

@@ -364,6 +364,8 @@ final class CapturePrivateFiles {
       "capture.json", "receipt.json", "pending-audio.m4a", "transcription-result-v1.json",
       PrivateArtifactRole.markdownDraft.ownedFilename,
       PrivateArtifactRole.draftBinding.ownedFilename,
+      PrivateArtifactRole.context.ownedFilename,
+      ".recovery-\(PrivateArtifactRole.context.rawValue)",
       ".recovery-\(PrivateArtifactRole.markdownDraft.rawValue)",
       ".recovery-\(PrivateArtifactRole.draftBinding.rawValue)",
     ]

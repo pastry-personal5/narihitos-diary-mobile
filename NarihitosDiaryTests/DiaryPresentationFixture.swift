@@ -6,11 +6,6 @@ import UIKit
 @testable import NarihitosDiary
 
 @MainActor
-private final class DiaryTestAttribution: WeatherAttributionPort {
-  func load() async throws -> WeatherAttributionMaterial { throw CatalogIssue.unavailable }
-}
-
-@MainActor
 final class DiaryPresentationState: ObservableObject {
   @Published var phase: ScenePhase = .active
   @Published var dark = false
@@ -27,12 +22,10 @@ struct DiaryPresentationRoot: View {
   var body: some View {
     NavigationStack {
       if state.showDetail {
-        CatalogDetailRendererRegistry.production(
-          attributionSource: DiaryTestAttribution(), actions: actions
-        )
-        .render(detail)
-        .navigationTitle("Diary Snippet")
-        .navigationBarTitleDisplayMode(.inline)
+        CatalogDetailRendererRegistry.production(actions: actions)
+          .render(detail)
+          .navigationTitle("Diary Snippet")
+          .navigationBarTitleDisplayMode(.inline)
       } else {
         Text("Main")
       }

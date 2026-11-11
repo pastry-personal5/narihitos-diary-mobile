@@ -2,7 +2,7 @@
 
 Status: Active
 
-This tracker lists physical-device scenarios that still need human observations. Record redacted results in the linked milestone evidence records.
+This tracker lists physical-device scenarios that still need human observations. Record redacted results in the linked milestone evidence records. As of 2026-11-11, [M19](milestone-19-complete-v1-validation-overview.md) schedules these scenarios as one prioritized pass; M9, M15 and M16 are closed pending this evidence.
 
 ## P1-M21
 

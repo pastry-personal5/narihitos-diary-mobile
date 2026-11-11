@@ -7,6 +7,41 @@ import UIKit
 @MainActor
 @Suite(.serialized)
 struct CatalogCollectionPresentationTests {
+  @Test(arguments: [false, true])
+  func weatherSettingsRoundTripPreservesDetail(inFlight: Bool) async throws {
+    let fixture = try await CatalogCollectionFixture(strict: true)
+    defer { fixture.close() }
+    let port = try #require(fixture.currentPort)
+    port.holdDetail = inFlight
+    let row = try #require(fixture.model.rows.first)
+    fixture.model.open(row)
+    try await fixture.wait { port.detailCalls == 1 }
+    if !inFlight { try await fixture.wait { fixture.model.detail != nil } }
+    fixture.state.selectedRoot = .all
+    try await Task.sleep(for: .milliseconds(150))
+    fixture.state.weatherEnabled = true
+    try await Task.sleep(for: .milliseconds(50))
+    fixture.state.selectedRoot = .main
+    try await Task.sleep(for: .milliseconds(150))
+    if inFlight {
+      let waiting = try #require(port.waitingDetail)
+      waiting.resume(
+        returning: CatalogDetail(
+          handle: try #require(row.currentHandle),
+          payload: ReconciliationFixturePayload(text: "Fresh")))
+      await fixture.model.detailOperation?.value
+    }
+    #expect(fixture.model.selection != nil)
+    #expect(fixture.model.detail != nil || fixture.model.detailIssue != nil)
+    #expect(port.detailCalls == 1)
+    try await fixture.wait { fixture.element("catalog-fresh-detail") != nil }
+    #expect(fixture.element("catalog-opening") == nil)
+    fixture.model.selection = nil
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(fixture.model.detail == nil)
+    #expect(fixture.model.detailOperation == nil)
+  }
+
   @Test func mountedFooterDoesNotDrainAndAccessibleContinuationLoadsTenMore() async throws {
     let fixture = try await CatalogCollectionFixture()
     defer { fixture.close() }
@@ -59,6 +94,8 @@ struct CatalogCollectionPresentationTests {
 final class CatalogCollectionViewState: ObservableObject {
   @Published var large = false
   @Published var dark = false
+  @Published var selectedRoot = RootTab.main
+  @Published var weatherEnabled = false
 }
 
 struct CatalogCollectionTestRoot: View {
@@ -66,10 +103,18 @@ struct CatalogCollectionTestRoot: View {
   let registry: CatalogDetailRendererRegistry
   @ObservedObject var state: CatalogCollectionViewState
   var body: some View {
-    NavigationStack {
-      CatalogCollectionView(catalog: model, openAll: {}, renderers: registry).navigationTitle(
-        "Main")
+    TabView(selection: $state.selectedRoot) {
+      NavigationStack {
+        CatalogCollectionView(catalog: model, openAll: {}, renderers: registry).navigationTitle(
+          "Main")
+      }
+      .tabItem { Text("Main") }.tag(RootTab.main)
+      NavigationStack {
+        Form { Toggle("Add weather", isOn: $state.weatherEnabled) }.navigationTitle("Settings")
+      }
+      .tabItem { Text("All") }.tag(RootTab.all)
     }
+    .onChange(of: state.selectedRoot) { _, root in model.setVisible(root == .main) }
     .dynamicTypeSize(state.large ? .accessibility5 : .large)
     .preferredColorScheme(state.dark ? .dark : .light)
     .transaction { $0.disablesAnimations = true }
@@ -80,13 +125,33 @@ struct CatalogCollectionTestRoot: View {
 final class CatalogCollectionFixture {
   let port = RememberedCatalogFixture(count: 50)
   let model: CatalogModel
+  let currentPort: FakeCatalog?
   let state = CatalogCollectionViewState()
   let window: UIWindow
   let host: UIHostingController<CatalogCollectionTestRoot>
   private let previous: UIWindow?
 
-  init() async throws {
-    model = CatalogModel(catalog: port)
+  init(strict: Bool = false) async throws {
+    if strict {
+      let current = FakeCatalog()
+      let handle = CatalogItemHandle(
+        session: current.session, resource: UUID(), version: UUID(), kind: "test")
+      current.detailPayload = ReconciliationFixturePayload(text: "Fresh")
+      current.queuedPages = [
+        CatalogPage(
+          session: current.session,
+          summaries: [
+            CatalogSummary(
+              handle: handle, assetID: "synthetic", resourceOrder: "synthetic", createdAt: .now,
+              title: "Synthetic", favorite: nil)
+          ], recovery: [], continuation: nil, examinedCandidates: 1, isDiscovering: false)
+      ]
+      model = CatalogModel(catalog: current)
+      currentPort = current
+    } else {
+      model = CatalogModel(catalog: port)
+      currentPort = nil
+    }
     model.setVisible(true)
     model.activate()
     var registry = CatalogDetailRendererRegistry()
@@ -105,7 +170,11 @@ final class CatalogCollectionFixture {
     window.rootViewController = host
     window.makeKeyAndVisible()
     window.layoutIfNeeded()
-    try await wait { self.model.rows.count == 10 && self.model.remembered?.isReading == false }
+    try await wait {
+      strict
+        ? self.model.rows.count == 1 && self.model.state == .end
+        : self.model.rows.count == 10 && self.model.remembered?.isReading == false
+    }
     try await Task.sleep(for: .milliseconds(100))
   }
 

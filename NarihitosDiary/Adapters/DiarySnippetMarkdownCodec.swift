@@ -232,19 +232,7 @@ struct DiarySnippetMarkdownCodec: Sendable {
     appendOptional("title_prompt_revision", snippet.titleProvenance.promptRevision, to: &lines)
     appendOptional("title_os_version", snippet.titleProvenance.osVersion, to: &lines)
     appendOptional("title_model_id", snippet.titleProvenance.modelID, to: &lines)
-    if let location = snippet.location {
-      lines.append("location_latitude: \(canonical(location.latitude))")
-      lines.append("location_longitude: \(canonical(location.longitude))")
-      quoted("location_sampled_at", location.sampledAt.description)
-      lines.append(
-        "location_horizontal_accuracy_m: \(canonical(location.horizontalAccuracyMeters))")
-      appendOptional("location_place_name", location.placeName, to: &lines)
-    }
-    if let weather = snippet.weather {
-      quoted("weather_observed_at", weather.observedAt.description)
-      quoted("weather_summary", weather.summary)
-      lines.append("weather_temperature_celsius: \(canonical(weather.temperatureCelsius))")
-    }
+    appendContext(snippet, to: &lines)
     for scalar in snippet.preservedScalars.sorted(by: { $0.sourceOrder < $1.sourceOrder }) {
       guard scalar.key.utf8.count <= Self.maximumScalarBytes,
         scalar.rawValue.utf8.count <= Self.maximumScalarBytes,
@@ -308,8 +296,7 @@ struct DiarySnippetMarkdownCodec: Sendable {
     else { throw DiarySnippetMalformedCode.invalidField }
     let forbidden = Set(
       Self.requiredKeys.dropFirst(8) + ["audio_sha256"]
-        + Self.conditionalKeys.filter { $0.hasPrefix("transcription_") }
-        + Self.locationKeys + Self.weatherKeys)
+        + Self.conditionalKeys.filter { $0.hasPrefix("transcription_") })
     guard forbidden.allSatisfy({ entries[$0] == nil }) else {
       throw DiarySnippetMalformedCode.invalidField
     }
@@ -340,9 +327,16 @@ struct DiarySnippetMarkdownCodec: Sendable {
         modelID: model))
     result.updatedAt = try SchemaInstant(string("updated_at", in: entries))
     result.favorite = try boolean("favorite", in: entries)
+    let context = parseContext(entries)
+    result.location = context.location
+    result.weather = context.weather
     return result.withPreservedScalars(
       entries.values.filter {
-        !Self.recognizedKeys.contains($0.key) && $0.key != "creation_method"
+        let uninterpreted =
+          !context.locationIsValid && Self.locationKeys.contains($0.key)
+          || !context.weatherIsValid && Self.weatherKeys.contains($0.key)
+        return (!Self.recognizedKeys.contains($0.key) && $0.key != "creation_method")
+          || uninterpreted
       }.sorted { $0.order < $1.order }.map {
         PreservedScalar(key: $0.key, rawValue: $0.raw, sourceOrder: $0.order)
       })
@@ -350,8 +344,8 @@ struct DiarySnippetMarkdownCodec: Sendable {
 
   private func encodeManual(_ snippet: DiarySnippetV1) throws -> Data {
     guard snippet.audioFilename == nil, snippet.audioSHA256 == nil,
-      snippet.transcription == nil, snippet.language == nil, snippet.location == nil,
-      snippet.weather == nil, snippet.recordingDurationMilliseconds == nil,
+      snippet.transcription == nil, snippet.language == nil,
+      snippet.recordingDurationMilliseconds == nil,
       snippet.audioCodec == nil, snippet.audioSampleRateHertz == nil,
       snippet.audioChannels == nil, snippet.audioBitrateBPS == nil
     else { throw DiarySnippetMalformedCode.invalidField }
@@ -367,8 +361,13 @@ struct DiarySnippetMarkdownCodec: Sendable {
     appendOptional("title_prompt_revision", snippet.titleProvenance.promptRevision, to: &lines)
     appendOptional("title_os_version", snippet.titleProvenance.osVersion, to: &lines)
     appendOptional("title_model_id", snippet.titleProvenance.modelID, to: &lines)
+    appendContext(snippet, to: &lines)
     for scalar in snippet.preservedScalars.sorted(by: { $0.sourceOrder < $1.sourceOrder }) {
-      guard !Self.recognizedKeys.contains(scalar.key), scalar.key != "creation_method" else {
+      guard
+        !Self.recognizedKeys.subtracting(Self.locationKeys + Self.weatherKeys).contains(
+          scalar.key),
+        scalar.key != "creation_method"
+      else {
         throw DiarySnippetMalformedCode.invalidField
       }
       lines.append("\(scalar.key): \(scalar.rawValue)")
@@ -594,6 +593,22 @@ struct DiarySnippetMarkdownCodec: Sendable {
     return ParsedContext(
       location: location, weather: weather, locationIsValid: !hasLocation || location != nil,
       weatherIsValid: !hasWeather || weather != nil)
+  }
+
+  private func appendContext(_ snippet: DiarySnippetV1, to lines: inout [String]) {
+    if let location = snippet.location {
+      lines.append("location_latitude: \(canonical(location.latitude))")
+      lines.append("location_longitude: \(canonical(location.longitude))")
+      lines.append("location_sampled_at: \(Self.quote(location.sampledAt.description))")
+      lines.append(
+        "location_horizontal_accuracy_m: \(canonical(location.horizontalAccuracyMeters))")
+      appendOptional("location_place_name", location.placeName, to: &lines)
+    }
+    if let weather = snippet.weather {
+      lines.append("weather_observed_at: \(Self.quote(weather.observedAt.description))")
+      lines.append("weather_summary: \(Self.quote(weather.summary))")
+      lines.append("weather_temperature_celsius: \(canonical(weather.temperatureCelsius))")
+    }
   }
 
   private func appendOptional(_ key: String, _ value: String?, to lines: inout [String]) {
