@@ -8,7 +8,7 @@ import Testing
 
 struct LocalPrivateWorkspaceTests {
   @Test func typedArtifactsStayConfinedAndExcludedFromBackup() throws {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let adapter = try LocalPrivateWorkspace(root: root)
     let workspace = try adapter.allocate(id: .random())
@@ -28,7 +28,7 @@ struct LocalPrivateWorkspaceTests {
   }
 
   @Test func handlesFromAnotherAdapterAndMalformedIdentitiesHaveNoAuthority() throws {
-    let parent = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let parent = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: parent) }
     let first = try LocalPrivateWorkspace(root: parent.appending(path: "first"))
     let second = try LocalPrivateWorkspace(root: parent.appending(path: "second"))
@@ -42,7 +42,7 @@ struct LocalPrivateWorkspaceTests {
   }
 
   @Test func aSymlinkedWorkspaceFailsClosed() throws {
-    let parent = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let parent = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: parent) }
     let root = parent.appending(path: "root")
     let outside = parent.appending(path: "outside")
@@ -56,7 +56,7 @@ struct LocalPrivateWorkspaceTests {
   }
 
   @Test func workspaceSymlinkSwapFailsWithoutTouchingOutsideResource() throws {
-    let parent = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let parent = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: parent) }
     let root = parent.appending(path: "root")
     let outside = parent.appending(path: "outside")
@@ -86,7 +86,7 @@ struct LocalPrivateWorkspaceTests {
       .afterTemporaryWrite, .afterAttributes, .afterRecoveryMove, .afterDestinationMove,
     ]
     for failurePoint in points {
-      let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+      let root = testTemporaryDirectory().appending(path: UUID().uuidString)
       defer { try? FileManager.default.removeItem(at: root) }
       let initialAdapter = try LocalPrivateWorkspace(root: root)
       let initialWorkspace = try initialAdapter.allocate(id: .random())
@@ -114,7 +114,7 @@ struct LocalPrivateWorkspaceTests {
   }
 
   @Test func failedFirstWriteRestoresMissingDestination() throws {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let adapter = try LocalPrivateWorkspace(
       root: root,
@@ -134,7 +134,7 @@ struct LocalPrivateWorkspaceTests {
   }
 
   @Test func existingRecoveryArtifactFailsClosed() throws {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let adapter = try LocalPrivateWorkspace(root: root)
     let workspace = try adapter.allocate(id: .random())
@@ -154,7 +154,7 @@ struct LocalPrivateWorkspaceTests {
   }
 
   @Test func artifactSizeLimitFailsBeforeWriting() throws {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let adapter = try LocalPrivateWorkspace(root: root)
     let workspace = try adapter.allocate(id: .random())
@@ -172,7 +172,7 @@ struct LocalPrivateWorkspaceTests {
     struct FailingPolicy: FileProtectionPolicy {
       func applyAndVerify(to _: URL) throws { throw CocoaError(.fileReadNoPermission) }
     }
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let adapter = try LocalPrivateWorkspace(root: root, protectionPolicy: FailingPolicy())
     let workspace = try adapter.allocate(id: .random())
@@ -185,7 +185,7 @@ struct LocalPrivateWorkspaceTests {
   }
 
   @Test func removalCannotAffectSiblingResources() throws {
-    let parent = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let parent = testTemporaryDirectory().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: parent) }
     let root = parent.appending(path: "owned")
     let sibling = parent.appending(path: "owned-sibling")
@@ -221,6 +221,10 @@ struct LocalPrivateWorkspaceTests {
       #expect(code.description == code.rawValue)
       #expect(forbiddenFragments.allSatisfy { !code.description.contains($0) })
     }
+  }
+
+  private func testTemporaryDirectory() -> URL {
+    FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
   }
 }
 

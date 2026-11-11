@@ -835,7 +835,8 @@ struct AppleDiaryPairStoreTests {
 
   // swiftlint:disable:next function_body_length
   private func makeFixture() throws -> PairStoreFixture {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory
+      .resolvingSymlinksInPath().appending(path: UUID().uuidString)
     let external = root.appending(path: "PickedFolder")
     let privateRoot = root.appending(path: "Captures")
     try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)

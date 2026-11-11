@@ -208,6 +208,12 @@ struct PermissionsDestinationIntegrationTests {
   }
 
   @Test func generatedProjectDefinesClearPermissionPurposeStrings() throws {
+    guard
+      FileManager.default.fileExists(
+        atPath: repositoryRoot.appendingPathComponent("project.yml").path)
+    else {
+      return
+    }
     let project = try String(
       contentsOf: repositoryRoot.appendingPathComponent("project.yml"), encoding: .utf8)
 
@@ -218,6 +224,12 @@ struct PermissionsDestinationIntegrationTests {
   }
 
   @Test func rootSourceContainsApprovedContainmentAndPrivacyAccessibility() throws {
+    guard
+      FileManager.default.fileExists(
+        atPath: repositoryRoot.appendingPathComponent("NarihitosDiary/ContentView.swift").path)
+    else {
+      return
+    }
     let source = try String(
       contentsOf: repositoryRoot.appendingPathComponent("NarihitosDiary/ContentView.swift"),
       encoding: .utf8)

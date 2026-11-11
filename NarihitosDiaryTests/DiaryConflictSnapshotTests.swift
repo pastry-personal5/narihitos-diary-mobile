@@ -22,7 +22,8 @@ private struct SnapshotFixture {
 @MainActor
 struct DiaryConflictSnapshotTests {
   @Test func exactPrivatePairReopensAndTamperingBlocksRemoval() throws {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory
+      .resolvingSymlinksInPath().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = try FileDiaryConflictSnapshotStore(
       root: root, protection: SnapshotTestProtection(),
@@ -48,7 +49,8 @@ struct DiaryConflictSnapshotTests {
   }
 
   @Test func cleanupRemovesOnlyExpectedSnapshotAndRetryIsIdempotent() throws {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory
+      .resolvingSymlinksInPath().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = try FileDiaryConflictSnapshotStore(
       root: root, protection: SnapshotTestProtection(),
@@ -73,7 +75,8 @@ struct DiaryConflictSnapshotTests {
   }
 
   @Test func pendingRemovalCleansOwnedConflictCopiesAndPreservesOtherSnapshots() throws {
-    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    let root = FileManager.default.temporaryDirectory
+      .resolvingSymlinksInPath().appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let store = try FileDiaryConflictSnapshotStore(
       root: root.appending(path: "Snapshots"), protection: SnapshotTestProtection(),

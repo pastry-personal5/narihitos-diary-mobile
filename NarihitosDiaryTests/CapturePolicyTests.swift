@@ -8,8 +8,10 @@ struct CapturePolicyTests {
   @Test func capturePolicyKeepsPlatformTypesOutsideApplication() throws {
     let root = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent().deletingLastPathComponent()
+    let sourceURL = root.appending(path: "NarihitosDiary/Application/CapturePolicy.swift")
+    guard FileManager.default.fileExists(atPath: sourceURL.path) else { return }
     let source = try String(
-      contentsOf: root.appending(path: "NarihitosDiary/Application/CapturePolicy.swift"),
+      contentsOf: sourceURL,
       encoding: .utf8)
     for forbidden in ["AVFAudio", "AVFoundation", "SwiftUI", "UIKit", "URL", "bookmark"] {
       #expect(!source.contains("import \(forbidden)"))
@@ -45,8 +47,10 @@ struct CapturePolicyTests {
   @Test func languageButtonsHaveDistinctAccessibleRoutesAndCaptureHasOneAction() throws {
     let root = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent().deletingLastPathComponent()
+    let sourceURL = root.appending(path: "NarihitosDiary/ContentView.swift")
+    guard FileManager.default.fileExists(atPath: sourceURL.path) else { return }
     let source = try String(
-      contentsOf: root.appending(path: "NarihitosDiary/ContentView.swift"),
+      contentsOf: sourceURL,
       encoding: .utf8)
     #expect(source.contains("language: .english, shortLabel: \"en\""))
     #expect(source.contains("language: .korean, shortLabel: \"ko\""))

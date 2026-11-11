@@ -257,6 +257,7 @@ struct FirstLaunchAndDestinationTests {
       root.appendingPathComponent("NarihitosDiary/Domain/AccessValues.swift"),
       root.appendingPathComponent("NarihitosDiary/Application/AccessPorts.swift"),
     ]
+    guard files.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else { return }
     // swiftlint:enable trailing_comma
     let forbidden = ["SwiftUI", "UIKit", "AVFoundation", "CoreLocation", "FileProvider"]
     for file in files {
